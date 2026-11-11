@@ -51,9 +51,27 @@ const entryTypes = [
 
 const toolbarTemplates = {
   capsule: { name: '白色胶囊', desc: '白底长胶囊，悬停时图标变色并在左侧弹出信息卡片，适合浅色官网。', items: [['phone', '电话咨询'], ['headset', '技术咨询'], ['qr', '微信咨询'], ['alert', '投诉入口']] },
-  block: { name: '品牌色块', desc: '整条使用品牌色，白色图标与分隔线，可分成多组，适合视觉更强烈的官网。', items: [['qr', '关注我们'], ['file-down', '资料下载'], ['phone', '售前电话'], ['phone', '售后电话']] },
-  card: { name: '分组卡片', desc: '首项用渐变色块突出，其余按钮收在白色圆角卡片里，适合只有 2–4 个入口的官网。', items: [['qr', '微信咨询'], ['phone', '电话咨询'], ['monitor', '演示预约'], ['arrow-up', '返回顶部']] }
+  block: { name: '品牌色块', desc: '整条使用品牌色，白色图标与分隔线，可分成多组，适合视觉更强烈的官网。', items: [['qr', '关注我们'], ['file-down', '资料下载'], ['phone', '售前电话', 'group'], ['phone', '售后电话']] },
+  card: { name: '分组卡片', desc: '首项用渐变色块突出，其余按钮收在白色圆角卡片里，适合只有 2–4 个入口的官网。', items: [['qr', '微信咨询'], ['phone', '电话咨询', 'group'], ['monitor', '演示预约'], ['arrow-up', '返回顶部']] }
 }
+
+const mascotOptions = [
+  { key: 'headset', name: '耳麦顾问', svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200"><ellipse cx="80" cy="193" rx="46" ry="6" fill="#000" opacity=".12"/><path d="M28 196c0-38 23-60 52-60s52 22 52 60z" fill="@C"/><path d="M64 138l16 22 16-22z" fill="#fff"/><rect x="70" y="114" width="20" height="26" rx="9" fill="#EDBE9C"/><circle cx="80" cy="84" r="40" fill="#F7D3B5"/><path d="M40 88C40 57 58 42 80 42s40 15 40 46c-8-16-22-25-40-25-16 0-30 8-40 25z" fill="#2B2A33"/><ellipse cx="66" cy="90" rx="4.5" ry="5.5" fill="#2B2A33"/><ellipse cx="94" cy="90" rx="4.5" ry="5.5" fill="#2B2A33"/><circle cx="58" cy="102" r="6" fill="#FF9C8A" opacity=".5"/><circle cx="102" cy="102" r="6" fill="#FF9C8A" opacity=".5"/><path d="M70 105q10 9 20 0" stroke="#2B2A33" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M37 90a43 43 0 0 1 86 0" stroke="#2B2A33" stroke-width="5" fill="none"/><rect x="31" y="80" width="13" height="24" rx="6.5" fill="@C"/><rect x="116" y="80" width="13" height="24" rx="6.5" fill="@C"/><path d="M37 102q2 18 25 18" stroke="#2B2A33" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="64" cy="120" r="4.5" fill="@C"/></svg>` },
+  { key: 'robot', name: '智能机器人', svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200"><ellipse cx="80" cy="193" rx="44" ry="6" fill="#000" opacity=".12"/><line x1="80" y1="24" x2="80" y2="42" stroke="#2B2A33" stroke-width="4" stroke-linecap="round"/><circle cx="80" cy="19" r="7" fill="@C"/><rect x="24" y="136" width="16" height="38" rx="8" fill="@C" opacity=".8"/><rect x="120" y="136" width="16" height="38" rx="8" fill="@C" opacity=".8"/><rect x="42" y="126" width="76" height="64" rx="24" fill="@C"/><circle cx="80" cy="157" r="10" fill="#fff" opacity=".85"/><rect x="20" y="70" width="10" height="26" rx="5" fill="@C"/><rect x="130" y="70" width="10" height="26" rx="5" fill="@C"/><rect x="28" y="40" width="104" height="86" rx="34" fill="#EEF1F5"/><rect x="40" y="54" width="80" height="56" rx="24" fill="#22262F"/><rect x="58" y="70" width="12" height="16" rx="6" fill="#7CF0D4"/><rect x="90" y="70" width="12" height="16" rx="6" fill="#7CF0D4"/><path d="M70 95q10 6 20 0" stroke="#7CF0D4" stroke-width="3" fill="none" stroke-linecap="round"/></svg>` },
+  { key: 'buddy', name: '萌趣伙伴', svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200"><ellipse cx="80" cy="193" rx="50" ry="6" fill="#000" opacity=".12"/><path d="M42 78 38 30l38 28z" fill="@C"/><path d="M118 78l4-48-38 28z" fill="@C"/><path d="M80 50c40 0 62 30 62 74s-26 64-62 64-62-20-62-64 22-74 62-74z" fill="@C"/><ellipse cx="80" cy="152" rx="36" ry="30" fill="#fff" opacity=".9"/><circle cx="62" cy="104" r="7" fill="#22262F"/><circle cx="98" cy="104" r="7" fill="#22262F"/><circle cx="64.5" cy="101.5" r="2.4" fill="#fff"/><circle cx="100.5" cy="101.5" r="2.4" fill="#fff"/><circle cx="49" cy="120" r="7" fill="#FF9C8A" opacity=".6"/><circle cx="111" cy="120" r="7" fill="#FF9C8A" opacity=".6"/><path d="M72 118q8 7 16 0" stroke="#22262F" stroke-width="3" fill="none" stroke-linecap="round"/></svg>` }
+]
+const mascotSrc = (key, color) => {
+  const item = mascotOptions.find(option => option.key === key) || mascotOptions[0]
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(item.svg.replaceAll('@C', color))}`
+}
+
+const sizeTable = {
+  sm: { launcher: 52, font: 16, offset: 4, bar: 58, control: 44, avatar: 34, mark: 32, promptFont: 13, sug: 34, sugFont: 13, gap: 8, pad: 6, mascot: 116 },
+  md: { launcher: 60, font: 18, offset: 8, bar: 68, control: 52, avatar: 40, mark: 38, promptFont: 15, sug: 38, sugFont: 14, gap: 10, pad: 7, mascot: 144 },
+  lg: { launcher: 68, font: 20, offset: 12, bar: 80, control: 64, avatar: 50, mark: 44, promptFont: 17, sug: 44, sugFont: 15, gap: 12, pad: 7, mascot: 172 }
+}
+const barLengths = { compact: 600, standard: 768, wide: 960 }
+const shapeRadius = { circle: '50%', rounded: '18px', teardrop: '50% 50% 50% 12px' }
 
 const sourceTypes = {
   file: { label: '文件', icon: 'file' },
@@ -80,10 +98,11 @@ function defaultConfigDraft() {
     retrieval: { turns: 3, chunkChars: 600, contextChars: 2400, keywordLimit: 30, taxonomy: '', aliases: '', allSources: true, sensitive: true },
     appearance: {
       entry: 'bubble',
-      accent: '#123C35', size: 'md', bubbleIcon: 'question', bubbleShape: 'drop',
-      barPlaceholder: '有问题？直接问我', barButton: '立即咨询',
-      humanGreeting: 'Hi，有什么可以帮你？', humanSize: 'md', humanFloat: true,
-      sideCapsule: false,
+      accent: '#123C35', size: 'md', pulse: true,
+      bubbleIcon: 'question', bubbleShape: 'teardrop',
+      barLabel: '', barLength: 'wide',
+      mascot: 'headset', mascotGreeting: '', mascotFloat: true,
+      sideCapsule: false, capsuleLabel: '', capsuleTop: 50, capsuleRight: 24, capsuleGuides: '',
       toolbar: { enabled: false, template: 'capsule', accent: '#1D6FE8', bg: '#FFFFFF', text: '#3A4352', top: 50, right: 16, items: [] },
       name: '吸管 Chat',
       welcome: '你好，我是吸管 Chat 智能助手 👋 可以帮你了解产品功能、价格和部署方式。',
@@ -101,6 +120,9 @@ function defaultConfigDraft() {
 function mergeConfigDraft(stored) {
   const base = defaultConfigDraft()
   if (!stored || typeof stored !== 'object') return base
+  const legacy = stored.appearance || {}
+  if (legacy.bubbleIcon === 'chat') legacy.bubbleIcon = 'message'
+  if (legacy.bubbleShape === 'drop') legacy.bubbleShape = 'teardrop'
   return {
     ...base,
     ...stored,
@@ -223,13 +245,13 @@ function cfgTextarea(path, { placeholder = '', live = '', rows = 3 } = {}) {
   return `<textarea rows="${rows}" data-bind="${path}" ${placeholder ? `placeholder="${esc(placeholder)}"` : ''} ${live ? `data-live="${live}"` : ''}>${esc(getCfgValue(path))}</textarea>`
 }
 
-function cfgSelect(path, options, { live = '' } = {}) {
+function cfgSelect(path, options, { live = '', rerender = false } = {}) {
   const value = getCfgValue(path)
-  return `<select data-bind="${path}" ${live ? `data-live="${live}"` : ''}>${options.map(([key, label]) => `<option value="${esc(key)}" ${String(value) === String(key) ? 'selected' : ''}>${label}</option>`).join('')}</select>`
+  return `<select data-bind="${path}" ${live ? `data-live="${live}"` : ''} ${rerender ? 'data-rerender="1"' : ''}>${options.map(([key, label]) => `<option value="${esc(key)}" ${String(value) === String(key) ? 'selected' : ''}>${label}</option>`).join('')}</select>`
 }
 
-function cfgToggle(path, title, help, { live = '', full = true } = {}) {
-  return `<label class="cfg-toggle ${full ? 'full' : ''}"><span class="cfg-toggle-control"><input type="checkbox" role="switch" data-bind="${path}" ${getCfgValue(path) ? 'checked' : ''} ${live ? `data-live="${live}"` : ''} /><i></i></span><span><strong>${title}</strong>${help ? `<small>${help}</small>` : ''}</span></label>`
+function cfgToggle(path, title, help, { live = '', full = true, rerender = false } = {}) {
+  return `<label class="cfg-toggle ${full ? 'full' : ''}"><span class="cfg-toggle-control"><input type="checkbox" role="switch" data-bind="${path}" ${getCfgValue(path) ? 'checked' : ''} ${live ? `data-live="${live}"` : ''} ${rerender ? 'data-rerender="1"' : ''} /><i></i></span><span><strong>${title}</strong>${help ? `<small>${help}</small>` : ''}</span></label>`
 }
 
 function cfgColorField(label, path, palette, help, { full = true } = {}) {
@@ -492,32 +514,62 @@ function renderKnowledgeConfig() {
 const entryLabel = key => entryTypes.find(item => item.key === key)?.name || '悬浮气泡'
 const accentPalette = ['#2F7CF6', '#1A6384', '#123C35', '#1E5B4B', '#624A8E', '#FF6A00']
 
+const sizeSelect = help => cfgField('入口尺寸', cfgSelect('appearance.size', [['sm', '小'], ['md', '标准'], ['lg', '大']], { live: 'preview', rerender: true }), { help })
+const narrowScreenFields = () => `<div class="cfg-subgroup full"><strong>窄屏设备（≤760px）</strong><small>手机等窄屏设备上空间有限，自动改用悬浮气泡。</small></div>
+  ${cfgField('气泡图标', cfgSelect('appearance.bubbleIcon', [['question', '“问”字'], ['message', '对话图标'], ['avatar', '助手头像 / 品牌首字']], { live: 'preview' }))}
+  ${cfgField('气泡形状', cfgSelect('appearance.bubbleShape', [['circle', '圆形'], ['rounded', '圆角方形'], ['teardrop', '水滴形']], { live: 'preview' }))}`
+const pulseToggle = help => cfgToggle('appearance.pulse', '头像呼吸提醒', help, { live: 'preview' })
+
 function renderEntryFields() {
   const a = cfg.draft.appearance
   const active = cfg.entryTab === a.entry
   const status = active
     ? `<div class="cfg-entry-status is-active"><span class="cfg-badge success"><i class="cfg-dot"></i>官网正在使用</span><small>修改发布后，访客在官网看到的入口会同步更新。</small></div>`
-    : `<div class="cfg-entry-status"><span><strong>未在官网启用</strong><small>官网当前使用「${entryLabel(a.entry)}」。可以先配置，确认后再设为官网入口。</small></span><button type="button" class="cfg-btn sm outline" data-action="cfg-set-entry">设为官网入口</button></div>`
+    : `<div class="cfg-entry-status"><span><strong>官网当前使用「${entryLabel(a.entry)}」</strong><small>这里的修改会随草稿保存，设为官网入口并发布后才对访客生效。</small></span><button type="button" class="cfg-btn sm primary" data-action="cfg-set-entry">设为官网入口</button></div>`
   if (cfg.entryTab === 'bubble') {
     return `${status}
       ${cfgColorField('入口强调色', 'appearance.accent', accentPalette, '应用于悬浮气泡与主动消息强调边框，文字或图标颜色会根据背景自动切换。只作用于「悬浮气泡」，侧边胶囊与窄屏气泡跟随官网正在使用的入口。')}
-      ${cfgField('入口尺寸', cfgSelect('appearance.size', [['sm', '小'], ['md', '标准'], ['lg', '大']], { live: 'preview' }), { help: '气泡直径分别为 52px、60px 和 68px。' })}
+      ${sizeSelect('气泡直径分别为 52px、60px 和 68px。')}
       <div class="cfg-subgroup full"><strong>气泡样式</strong><small>访客点击气泡后打开对话窗。</small></div>
-      ${cfgField('气泡图标', cfgSelect('appearance.bubbleIcon', [['question', '“问”字'], ['chat', '对话图标'], ['avatar', '助手头像 / 品牌首字']], { live: 'preview' }))}
-      ${cfgField('气泡形状', cfgSelect('appearance.bubbleShape', [['circle', '圆形'], ['rounded', '圆角方形'], ['drop', '水滴形']], { live: 'preview' }))}`
+      ${cfgField('气泡图标', cfgSelect('appearance.bubbleIcon', [['question', '“问”字'], ['message', '对话图标'], ['avatar', '助手头像 / 品牌首字']], { live: 'preview' }))}
+      ${cfgField('气泡形状', cfgSelect('appearance.bubbleShape', [['circle', '圆形'], ['rounded', '圆角方形'], ['teardrop', '水滴形']], { live: 'preview' }))}`
   }
   if (cfg.entryTab === 'bar') {
     return `${status}
-      ${cfgColorField('入口强调色', 'appearance.accent', accentPalette, '应用于提问栏的提交按钮与图标。')}
-      ${cfgField('输入框占位文案', cfgInput('appearance.barPlaceholder', { live: 'preview' }), { full: true })}
-      ${cfgField('按钮文案', cfgInput('appearance.barButton', { live: 'preview' }), { full: true, help: '提问栏上方的推荐问题沿用「快捷按钮」中的配置。' })}`
+      ${cfgField('入口按钮文案', cfgInput('appearance.barLabel', { placeholder: a.name.trim() || 'AI 助手', live: 'preview' }), { full: true, help: '显示在提问栏右侧按钮上，例如“点击在线咨询”；留空时使用助手名称。头像复用「品牌与欢迎语」，快捷问题复用「快捷按钮」。' })}
+      ${cfgColorField('入口强调色', 'appearance.accent', accentPalette, '应用于提问栏内的入口按钮、图标与主动消息强调边框，并自动生成同色渐变和高对比文字。只作用于「底部提问栏」，侧边胶囊与窄屏气泡跟随官网正在使用的入口。')}
+      ${pulseToggle('在提问栏与侧边胶囊的头像右上角显示红色感叹号与呼吸圈。')}
+      ${sizeSelect('同步调整提问栏的高度、头像、文字和快捷按钮，以及窄屏气泡。')}
+      ${cfgField('提问栏长度', cfgSelect('appearance.barLength', [['compact', '短'], ['standard', '中'], ['wide', '长']], { live: 'preview' }), { help: '桌面端最宽 960px，屏幕不够宽时自动收窄。' })}
+      ${narrowScreenFields()}`
   }
+  const cards = mascotOptions.map(item => `<button type="button" class="cfg-mascot-option" role="radio" aria-checked="${a.mascot === item.key}" data-mascot="${item.key}"><img alt="" src="${mascotSrc(item.key, a.accent)}" /><span>${item.name}</span></button>`).join('')
+  const greeting = a.mascotGreeting
   return `${status}
-    ${cfgColorField('入口强调色', 'appearance.accent', accentPalette, '应用于数字人招呼气泡的描边。')}
-    ${cfgField('招呼语', cfgInput('appearance.humanGreeting', { live: 'preview' }), { full: true, help: '显示在数字人形象上方，建议 12 个字以内。' })}
-    ${cfgField('形象尺寸', cfgSelect('appearance.humanSize', [['sm', '小'], ['md', '标准'], ['lg', '大']], { live: 'preview' }))}
-    ${cfgToggle('appearance.humanFloat', '待机浮动动画', '形象在页面上轻微上下浮动，吸引访客注意。', { live: 'preview' })}`
+    ${cfgField('数字人形象', `<div class="cfg-mascot-picker" role="radiogroup">${cards}<button type="button" class="cfg-mascot-option is-upload" role="radio" aria-checked="false" data-action="cfg-mascot-upload"><span class="cfg-mascot-upload-icon">${icon('upload')}</span><span>上传形象</span></button></div>`, { full: true, help: '内置形象的主体颜色跟随「入口强调色」。自定义形象建议使用透明背景 PNG，会居中裁切为方形，原图不超过 4 MB。' })}
+    ${cfgField('招呼语', `<input value="${esc(greeting)}" maxlength="24" placeholder="有问题随时问我" data-bind="appearance.mascotGreeting" data-live="preview" />`, { full: true, help: '显示在形象上方的气泡里，24 字以内；留空时显示“有问题随时问我”。有主动消息时暂时由主动消息替代。' })}
+    ${cfgToggle('appearance.mascotFloat', '待机浮动动效', '形象轻微上下浮动，吸引访客注意；系统开启“减少动态效果”时自动停用。', { live: 'preview' })}
+    ${cfgColorField('入口强调色', 'appearance.accent', accentPalette, '应用于内置形象的主体颜色、招呼语描边与主动消息强调边框。只作用于「数字人形象」，侧边胶囊与窄屏气泡跟随官网正在使用的入口。')}
+    ${sizeSelect(`形象高度 ${sizeTable[a.size].mascot}px，同时决定窄屏气泡大小。`)}
+    ${narrowScreenFields()}`
 }
+
+function renderCapsuleFields() {
+  const a = cfg.draft.appearance
+  const name = a.name.trim() || 'AI 助手'
+  const toggle = cfgToggle('appearance.sideCapsule', '显示侧边咨询胶囊', '在网页右侧中部显示竖排头像胶囊，并在左侧循环滚动咨询引导；可与任一入口同时使用。悬浮气泡模式下桌面端由胶囊替代气泡，窄屏设备自动隐藏。', { live: 'preview', rerender: true })
+  if (!a.sideCapsule) return toggle
+  const guideCount = capsuleGuideList().length
+  return `${toggle}
+    ${cfgField('胶囊竖排文案', cfgInput('appearance.capsuleLabel', { placeholder: name, live: 'preview' }), { full: true, help: '建议 2–6 个字并直接点明用途；留空时使用入口按钮文案。' })}
+    ${pulseToggle('在胶囊与提问栏的头像右上角显示红色感叹号与呼吸圈。')}
+    ${cfgField(`垂直位置 · <b data-range-label="appearance.capsuleTop">${a.capsuleTop}</b>%`, `<input type="range" min="10" max="90" step="5" value="${a.capsuleTop}" data-bind="appearance.capsuleTop" data-type="number" data-live="preview" />`)}
+    ${cfgField(`距右侧 · <b data-range-label="appearance.capsuleRight">${a.capsuleRight}</b>px`, `<input type="range" min="0" max="240" step="4" value="${a.capsuleRight}" data-bind="appearance.capsuleRight" data-type="number" data-live="preview" />`)}
+    <small class="cfg-inline-hint full">官网右侧已有电话、客服等工具栏时，上下错开或向左让出工具栏宽度。</small>
+    ${cfgField('滚动引导', `<textarea rows="4" data-bind="appearance.capsuleGuides" data-live="preview">${esc(a.capsuleGuides)}</textarea>`, { full: true, help: `每行一条，最多 8 条、每条 30 字以内；访客点击后打开对话窗并直接发送这句话。<span data-guide-count>${guideCount ? `当前 ${guideCount} 条。` : ''}</span>` })}`
+}
+
+const capsuleGuideList = () => cfg.draft.appearance.capsuleGuides.split('\n').map(line => line.trim()).filter(Boolean).slice(0, 8).map(line => Array.from(line).slice(0, 30).join(''))
 
 function renderToolbarFields() {
   const t = cfg.draft.appearance.toolbar
@@ -555,7 +607,7 @@ function renderQuickButtonFields() {
 function renderAccordionBody(key) {
   const a = cfg.draft.appearance
   if (key === 'entry') return renderEntryFields()
-  if (key === 'capsule') return cfgToggle('appearance.sideCapsule', '显示侧边咨询胶囊', '在网页右侧中部显示竖排头像胶囊，并在左侧循环滚动咨询引导；可与任一入口同时使用。悬浮气泡模式下桌面端由胶囊替代气泡，窄屏设备自动隐藏。', { live: 'preview' })
+  if (key === 'capsule') return renderCapsuleFields()
   if (key === 'toolbar') return renderToolbarFields()
   if (key === 'brand') {
     return `${cfgField('助手头像', `<div class="cfg-avatar-control"><span class="cfg-avatar-preview" style="--avatar-primary:${a.primary};--avatar-bg:${a.paper}">${esc(Array.from(a.name.trim() || 'AI')[0])}</span><div class="cfg-avatar-copy"><strong>当前使用品牌首字</strong><span>自动居中裁切为方形；支持 PNG、JPG、WebP，不超过 4 MB。</span><div><button type="button" class="cfg-btn sm outline" data-action="cfg-avatar-upload">${icon('image', 'xs')}<span>上传头像</span></button></div></div></div>`, { full: true })}
@@ -573,28 +625,73 @@ function renderAccordionBody(key) {
     ${cfgField('历史消息可回看天数', cfgInput('appearance.historyDays', { type: 'number', min: 1, max: 730 }), { full: true, help: '默认 180 天，最多 730 天；只影响访客端可见范围。' })}`
 }
 
+function renderToolbar(t) {
+  const hex = t.accent
+  const groups = []
+  t.items.forEach((item, index) => {
+    if (!groups.length || item.group) groups.push([])
+    groups[groups.length - 1].push({ ...item, index })
+  })
+  const vars = `--cfg-st-ink:${t.text};--cfg-st-ink-muted:${t.text};--cfg-st-bg:${t.bg};--cfg-st-accent:${hex};--cfg-st-accent-2:color-mix(in srgb,${hex} 62%,#fff);--cfg-st-hover:color-mix(in srgb,${hex} 9%,${t.bg});--cfg-st-on-accent:${readableOn(hex)};--cfg-st-on-accent-line:rgba(255,255,255,.28);--cfg-st-right:${t.right}px;--cfg-st-top:${t.top}%`
+  const html = groups.map(group => {
+    const solo = t.template === 'card' && group.length === 1 && group[0].index === 0
+    return `<div class="cfg-st-group" ${solo ? 'data-solo-highlight="true"' : ''}>${group.map(item => `<button type="button" class="cfg-st-item" ${t.template === 'card' && item.index === 0 ? 'data-highlight="true"' : ''}>${icon(item.icon)}<span class="cfg-st-label">${esc(item.label)}</span></button>`).join('')}</div>`
+  }).join('')
+  return `<div class="cfg-st" data-variant="${t.template}" style="${vars}">${html}</div>`
+}
+
 function renderSitePreview() {
   const a = cfg.draft.appearance
   const t = a.toolbar
   const name = a.name.trim() || 'AI 助手'
-  const accentVars = `--accent:${a.accent};--on-accent:${readableOn(a.accent)}`
-  const entryKey = cfg.entryTab
+  const initial = esc(Array.from(name)[0])
+  const sz = sizeTable[a.size]
+  const accent = a.accent
+  const vars = [
+    `--xg-color:${accent}`, `--xg-color-highlight:color-mix(in srgb,${accent} 72%,#fff)`, `--xg-on-brand:${readableOn(accent)}`,
+    `--xg-shadow:color-mix(in srgb,${accent} 28%,transparent)`, `--xg-shadow-soft:color-mix(in srgb,${accent} 14%,transparent)`,
+    `--xg-paper:${a.paper}`, '--xg-paper-raised:color-mix(in srgb,var(--xg-paper) 45%,#fff)', '--xg-ink:#102F2A',
+    '--xg-ink-muted:color-mix(in srgb,var(--xg-paper) 42%,#102F2A)', '--xg-border:color-mix(in srgb,var(--xg-paper) 81%,#102F2A)',
+    `--xg-radius-launcher:${shapeRadius[a.bubbleShape]}`, `--xg-launcher-size:${sz.launcher}px`, `--xg-launcher-font-size:${sz.font}px`,
+    `--xg-prompt-width:${barLengths[a.barLength]}px`, `--xg-prompt-bar-height:${sz.bar}px`, `--xg-prompt-control-height:${sz.control}px`,
+    `--xg-prompt-avatar-size:${sz.avatar}px`, `--xg-prompt-mark-size:${sz.mark}px`, `--xg-prompt-font-size:${sz.promptFont}px`,
+    `--xg-prompt-suggestion-height:${sz.sug}px`, `--xg-prompt-suggestion-font-size:${sz.sugFont}px`, `--xg-prompt-gap:${sz.gap}px`, `--xg-prompt-padding:${sz.pad}px`,
+    `--xg-side-tab-top:${a.capsuleTop}%`, `--xg-side-tab-right:${a.capsuleRight}px`, `--xg-mascot-height:${sz.mascot}px`
+  ].join(';')
+  const attention = a.pulse ? '<span class="cfg-lp-attention">!</span>' : ''
+  const quick = a.quickButtons.filter(item => item.text.trim()).slice(0, 4)
   let entry = ''
-  if (entryKey === 'bubble' && !(a.sideCapsule && a.entry === 'bubble')) {
-    const glyph = a.bubbleIcon === 'chat' ? icon('message') : a.bubbleIcon === 'avatar' ? esc(Array.from(name)[0]) : '问'
-    entry = `<div class="cfg-launch-bubble shape-${a.bubbleShape} size-${a.size}" style="${accentVars}" role="img" aria-label="${esc(name)} 悬浮气泡预览"><span class="${a.bubbleIcon === 'chat' ? 'is-icon' : ''}">${glyph}</span></div>`
-  } else if (entryKey === 'bar') {
-    entry = `<div class="cfg-launch-bar" style="${accentVars};--paper:${a.paper}"><div class="cfg-launch-bar-suggest">${a.quickButtons.filter(item => item.text.trim()).slice(0, 3).map(item => `<span>${esc(item.text)}</span>`).join('')}</div><div class="cfg-launch-bar-input"><i>✦</i><span>${esc(a.barPlaceholder)}</span><b>${esc(a.barButton)}</b></div></div>`
-  } else if (entryKey === 'human') {
-    entry = `<div class="cfg-launch-human size-${a.humanSize} ${a.humanFloat ? 'is-float' : ''}" style="${accentVars};--paper:${a.paper}"><div class="cfg-launch-human-greet">${esc(a.humanGreeting)}</div><div class="cfg-launch-human-figure">${icon('user')}</div></div>`
+  if (cfg.entryTab === 'bubble' && !a.sideCapsule) {
+    const glyph = a.bubbleIcon === 'message' ? `<span class="cfg-lp-icon">${icon('message')}</span>` : a.bubbleIcon === 'avatar' ? `<span class="cfg-lp-icon is-avatar">${initial}</span>` : '<span class="cfg-lp-icon is-question">问</span>'
+    entry = `<div class="cfg-lp-bubble" role="img" aria-label="${esc(name)} 悬浮气泡预览">${glyph}</div>`
+  } else if (cfg.entryTab === 'bar') {
+    entry = `<div class="cfg-lp-entry"><span class="cfg-lp-suggestions">${quick.map(item => `<span>${esc(item.text)}</span>`).join('')}</span>
+      <span class="cfg-lp-prompt"><span class="cfg-lp-mark">✦</span><span class="cfg-lp-placeholder">输入你的问题…</span><span class="cfg-lp-submit"><span class="cfg-lp-avatar is-prompt"><span class="cfg-lp-avatar-media">${initial}</span>${attention}</span><span>${esc(a.barLabel.trim() || name)}</span></span></span></div>`
+  } else if (cfg.entryTab === 'human') {
+    entry = `<div class="cfg-lp-mascot ${a.mascotFloat ? 'is-animated' : ''}"><span class="cfg-lp-mascot-greeting">${esc(a.mascotGreeting.trim() || '有问题随时问我')}</span><img class="cfg-lp-mascot-figure" alt="" src="${mascotSrc(a.mascot, accent)}" /></div>`
   }
-  const toolbarShown = t.enabled && t.items.length
-  const capsuleRight = toolbarShown ? Math.round(t.right / 2) + 6 + 60 : 10
-  const capsule = a.sideCapsule ? `<div class="cfg-launch-capsule" style="${accentVars};right:${capsuleRight}px"><div class="cfg-launch-capsule-guide"><span><i>?</i>有问题？点我咨询</span></div><div class="cfg-launch-capsule-tab"><span class="cfg-launch-capsule-avatar">${esc(Array.from(name)[0])}</span><span class="cfg-launch-capsule-label">在线咨询</span></div></div>` : ''
-  const toolbar = toolbarShown ? `<div class="cfg-site-toolbar is-${t.template}" style="--tb-accent:${t.accent};--tb-bg:${t.bg};--tb-text:${t.text};--tb-on-accent:${readableOn(t.accent)};top:${t.top}%;right:${Math.round(t.right / 2) + 6}px">${t.items.map((item, index) => `<span class="${t.template === 'card' && index === 0 ? 'is-highlight' : ''}">${icon(item.icon, 'sm')}<em>${esc(item.label)}</em></span>`).join('')}</div>` : ''
-  return `<div class="cfg-browser"><div class="cfg-browser-chrome"><i></i><i></i><i></i><span>www.example.com</span></div>
-    <div class="cfg-browser-viewport"><div class="cfg-site"><div class="cfg-site-nav"><b></b><span></span><span></span><span></span><span></span></div><div class="cfg-site-hero"><b></b><span></span><span></span><i></i></div><div class="cfg-site-cards"><span></span><span></span><span></span></div></div>${toolbar}${capsule}${entry}</div></div>`
+  const guides = capsuleGuideList()
+  const side = a.sideCapsule ? `<div class="cfg-lp-side-entry">${guides.length ? `<span class="cfg-lp-guides">${guides.map((text, index) => `<span class="${index === 0 ? 'is-active' : ''}"><i>?</i><em>${esc(text)}</em></span>`).join('')}</span>` : ''}
+      <span class="cfg-lp-side-tab"><span class="cfg-lp-avatar is-side"><span class="cfg-lp-avatar-media">${initial}</span>${attention}</span><span class="cfg-lp-side-label">${esc(a.capsuleLabel.trim() || (cfg.entryTab === 'bar' && a.barLabel.trim()) || name)}</span></span></div>` : ''
+  const toolbar = t.enabled && t.items.length ? renderToolbar(t) : ''
+  return `<div class="cfg-lp is-bare"><div class="cfg-lp-browser"><div class="cfg-lp-chrome"><i></i><i></i><i></i><span>www.example.com</span></div>
+    <div class="cfg-lp-viewport"><div class="cfg-lp-page" style="${vars}"><div class="cfg-lp-site"><div class="cfg-lp-site-nav"><b></b><span></span><span></span><span></span><span></span></div><div class="cfg-lp-site-hero"><b></b><span></span><span></span><i></i></div><div class="cfg-lp-site-cards"><span></span><span></span><span></span></div></div>${entry}${side}${toolbar}</div></div></div></div>`
 }
+
+function fitSitePreview() {
+  document.querySelectorAll('.cfg-lp-viewport').forEach(viewport => {
+    const page = viewport.querySelector('.cfg-lp-page')
+    if (page && viewport.clientWidth) page.style.transform = `scale(${viewport.clientWidth / 1440})`
+  })
+}
+window.addEventListener('resize', fitSitePreview)
+// 侧边胶囊的滚动引导：循环高亮
+setInterval(() => {
+  const list = [...document.querySelectorAll('.cfg-lp-guides > span')]
+  if (list.length < 2) return
+  const current = list.findIndex(node => node.classList.contains('is-active'))
+  list.forEach((node, index) => node.classList.toggle('is-active', index === (current + 1) % list.length))
+}, 2200)
 
 function renderPreviewCanvas() {
   if (cfg.previewSurface === 'chat') return `<div class="cfg-chat-preview" data-widget-root>${renderCfgWidget()}</div>`
@@ -606,6 +703,7 @@ function refreshAppearancePreview() {
   if (canvas) {
     canvas.className = `cfg-preview-canvas is-${cfg.previewSurface}`
     canvas.innerHTML = renderPreviewCanvas()
+    fitSitePreview()
   }
 }
 
@@ -677,6 +775,7 @@ function handleConfigInput(event) {
     setCfgValue(path, readBoundValue(target))
     if (path === 'general' || path === 'guardrails') updatePromptCounters()
     document.querySelectorAll(`[data-range-label="${path}"]`).forEach(node => { node.textContent = target.value })
+    if (path === 'appearance.capsuleGuides') document.querySelectorAll('[data-guide-count]').forEach(node => { const n = capsuleGuideList().length; node.textContent = n ? `当前 ${n} 条。` : '' })
     if (target.dataset.live) refreshCfgLive(target.dataset.live)
     refreshCfgChrome()
     return true
@@ -708,6 +807,7 @@ function handleConfigChange(event) {
     }
     return
   }
+  if (target.matches('[data-rerender]')) return renderApp()
   if (target.matches('[data-cap-switch]')) {
     cfg.draft.capabilities[target.dataset.capSwitch] = target.checked
     return renderApp()
@@ -824,12 +924,13 @@ function handleConfigClick(event) {
     return true
   }
   if ((el = pick('[data-surface]'))) { cfg.previewSurface = el.dataset.surface; renderApp(); return true }
+  if ((el = pick('[data-mascot]'))) { cfg.draft.appearance.mascot = el.dataset.mascot; renderApp(); return true }
   if ((el = pick('[data-swatch]'))) { applyCfgColor(el.dataset.swatch, el.dataset.value, { rerender: true }); return true }
   if ((el = pick('[data-toolbar-template]'))) {
     const key = el.dataset.toolbarTemplate
     const toolbar = cfg.draft.appearance.toolbar
     toolbar.template = key
-    if (!toolbar.items.length) toolbar.items = toolbarTemplates[key].items.map(([iconName, label]) => ({ icon: iconName, label }))
+    if (!toolbar.items.length) toolbar.items = toolbarTemplates[key].items.map(([iconName, label, flag]) => ({ icon: iconName, label, group: flag === 'group' }))
     toolbar.enabled = true
     renderApp()
     return true
@@ -897,6 +998,9 @@ function handleConfigClick(event) {
     cfg.draft.appearance.toolbar.items.push({ icon: 'phone', label: `按钮 ${cfg.draft.appearance.toolbar.items.length + 1}` })
   } else if (name === 'cfg-qb-add') {
     cfg.draft.appearance.quickButtons.push({ text: '', tag: '', hint: '', qa: '' })
+  } else if (name === 'cfg-mascot-upload') {
+    toast('已打开形象上传（原型演示）', 'info')
+    return true
   } else if (name === 'cfg-avatar-upload') {
     toast('已打开头像上传（原型演示）', 'info')
     return true

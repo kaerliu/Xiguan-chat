@@ -137,6 +137,7 @@ function renderApp() {
   app.innerHTML = `${renderRoute()}${renderOverlays()}`
   scrolls.forEach(([key, top]) => { const el = document.querySelector(`[data-keep-scroll="${key}"]`); if (el) el.scrollTop = top })
   scrollChatBottom()
+  if (typeof fitSitePreview === 'function') fitSitePreview()
 }
 
 function renderRoute() {
