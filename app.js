@@ -360,7 +360,7 @@ function renderPreview(closeable = false) {
 function renderEnterprise() {
   const personal = ['personal', 'security'].includes(state.settingsSection)
   const sections = personal ? [['personal','个人信息','grid'],['security','账号与安全','shield']] : [['workspace','工作区设置','settings'],['members','成员管理','users']]
-  return `<div class="settings-page"><header class="settings-header"><button class="btn icon-btn ghost" data-route="conversations">‹</button><strong>${personal ? '个人设置' : '企业管理'}</strong></header><div class="settings-layout"><aside class="settings-nav">${sections.map(item => `<button class="nav-item ${state.settingsSection === item[0] ? 'active' : ''}" data-settings-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}</aside><section class="settings-main">${renderSettingsSection()}</section></div></div>`
+  return `<div class="settings-page"><header class="settings-header"><button class="btn icon-btn ghost" data-action="return-agent-overview">‹</button><strong>${personal ? '个人设置' : '企业管理'}</strong></header><div class="settings-layout"><aside class="settings-nav">${sections.map(item => `<button class="nav-item ${state.settingsSection === item[0] ? 'active' : ''}" data-settings-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}</aside><section class="settings-main">${renderSettingsSection()}</section></div></div>`
 }
 
 function renderSettingsSection() {
@@ -510,6 +510,7 @@ document.addEventListener('click', event => {
   if (!action) return
   const name = action.dataset.action
   if (name === 'toggle-profile') { state.profileOpen = !state.profileOpen; return renderApp() }
+  if (name === 'return-agent-overview') { enterAgentOverview(); return renderApp() }
   if (name === 'takeover') { state.takeover = true; conversations.find(item => item.id === state.activeConversation).status = 'human'; toast('已接管会话，AI 自动回复已暂停'); return renderApp() }
   if (name === 'return-ai') { state.takeover = false; conversations.find(item => item.id === state.activeConversation).status = 'ai'; toast('会话已交还 AI 接待'); return renderApp() }
   if (name === 'send-message') return sendMessage()
