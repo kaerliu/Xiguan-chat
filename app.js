@@ -72,14 +72,6 @@ const qaItems = [
   ['如何申请制造行业案例资料？', '留下公司、姓名与联系方式后，行业顾问会发送对应案例并提供进一步咨询。', '已命中知识库']
 ]
 
-const documents = [
-  ['制造行业解决方案 V4.1.docx', '本地文件', '可用'],
-  ['集团经营分析白皮书.pdf', '本地文件', '可用'],
-  ['FineReport 产品能力', '网站抓取', '可用'],
-  ['FineBI 功能介绍', '网站抓取', '可用'],
-  ['售前常见问题', 'Q&A', 'AI 改写']
-]
-
 const state = {
   route: 'conversations',
   profileOpen: false,
@@ -140,7 +132,10 @@ function renderProfileMenu() {
 
 function renderApp() {
   const app = $('#app')
+  // 重新渲染时保留标记了 data-keep-scroll 的滚动区域位置（智能体搭建页的长表单需要）
+  const scrolls = [...document.querySelectorAll('[data-keep-scroll]')].map(el => [el.dataset.keepScroll, el.scrollTop])
   app.innerHTML = `${renderRoute()}${renderOverlays()}`
+  scrolls.forEach(([key, top]) => { const el = document.querySelector(`[data-keep-scroll="${key}"]`); if (el) el.scrollTop = top })
   scrollChatBottom()
 }
 
@@ -249,11 +244,11 @@ function renderQna() {
 
 const agentNavItems = [
   ['overview','概览','grid'],
-  ['prompt','角色与提示词','spark'],
-  ['capabilities','能力库','settings'],
+  ['prompt','角色与提示词','bot'],
+  ['capabilities','能力','plug'],
   ['knowledge','知识库','book'],
-  ['channels','渠道','link'],
-  ['appearance','外观','palette']
+  ['appearance','外观','sliders'],
+  ['channels','渠道','link']
 ]
 
 const agentOperationItems = [
@@ -268,22 +263,23 @@ function isAgentOperationSection() {
 
 function renderAgent() {
   const operationSection = isAgentOperationSection()
+  const configSection = isConfigSection()
   const overviewSection = state.agentSection === 'overview'
-  const showDebug = overviewSection || (!operationSection && state.debugOpen)
-  return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${operationSection ? 'operation-section' : ''}">
+  const showDebug = overviewSection || (!operationSection && !configSection && state.debugOpen)
+  return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${operationSection ? 'operation-section' : ''} ${configSection ? 'config-section' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><button class="btn icon-btn ghost" data-route="conversations">‹</button><strong>智能体管理</strong></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
       <div class="agent-nav-divider"></div>
-      <button class="nav-item ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">${icon('spark')}<span>角色与提示词</span></button>
+      <button class="nav-item ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">${icon('bot')}<span>角色与提示词</span></button>
       ${agentNavItems.filter(item => !['overview','prompt'].includes(item[0])).map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
       <div class="agent-nav-divider"></div>
       ${agentOperationItems.map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
       <div class="agent-nav-spacer"></div>${renderContextProfile()}
     </aside>
-    ${operationSection ? '' : `<header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange">未保存</span>' : state.published ? '<span class="badge green">已上线</span>' : '<span class="badge gray">草稿</span>'}</div>
+    ${operationSection || configSection ? '' : `<header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange">未保存</span>' : state.published ? '<span class="badge green">已上线</span>' : '<span class="badge gray">草稿</span>'}</div>
       <div class="editor-actions"><button class="btn small" data-action="save-agent">保存</button><button class="btn small primary" data-action="publish-agent">${state.published ? '更新上线' : '发布上线'} ${icon('chevron')}</button></div></header>
     `}
-    <section class="agent-editor ${operationSection ? 'agent-operation-editor' : ''}"><div class="editor-body">${renderAgentSection()}</div></section>
+    <section class="agent-editor ${operationSection ? 'agent-operation-editor' : ''} ${configSection ? 'agent-config-editor' : ''}"><div class="editor-body">${renderAgentSection()}</div></section>
     ${showDebug ? `<aside class="preview-pane">${renderPreview(!overviewSection)}</aside>` : ''}
   </div>`
 }
@@ -291,11 +287,11 @@ function renderAgent() {
 function renderAgentSection() {
   if (isAgentOperationSection()) return renderOperationsContent(state.agentSection, true)
   if (state.agentSection === 'overview') return renderAgentOverview()
-  if (state.agentSection === 'prompt') return renderPrompt()
-  if (state.agentSection === 'capabilities') return renderCapabilities()
-  if (state.agentSection === 'knowledge') return renderKnowledge()
+  if (state.agentSection === 'prompt') return renderPersonaConfig()
+  if (state.agentSection === 'capabilities') return renderCapabilitiesConfig()
+  if (state.agentSection === 'knowledge') return renderKnowledgeConfig()
   if (state.agentSection === 'channels') return renderChannels()
-  return renderAppearance()
+  return renderAppearanceConfig()
 }
 
 function renderAgentOverview() {
@@ -311,42 +307,11 @@ function renderEditorHeading(title, description) {
   return `<div class="editor-section-head"><div><h2 class="editor-title">${title}</h2><p class="editor-sub">${description}</p></div><button class="btn" data-action="open-debug">调试</button></div>`
 }
 
-function renderPrompt() {
-  return `${renderEditorHeading('角色与提示词', '定义 AI 如何理解业务、组织回答，以及哪些事情不应该做。')}
-    <div class="card form-card"><h3>指令模板</h3><p>选择一个模板作为起点，内容仍可自由调整。</p><div class="template-grid">${['通用助手','售前顾问','售后服务'].map(name => `<button class="template ${state.agentTemplate === name ? 'active' : ''}" data-template="${name}"><strong>${name}</strong><span>${name === '售前顾问' ? '了解需求与场景，推荐方案并收集线索。' : name === '售后服务' ? '确认问题与版本，说明处理路径。' : '适合从中性起点开始配置。'}</span></button>`).join('')}</div></div>
-    <div class="card form-card"><h3>业务背景与角色</h3><p>这部分会成为 AI 回答时最重要的上下文。</p><div class="field"><label>通用指令</label><textarea class="textarea" data-dirty="true" rows="9">**Business Context**\n帆软是中国商业智能与数据分析领域的软件厂商，服务制造、零售、金融等多个行业。\n\n**Role**\n你是帆软官网的真人接待。不是客服腔，而是一位专业、热情、懂业务的售前顾问。优先询问访客所在行业和希望解决的业务场景，再推荐相关方案、案例或产品能力。</textarea><small>支持 Markdown。保存草稿不会影响线上版本，发布后才会对访客生效。</small></div></div>
-    <div class="card form-card"><h3>人工建议回复</h3><p>当人工接待介入时，为坐席生成简短、可直接使用的建议。</p><div class="field"><label>建议回复策略提示词</label><textarea class="textarea" data-dirty="true">先给结论，再说明依据；资料不足时只提出一个必要的澄清问题。语气自然，不要一次堆叠太多信息。</textarea></div></div>
-    <div class="card form-card"><h3>披露边界</h3><p>设置回答尺度与不可触碰的边界。</p><label class="quality-check"><input type="checkbox" checked /> 不承诺尚未确认的产品能力</label><label class="quality-check"><input type="checkbox" checked /> 涉及价格时引导联系顾问</label><label class="quality-check"><input type="checkbox" checked /> 不展示内部知识来源与文件名</label></div>`
-}
-
-function renderCapabilities() {
-  const cards = [
-    ['collect','信息收集','记录访客明确提供的姓名、公司、联系方式与需求。','users'],
-    ['human','人工协作','识别高意向访客，提醒坐席并支持无缝人工接管。','chat'],
-    ['popup','主动弹窗','根据停留时间、页面和访问次数主动发起问候。','spark'],
-    ['event','事件触发','将表单提交、按钮点击等行为同步到业务系统。','code']
-  ]
-  return `${renderEditorHeading('能力库', '按业务需要启用能力。每项能力都可以继续配置详细规则。')}${cards.map(item => `<div class="card capability-card"><div class="cap-icon">${icon(item[3])}</div><div class="cap-copy"><strong>${item[1]}</strong><p>${item[2]}</p></div><button class="btn small ghost" data-action="configure-capability" data-capability="${item[0]}">编辑</button><button class="switch ${state.capabilities[item[0]] ? 'on' : ''}" data-toggle-capability="${item[0]}" aria-label="切换${item[1]}"></button></div>`).join('')}`
-}
-
-function renderKnowledge() {
-  return `${renderEditorHeading('知识库', '连接企业知识，让 AI 基于可信内容回答访客问题。')}<div class="kb-types">
-    ${[['本地文件','上传 PDF、Word、Excel、CSV 或图片，自动解析。','book'],['网站抓取','抓取同域公开页面，定期检测内容变化。','link'],['MCP 对接','连接企业内容服务并增量更新。','code'],['Q&A 问答','配置标准答案，命中后原样返回。','chat']].map(item => `<button class="card kb-type" data-action="add-knowledge"><div class="cap-icon">${icon(item[2])}</div><div><strong>${item[0]}</strong><p>${item[1]}</p></div></button>`).join('')}
-    </div><div class="card"><div class="summary-head"><h3>数据源</h3><div><span class="badge green">54 条知识</span> <button class="btn small" data-action="add-knowledge">${icon('plus')} 添加</button></div></div>${documents.map(doc => `<div class="doc-row"><div class="doc-name">${icon('book')}<span>${doc[0]}</span></div><span>${doc[1]}</span><span class="badge ${doc[2] === '可用' ? 'green' : 'blue'}">${doc[2]}</span><button class="btn icon-btn small">${icon('chevron')}</button></div>`).join('')}</div>`
-}
-
 function renderChannels() {
   return `${renderEditorHeading('渠道', '将 AI 接待部署到官网、活动页或其他业务入口。')}
     <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="www.fanruan.com, events.fanruan.com" data-dirty="true" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">&lt;script src=&quot;https://test.xiguan.cn/presales/widget.js&quot; data-site-key=&quot;site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF&quot; defer&gt;&lt;/script&gt;</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
     <div class="card channel-card"><div class="channel-head"><strong>IM 工具</strong><span class="badge gray">未连接</span></div><p style="font-size:11px;color:var(--muted);line-height:1.6">连接企业微信、飞书或钉钉，将高意向访客实时推送给销售团队。</p><button class="btn small" data-action="connect-im">连接 IM</button></div>
     <div class="card channel-card"><div class="channel-head"><strong>事件触发</strong><span class="badge blue">2 条规则</span></div><p style="font-size:11px;color:var(--muted)">监听价格页停留超过 30 秒、连续访问产品页 3 次。</p><button class="btn small">管理规则</button></div>`
-}
-
-function renderAppearance() {
-  const colors = ['#13795b','#267661','#167596','#855d42','#6650a4']
-  return `${renderEditorHeading('外观', '统一设置网页入口、头像、名称以及窗口主题。')}
-    <div class="card form-card"><h3>品牌与界面</h3><p>这些设置会同步到所有网站入口。</p><div class="field"><label>助手名称</label><input class="input" value="AI 接待" data-dirty="true" /></div><div class="field"><label>品牌主色</label><div class="color-row">${colors.map(color => `<button class="color-dot ${state.onboarding.color === color ? 'selected' : ''}" style="background:${color}" data-color="${color}" aria-label="${color}"></button>`).join('')}<input class="input" style="width:100px" value="${state.onboarding.color}" readonly /></div></div><div class="field"><label>欢迎语</label><textarea class="textarea" data-dirty="true">Hi，我是 AI 接待，可以描述您的需求～</textarea></div><label class="quality-check"><input type="checkbox" checked /> 显示技术支持标识</label><label class="quality-check"><input type="checkbox" checked /> 允许访客查看历史消息</label></div>
-    <div class="card form-card"><h3>网页入口</h3><p>选择网页角落气泡或底部提问栏，右侧预览同步更新。</p><div class="template-grid"><button class="template active"><strong>右下角气泡</strong><span>适合产品官网和内容页面</span></button><button class="template"><strong>底部提问栏</strong><span>适合落地页与活动页</span></button><button class="template"><strong>内嵌模块</strong><span>嵌入指定页面区域</span></button></div></div>`
 }
 
 function renderPreview(closeable = false) {
@@ -417,6 +382,8 @@ function routeTo(route) {
 document.addEventListener('click', event => {
   const route = event.target.closest('[data-route]')
   if (route) return routeTo(route.dataset.route)
+
+  if (handleConfigClick(event)) return
 
   const conversation = event.target.closest('[data-conversation]')
   if (conversation) {
@@ -525,10 +492,16 @@ document.addEventListener('click', event => {
 })
 
 document.addEventListener('input', event => {
+  if (handleConfigInput(event)) return
   if (event.target.matches('[data-dirty]')) state.dirty = true
 })
 
+document.addEventListener('change', event => {
+  handleConfigChange(event)
+})
+
 document.addEventListener('keydown', event => {
+  if (handleConfigKeydown(event)) return
   if (event.key !== 'Enter' || event.shiftKey) return
   if (event.target.id === 'message-input') { event.preventDefault(); sendMessage() }
   if (event.target.id === 'debug-input') { event.preventDefault(); debugSend() }
