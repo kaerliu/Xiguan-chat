@@ -359,6 +359,7 @@ button { color: inherit; }
 .agent-nav-group-label { height: 39px; display: flex; align-items: center; gap: 11px; padding: 0 11px; font-size: 13px; color: #505a54; }
 .agent-nav-group-label span:nth-child(2) { flex: 1; }
 .agent-nav .nav-item.sub { padding-left: 39px; height: 35px; }
+.agent-nav-divider { height: 1px; margin: 6px; background: var(--line-strong); flex: 0 0 auto; }
 .agent-nav-spacer { flex: 1; min-height: 20px; }
 .agent-nav > .context-profile { margin: 0 -2px; }
 .agent-editor { background: white; }

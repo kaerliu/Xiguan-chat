@@ -254,6 +254,7 @@ function renderAgent() {
   return `<div class="agent-layout ${state.debugOpen ? 'debug-open' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><button class="btn icon-btn ghost" data-route="conversations">‹</button><strong>智能体管理</strong></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
+      <div class="agent-nav-divider"></div>
       <div class="agent-nav-group"><div class="agent-nav-group-label">${icon('spark')}<span>角色与提示词</span><span>⌄</span></div>
         <button class="nav-item sub ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">指令内容</button>
         <button class="nav-item sub" data-agent-section="prompt">人工回复</button>
@@ -261,6 +262,7 @@ function renderAgent() {
         <button class="nav-item sub" data-agent-section="prompt">高级设置</button>
       </div>
       ${agentNavItems.filter(item => !['overview','prompt'].includes(item[0])).map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
+      <div class="agent-nav-divider"></div>
       <div class="agent-nav-spacer"></div><button class="nav-item" data-route="conversations">${icon('grid')}<span>会话管理</span></button>${renderContextProfile()}
     </aside>
     <header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange">未保存</span>' : state.published ? '<span class="badge green">已上线</span>' : '<span class="badge gray">草稿</span>'}</div>
