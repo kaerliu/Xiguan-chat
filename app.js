@@ -72,6 +72,20 @@ const qaItems = [
   ['如何申请制造行业案例资料？', '留下公司、姓名与联系方式后，行业顾问会发送对应案例并提供进一步咨询。', '已命中知识库']
 ]
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character])
+}
+
+function previewWebsiteUrl(value) {
+  const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`
+  try {
+    const url = new URL(candidate)
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : 'https://www.example.com/'
+  } catch {
+    return 'https://www.example.com/'
+  }
+}
+
 const state = {
   route: 'agent',
   profileOpen: false,
@@ -81,18 +95,31 @@ const state = {
   takeover: false,
   agentSection: 'overview',
   agentTemplate: '售前顾问',
-  capabilities: { collect: true, human: true, popup: true, event: false },
+  capabilities: {
+    lead_capture: true,
+    assessment: true,
+    human_handoff: true,
+    asset_delivery: false,
+    recommendations: true,
+    mcp: true,
+    lead_popup: true,
+    proactive: false,
+    idle_follow_up: false
+  },
   published: false,
   dirty: false,
   debugOpen: false,
-  debugMessages: [{ from: 'ai', text: '你好，我是 AI 接待。可以输入一个访客问题来测试当前配置。' }],
+  previewMode: 'website',
+  debugMessages: [],
   settingsSection: 'workspace',
   onboardingStep: localStorage.getItem('xiguan-onboarding') ? null : 0,
   onboarding: {
     website: 'https://www.example.com',
     goal: '售前获客与产品咨询',
     capabilities: ['信息收集', '人工协作', '主动弹窗'],
-    color: '#13795b'
+    color: '#13795b',
+    assistantName: 'AI 接待',
+    welcomeMessage: 'Hi，我是 AI 接待，可以描述您的需求～'
   },
   modal: null
 }
@@ -278,8 +305,8 @@ function renderAgent() {
   const operationSection = isAgentOperationSection()
   const configSection = isConfigSection()
   const overviewSection = state.agentSection === 'overview'
-  const showDebug = overviewSection || (!operationSection && !configSection && state.debugOpen)
-  return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${operationSection ? 'operation-section' : ''} ${configSection ? 'config-section' : ''}">
+  const showDebug = overviewSection || (state.agentSection !== 'channels' && !operationSection && !configSection && state.debugOpen)
+  return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${overviewSection ? 'overview-section' : ''} ${operationSection ? 'operation-section' : ''} ${configSection ? 'config-section' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><strong>吸管 · AI 接待</strong></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
       <div class="agent-nav-divider"></div>
@@ -289,11 +316,11 @@ function renderAgent() {
       ${agentOperationItems.map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
       <div class="agent-nav-spacer"></div>${renderContextProfile()}
     </aside>
-    ${operationSection || configSection ? '' : `<header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange">未保存</span>' : state.published ? '<span class="badge green">已上线</span>' : '<span class="badge gray">草稿</span>'}</div>
+    ${operationSection || configSection ? '' : `<header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange" data-agent-status>未保存</span>' : state.published ? '<span class="badge green" data-agent-status>已上线</span>' : '<span class="badge gray" data-agent-status>草稿</span>'}</div>
       <div class="editor-actions"><button class="btn small" data-action="save-agent">保存</button><button class="btn small primary" data-action="publish-agent">${state.published ? '更新上线' : '发布上线'} ${icon('chevron')}</button></div></header>
     `}
     <section class="agent-editor ${operationSection ? 'agent-operation-editor' : ''} ${configSection ? 'agent-config-editor' : ''}"><div class="editor-body">${renderAgentSection()}</div></section>
-    ${showDebug ? `<aside class="preview-pane">${renderPreview(!overviewSection)}</aside>` : ''}
+    ${showDebug ? `<aside class="preview-pane">${renderPreview(!overviewSection, overviewSection)}</aside>` : ''}
   </div>`
 }
 
@@ -308,7 +335,7 @@ function renderAgentSection() {
 }
 
 function renderAgentOverview() {
-  const enabled = Object.values(state.capabilities).filter(Boolean).length
+  const enabled = CAPABILITIES.filter(cap => isCapEnabled(cap.id)).length
   return `<div class="card overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>角色与提示词</h3><button class="btn small ghost" data-agent-section="prompt">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><p style="margin:0;color:var(--muted);font-size:11px;line-height:1.7">你是帆软官网的真人接待，像一位专业、热情的售前顾问。优先理解访客的行业和场景，再提供相关方案与案例。</p></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>能力</h3><button class="btn small ghost" data-agent-section="capabilities">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>${enabled} 项已启用</strong><span>信息收集、人工协作等</span></div>${leadSummaryChip()}<div class="summary-chip"><strong>自动接待</strong><span>全天候运行</span></div></div></div></div>
@@ -316,22 +343,38 @@ function renderAgentOverview() {
     <div class="card summary-card"><div class="summary-head"><h3>渠道与外观</h3><button class="btn small ghost" data-agent-section="appearance">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>2 个网站</strong><span>官网、活动站点</span></div><div class="summary-chip"><strong>品牌色</strong><span>${state.onboarding.color}</span></div><div class="summary-chip"><strong>桌面端入口</strong><span>气泡 + 侧边窗口</span></div></div></div></div>`
 }
 
-function renderEditorHeading(title, description) {
-  return `<div class="editor-section-head"><div><h2 class="editor-title">${title}</h2><p class="editor-sub">${description}</p></div><button class="btn" data-action="open-debug">调试</button></div>`
+function renderEditorHeading(title, description, showDebugAction = true) {
+  return `<div class="editor-section-head"><div><h2 class="editor-title">${title}</h2><p class="editor-sub">${description}</p></div>${showDebugAction ? `<button class="btn" data-action="${state.debugOpen ? 'close-debug' : 'open-debug'}">${state.debugOpen ? '收起调试' : '调试'}</button>` : ''}</div>`
 }
 
 function renderChannels() {
-  return `${renderEditorHeading('渠道', '将 AI 接待部署到官网、活动页或其他业务入口。')}
+  return `${renderEditorHeading('渠道', '将 AI 接待部署到官网、活动页或其他业务入口。', false)}
     <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="www.fanruan.com, events.fanruan.com" data-dirty="true" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">&lt;script src=&quot;https://test.xiguan.cn/presales/widget.js&quot; data-site-key=&quot;site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF&quot; defer&gt;&lt;/script&gt;</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
     <div class="card channel-card"><div class="channel-head"><strong>IM 工具</strong><span class="badge gray">未连接</span></div><p style="font-size:11px;color:var(--muted);line-height:1.6">连接企业微信、飞书或钉钉，将高意向访客实时推送给销售团队。</p><button class="btn small" data-action="connect-im">连接 IM</button></div>
     <div class="card channel-card"><div class="channel-head"><strong>事件触发</strong><span class="badge blue">2 条规则</span></div><p style="font-size:11px;color:var(--muted)">监听价格页停留超过 30 秒、连续访问产品页 3 次。</p><button class="btn small">管理规则</button></div>`
 }
 
-function renderPreview(closeable = false) {
+function renderConversationPreview() {
+  const assistantName = escapeHtml(state.onboarding.assistantName)
+  const conversation = [{ from: 'ai', text: state.onboarding.welcomeMessage }, ...state.debugMessages]
+  const messages = conversation.map(message => `<div class="preview-conversation-message ${message.from}"><div class="bubble">${escapeHtml(message.text)}</div></div>`).join('')
+  return `<div class="conversation-preview-canvas" style="--preview-brand:${state.onboarding.color}"><div class="conversation-preview-window"><div class="conversation-preview-head"><div class="avatar">AI</div><div><strong>${assistantName}</strong><span>在线 · 通常立即回复</span></div><button aria-label="更多">${icon('more')}</button></div><div class="conversation-preview-body" id="preview-chat-stream">${messages}</div><div class="conversation-preview-compose"><input id="debug-input" placeholder="输入一个访客问题..." /><button data-action="debug-send" aria-label="发送">${icon('send')}</button></div><div class="conversation-preview-brand">由 吸管 AI 提供支持</div></div></div>`
+}
+
+function renderOverviewPreview() {
+  const website = previewWebsiteUrl(state.onboarding.website)
+  const assistantName = escapeHtml(state.onboarding.assistantName)
+  const content = state.previewMode === 'website'
+    ? `<div class="website-preview-stage"><div class="website-preview-browser"><div class="website-preview-bar"><span></span><span></span><span></span><div class="website-preview-url">${escapeHtml(website)}</div>${icon('external')}</div><div class="website-preview-frame"><iframe title="用户官网预览" src="${escapeHtml(website)}" sandbox="allow-forms allow-popups allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe><div class="ai-entry-guide"><span>AI 客服入口</span><strong>访客从这里唤起客服</strong></div><button class="ai-entry-trigger" style="--preview-brand:${state.onboarding.color}" data-preview-mode="conversation" aria-label="打开${assistantName}">${icon('chat')}<i></i></button></div></div></div>`
+    : renderConversationPreview()
+  return `<div class="embedded-debug overview-preview"><div class="embedded-debug-head overview-preview-head"><div class="segmented preview-mode-segment"><button class="${state.previewMode === 'website' ? 'active' : ''}" data-preview-mode="website">官网界面</button><button class="${state.previewMode === 'conversation' ? 'active' : ''}" data-preview-mode="conversation">对话界面</button></div></div><div class="overview-preview-body">${content}</div></div>`
+}
+
+function renderPreview(closeable = false, overview = false) {
+  if (overview) return renderOverviewPreview()
   return `<div class="embedded-debug">
     <div class="embedded-debug-head"><div><strong>调试 AI 接待</strong><span>基于当前草稿，不影响线上访客</span></div>${closeable ? `<button class="btn icon-btn ghost" data-action="close-debug">${icon('close')}</button>` : ''}</div>
-    <div class="embedded-debug-body">${state.debugMessages.map(message => `<div class="debug-message ${message.from}"><div class="bubble">${message.text}</div></div>`).join('')}</div>
-    <div class="debug-compose"><input id="debug-input" class="input" placeholder="输入一个访客问题..." /><button class="btn primary icon-btn" data-action="debug-send">${icon('send')}</button></div>
+    <div class="overview-preview-body">${renderConversationPreview()}</div>
   </div>`
 }
 
@@ -362,10 +405,10 @@ function renderOnboarding() {
 }
 
 function renderOnboardingStep() {
-  if (state.onboardingStep === 1) return `<div class="field"><label>企业官网</label><input id="onboarding-website" class="input" value="${state.onboarding.website}" placeholder="https://www.example.com" /><small>原型不会真的抓取网站，只用于模拟配置流程。</small></div><div class="card" style="padding:14px;background:var(--canvas)"><strong style="font-size:12px">我们会自动完成</strong><div class="finish-list" style="margin-top:10px"><div class="finish-item">${icon('check')} 识别公司与产品介绍</div><div class="finish-item">${icon('check')} 生成首版业务背景</div><div class="finish-item">${icon('check')} 提取可用公开页面</div></div></div>`
+  if (state.onboardingStep === 1) return `<div class="field"><label>企业官网</label><input id="onboarding-website" class="input" value="${state.onboarding.website}" placeholder="https://www.example.com" /><small>该地址会用于概览中的官网界面预览，不会修改网站内容。</small></div><div class="card" style="padding:14px;background:var(--canvas)"><strong style="font-size:12px">我们会自动完成</strong><div class="finish-list" style="margin-top:10px"><div class="finish-item">${icon('check')} 识别公司与产品介绍</div><div class="finish-item">${icon('check')} 生成首版业务背景</div><div class="finish-item">${icon('check')} 提取可用公开页面</div></div></div>`
   if (state.onboardingStep === 2) return `<div class="field"><label>主要目标</label><div class="onboarding-cols">${['售前获客与产品咨询','客户服务与问题解答','活动报名与资料领取','内部员工知识助手'].map(goal => `<button class="choice-card ${state.onboarding.goal === goal ? 'selected' : ''}" data-onboarding-goal="${goal}"><span class="choice-check">${icon('check')}</span><strong>${goal}</strong><p>系统会据此生成适合的角色和行为策略。</p></button>`).join('')}</div></div><div class="field"><label>启用能力</label><div class="onboarding-cols">${['信息收集','人工协作','主动弹窗','事件触发'].map(cap => `<button class="choice-card ${state.onboarding.capabilities.includes(cap) ? 'selected' : ''}" data-onboarding-capability="${cap}"><span class="choice-check">${icon('check')}</span><strong>${cap}</strong><p>${cap === '信息收集' ? '在合适时机询问联系方式。' : cap === '人工协作' ? '高意向时提醒销售接管。' : cap === '主动弹窗' ? '根据访客行为主动问候。' : '连接表单和业务系统。'}</p></button>`).join('')}</div></div>`
   const colors = ['#13795b','#167596','#855d42','#6650a4','#d36643']
-  return `<div class="field"><label>助手名称</label><input class="input" value="AI 接待" /></div><div class="field"><label>品牌主色</label><div class="color-row">${colors.map(color => `<button class="color-dot ${state.onboarding.color === color ? 'selected' : ''}" style="background:${color}" data-color="${color}"></button>`).join('')}</div></div><div class="field"><label>欢迎语</label><textarea class="textarea">Hi，我是 AI 接待，可以描述您的需求～</textarea></div><div class="chat-widget" style="position:relative;right:auto;bottom:auto;width:100%;box-shadow:none"><div class="widget-head" style="background:${state.onboarding.color}"><div class="avatar">AI</div><div><strong>AI 接待</strong><span>在线 · 通常立即回复</span></div></div><div class="widget-body" style="height:110px"><div class="widget-bubble">Hi，我是 AI 接待，可以描述您的需求～</div></div></div>`
+  return `<div class="field"><label>助手名称</label><input class="input" value="${escapeHtml(state.onboarding.assistantName)}" data-appearance-field="assistantName" /></div><div class="field"><label>品牌主色</label><div class="color-row">${colors.map(color => `<button class="color-dot ${state.onboarding.color === color ? 'selected' : ''}" style="background:${color}" data-color="${color}"></button>`).join('')}</div></div><div class="field"><label>欢迎语</label><textarea class="textarea" data-appearance-field="welcomeMessage">${escapeHtml(state.onboarding.welcomeMessage)}</textarea></div><div class="chat-widget" style="position:relative;right:auto;bottom:auto;width:100%;box-shadow:none"><div class="widget-head" style="background:${state.onboarding.color}"><div class="avatar">AI</div><div><strong>${escapeHtml(state.onboarding.assistantName)}</strong><span>在线 · 通常立即回复</span></div></div><div class="widget-body" style="height:110px"><div class="widget-bubble">${escapeHtml(state.onboarding.welcomeMessage)}</div></div></div>`
 }
 
 function renderDebug() {
@@ -374,7 +417,6 @@ function renderDebug() {
 
 function renderModal() {
   if (state.modal === 'invite') return `<div class="modal-backdrop" data-action="close-modal"><div class="modal" style="width:500px" data-modal-card><div class="modal-head"><div><h2>邀请成员</h2><p>成员将通过邮件收到加入工作区的邀请。</p></div><button class="btn icon-btn ghost" data-action="close-modal">${icon('close')}</button></div><div class="modal-body"><div class="field"><label>邮箱地址</label><input id="invite-email" class="input" placeholder="name@company.com" /></div><div class="field"><label>角色</label><select class="select"><option>销售坐席</option><option>运营管理员</option><option>查看者</option></select></div></div><div class="modal-foot"><span></span><button class="btn primary" data-action="submit-invite">发送邀请</button></div></div></div>`
-  if (state.modal === 'capability') return `<div class="modal-backdrop" data-action="close-modal"><div class="modal" data-modal-card><div class="modal-head"><div><h2>配置「信息收集」</h2><p>设置 AI 可以收集和联系表单中显示的字段。</p></div><button class="btn icon-btn ghost" data-action="close-modal">${icon('close')}</button></div><div class="modal-body"><div class="field"><label>允许收集的字段</label><div class="onboarding-cols">${['姓名','公司','手机号','微信号','邮箱','需求'].map((field,index) => `<label class="choice-card ${[0,1,2,4].includes(index) ? 'selected' : ''}"><input type="checkbox" ${[0,1,2,4].includes(index) ? 'checked' : ''} style="display:none" /><strong>${field}</strong><p>可设置是否在联系表单中显示与必填。</p></label>`).join('')}</div></div><div class="field"><label>能力说明（可选）</label><textarea class="textarea" placeholder="例如：仅在用户主动索取资料后邀请填写。"></textarea></div></div><div class="modal-foot"><span></span><button class="btn primary" data-action="save-capability">保存配置</button></div></div></div>`
   return ''
 }
 
@@ -382,7 +424,18 @@ function scrollChatBottom() {
   requestAnimationFrame(() => {
     const stream = $('#chat-stream')
     if (stream) stream.scrollTop = stream.scrollHeight
+    const previewStream = $('#preview-chat-stream')
+    if (previewStream) previewStream.scrollTop = previewStream.scrollHeight
+    const autofocus = $('[autofocus]')
+    if (autofocus) autofocus.focus()
   })
+}
+
+function showAgentDirtyStatus() {
+  const status = $('[data-agent-status]')
+  if (!status) return
+  status.className = 'badge orange'
+  status.textContent = '未保存'
 }
 
 function routeTo(route) {
@@ -396,6 +449,7 @@ function enterAgentOverview() {
   state.route = 'agent'
   state.agentSection = 'overview'
   state.debugOpen = false
+  state.previewMode = 'website'
   state.profileOpen = false
 }
 
@@ -431,7 +485,16 @@ document.addEventListener('click', event => {
   const agentSection = event.target.closest('[data-agent-section]')
   if (agentSection) {
     state.agentSection = agentSection.dataset.agentSection
-    if (state.agentSection === 'overview' || isAgentOperationSection()) state.debugOpen = false
+    if (state.agentSection === 'overview') {
+      state.debugOpen = false
+      state.previewMode = 'website'
+    } else state.debugOpen = state.agentSection !== 'channels' && !isAgentOperationSection()
+    return renderApp()
+  }
+
+  const previewMode = event.target.closest('[data-preview-mode]')
+  if (previewMode) {
+    state.previewMode = previewMode.dataset.previewMode
     return renderApp()
   }
 
@@ -501,8 +564,6 @@ document.addEventListener('click', event => {
   if (name === 'open-debug') { state.debugOpen = true; return renderApp() }
   if (name === 'close-debug') { state.debugOpen = false; return renderApp() }
   if (name === 'debug-send') return debugSend()
-  if (name === 'configure-capability') { state.modal = 'capability'; return renderApp() }
-  if (name === 'save-capability') { state.modal = null; state.capabilities.collect = true; state.dirty = true; toast('能力配置已保存'); return renderApp() }
   if (name === 'copy-code') return copyText('<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="site_d78w..."></script>', '部署代码已复制')
   if (name === 'connect-im') return toast('已发起企业微信连接（原型演示）')
   if (name === 'save-workspace' || name === 'save-personal') return toast('设置已保存')
@@ -523,7 +584,14 @@ document.addEventListener('click', event => {
 
 document.addEventListener('input', event => {
   if (handleConfigInput(event)) return
-  if (event.target.matches('[data-dirty]')) state.dirty = true
+  if (event.target.matches('[data-appearance-field]')) {
+    const field = event.target.dataset.appearanceField
+    state.onboarding[field] = event.target.value
+    if (field === 'assistantName') document.querySelectorAll('.conversation-preview-head strong').forEach(node => { node.textContent = event.target.value })
+    if (field === 'welcomeMessage') document.querySelectorAll('.preview-conversation-message.ai:first-child .bubble').forEach(node => { node.textContent = event.target.value })
+    return
+  }
+  if (event.target.matches('[data-dirty]')) { state.dirty = true; showAgentDirtyStatus() }
 })
 
 document.addEventListener('change', event => {
@@ -532,6 +600,7 @@ document.addEventListener('change', event => {
 
 document.addEventListener('keydown', event => {
   if (handleConfigKeydown(event)) return
+  if (event.key === 'Escape' && state.modal) { state.modal = null; return renderApp() }
   if (event.key !== 'Enter' || event.shiftKey) return
   if (event.target.id === 'message-input') { event.preventDefault(); sendMessage() }
   if (event.target.id === 'debug-input') { event.preventDefault(); debugSend() }
