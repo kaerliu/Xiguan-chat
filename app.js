@@ -165,8 +165,8 @@ function renderOperationsFrame() {
   </div>`
 }
 
-function renderOperationsContent(section) {
-  if (section === 'conversations') return renderConversations()
+function renderOperationsContent(section, embedded = false) {
+  if (section === 'conversations') return renderConversations(embedded)
   if (section === 'leads') return renderLeads()
   return renderQna()
 }
@@ -183,7 +183,7 @@ function filteredConversations() {
   return conversations.filter(item => item.status === state.conversationMode)
 }
 
-function renderConversations() {
+function renderConversations(embedded = false) {
   const current = conversations.find(item => item.id === state.activeConversation) || conversations[0]
   return `<div class="split-shell">
     <section class="conversation-list">
@@ -199,7 +199,7 @@ function renderConversations() {
         <div class="row"><strong>${item.name}</strong><time>${item.time}</time></div>
         <p>${item.preview}</p><div class="tag-row"><span class="tiny-tag">默认智能体</span><span class="tiny-tag ${item.status}">${item.status === 'ai' ? '● AI' : '● 人工中'}</span></div>
       </button>`).join('')}</div>
-      <div class="context-bottom"><button class="context-manage" data-route="agent">${icon('grid')} 智能体管理</button>${renderContextProfile()}</div>
+      ${embedded ? '' : `<div class="context-bottom"><button class="context-manage" data-route="agent">${icon('grid')} 智能体管理</button>${renderContextProfile()}</div>`}
     </section>
     <section class="chat-pane">
       <div class="chat-head"><div class="chat-user"><div class="avatar">${current.short}</div><div><strong>${current.name}</strong><span>最近活跃 · ${current.time}</span></div></div>
@@ -268,7 +268,9 @@ function isAgentOperationSection() {
 
 function renderAgent() {
   const operationSection = isAgentOperationSection()
-  return `<div class="agent-layout ${state.debugOpen ? 'debug-open' : ''}">
+  const overviewSection = state.agentSection === 'overview'
+  const showDebug = overviewSection || (!operationSection && state.debugOpen)
+  return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${operationSection ? 'operation-section' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><button class="btn icon-btn ghost" data-route="conversations">‹</button><strong>智能体管理</strong></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
       <div class="agent-nav-divider"></div>
@@ -276,17 +278,18 @@ function renderAgent() {
       ${agentNavItems.filter(item => !['overview','prompt'].includes(item[0])).map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
       <div class="agent-nav-divider"></div>
       ${agentOperationItems.map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
-      <div class="agent-nav-spacer"></div><button class="nav-item" data-route="conversations">${icon('grid')}<span>会话管理</span></button>${renderContextProfile()}
+      <div class="agent-nav-spacer"></div>${renderContextProfile()}
     </aside>
-    <header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange">未保存</span>' : state.published ? '<span class="badge green">已上线</span>' : '<span class="badge gray">草稿</span>'}</div>
-      <div class="editor-actions"><button class="btn small" data-action="save-agent">保存</button><button class="btn small primary" data-action="publish-agent">${state.published ? '更新上线' : '发布上线'} ${icon('chevron')}</button><button class="btn small ${state.debugOpen ? 'soft' : ''}" data-action="open-debug">调试</button></div></header>
+    ${operationSection ? '' : `<header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange">未保存</span>' : state.published ? '<span class="badge green">已上线</span>' : '<span class="badge gray">草稿</span>'}</div>
+      <div class="editor-actions"><button class="btn small" data-action="save-agent">保存</button><button class="btn small primary" data-action="publish-agent">${state.published ? '更新上线' : '发布上线'} ${icon('chevron')}</button></div></header>
+    `}
     <section class="agent-editor ${operationSection ? 'agent-operation-editor' : ''}"><div class="editor-body">${renderAgentSection()}</div></section>
-    ${state.debugOpen ? `<aside class="preview-pane">${renderPreview()}</aside>` : ''}
+    ${showDebug ? `<aside class="preview-pane">${renderPreview(!overviewSection)}</aside>` : ''}
   </div>`
 }
 
 function renderAgentSection() {
-  if (isAgentOperationSection()) return renderOperationsContent(state.agentSection)
+  if (isAgentOperationSection()) return renderOperationsContent(state.agentSection, true)
   if (state.agentSection === 'overview') return renderAgentOverview()
   if (state.agentSection === 'prompt') return renderPrompt()
   if (state.agentSection === 'capabilities') return renderCapabilities()
@@ -297,15 +300,19 @@ function renderAgentSection() {
 
 function renderAgentOverview() {
   const enabled = Object.values(state.capabilities).filter(Boolean).length
-  return `<div class="card overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div><button class="btn" data-action="open-debug">${icon('spark')} 调试</button></div>
+  return `<div class="card overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>角色与提示词</h3><button class="btn small ghost" data-agent-section="prompt">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><p style="margin:0;color:var(--muted);font-size:11px;line-height:1.7">你是帆软官网的真人接待，像一位专业、热情的售前顾问。优先理解访客的行业和场景，再提供相关方案与案例。</p></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>能力</h3><button class="btn small ghost" data-agent-section="capabilities">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>${enabled} 项已启用</strong><span>信息收集、人工协作等</span></div><div class="summary-chip"><strong>3 个收集字段</strong><span>姓名、公司、联系方式</span></div><div class="summary-chip"><strong>自动接待</strong><span>全天候运行</span></div></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>知识库</h3><button class="btn small ghost" data-agent-section="knowledge">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>5 个知识源</strong><span>文档、网页和 Q&A</span></div><div class="summary-chip"><strong>54 条知识</strong><span>结构化率 100%</span></div><div class="summary-chip"><strong>83% 命中率</strong><span>最近 7 天</span></div></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>渠道与外观</h3><button class="btn small ghost" data-agent-section="appearance">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>2 个网站</strong><span>官网、活动站点</span></div><div class="summary-chip"><strong>品牌色</strong><span>${state.onboarding.color}</span></div><div class="summary-chip"><strong>桌面端入口</strong><span>气泡 + 侧边窗口</span></div></div></div></div>`
 }
 
+function renderEditorHeading(title, description) {
+  return `<div class="editor-section-head"><div><h2 class="editor-title">${title}</h2><p class="editor-sub">${description}</p></div><button class="btn" data-action="open-debug">调试</button></div>`
+}
+
 function renderPrompt() {
-  return `<h2 class="editor-title">角色与提示词</h2><p class="editor-sub">定义 AI 如何理解业务、组织回答，以及哪些事情不应该做。</p>
+  return `${renderEditorHeading('角色与提示词', '定义 AI 如何理解业务、组织回答，以及哪些事情不应该做。')}
     <div class="card form-card"><h3>指令模板</h3><p>选择一个模板作为起点，内容仍可自由调整。</p><div class="template-grid">${['通用助手','售前顾问','售后服务'].map(name => `<button class="template ${state.agentTemplate === name ? 'active' : ''}" data-template="${name}"><strong>${name}</strong><span>${name === '售前顾问' ? '了解需求与场景，推荐方案并收集线索。' : name === '售后服务' ? '确认问题与版本，说明处理路径。' : '适合从中性起点开始配置。'}</span></button>`).join('')}</div></div>
     <div class="card form-card"><h3>业务背景与角色</h3><p>这部分会成为 AI 回答时最重要的上下文。</p><div class="field"><label>通用指令</label><textarea class="textarea" data-dirty="true" rows="9">**Business Context**\n帆软是中国商业智能与数据分析领域的软件厂商，服务制造、零售、金融等多个行业。\n\n**Role**\n你是帆软官网的真人接待。不是客服腔，而是一位专业、热情、懂业务的售前顾问。优先询问访客所在行业和希望解决的业务场景，再推荐相关方案、案例或产品能力。</textarea><small>支持 Markdown。保存草稿不会影响线上版本，发布后才会对访客生效。</small></div></div>
     <div class="card form-card"><h3>人工建议回复</h3><p>当人工接待介入时，为坐席生成简短、可直接使用的建议。</p><div class="field"><label>建议回复策略提示词</label><textarea class="textarea" data-dirty="true">先给结论，再说明依据；资料不足时只提出一个必要的澄清问题。语气自然，不要一次堆叠太多信息。</textarea></div></div>
@@ -319,17 +326,17 @@ function renderCapabilities() {
     ['popup','主动弹窗','根据停留时间、页面和访问次数主动发起问候。','spark'],
     ['event','事件触发','将表单提交、按钮点击等行为同步到业务系统。','code']
   ]
-  return `<h2 class="editor-title">能力库</h2><p class="editor-sub">按业务需要启用能力。每项能力都可以继续配置详细规则。</p>${cards.map(item => `<div class="card capability-card"><div class="cap-icon">${icon(item[3])}</div><div class="cap-copy"><strong>${item[1]}</strong><p>${item[2]}</p></div><button class="btn small ghost" data-action="configure-capability" data-capability="${item[0]}">编辑</button><button class="switch ${state.capabilities[item[0]] ? 'on' : ''}" data-toggle-capability="${item[0]}" aria-label="切换${item[1]}"></button></div>`).join('')}`
+  return `${renderEditorHeading('能力库', '按业务需要启用能力。每项能力都可以继续配置详细规则。')}${cards.map(item => `<div class="card capability-card"><div class="cap-icon">${icon(item[3])}</div><div class="cap-copy"><strong>${item[1]}</strong><p>${item[2]}</p></div><button class="btn small ghost" data-action="configure-capability" data-capability="${item[0]}">编辑</button><button class="switch ${state.capabilities[item[0]] ? 'on' : ''}" data-toggle-capability="${item[0]}" aria-label="切换${item[1]}"></button></div>`).join('')}`
 }
 
 function renderKnowledge() {
-  return `<h2 class="editor-title">知识库</h2><p class="editor-sub">连接企业知识，让 AI 基于可信内容回答访客问题。</p><div class="kb-types">
+  return `${renderEditorHeading('知识库', '连接企业知识，让 AI 基于可信内容回答访客问题。')}<div class="kb-types">
     ${[['本地文件','上传 PDF、Word、Excel、CSV 或图片，自动解析。','book'],['网站抓取','抓取同域公开页面，定期检测内容变化。','link'],['MCP 对接','连接企业内容服务并增量更新。','code'],['Q&A 问答','配置标准答案，命中后原样返回。','chat']].map(item => `<button class="card kb-type" data-action="add-knowledge"><div class="cap-icon">${icon(item[2])}</div><div><strong>${item[0]}</strong><p>${item[1]}</p></div></button>`).join('')}
     </div><div class="card"><div class="summary-head"><h3>数据源</h3><div><span class="badge green">54 条知识</span> <button class="btn small" data-action="add-knowledge">${icon('plus')} 添加</button></div></div>${documents.map(doc => `<div class="doc-row"><div class="doc-name">${icon('book')}<span>${doc[0]}</span></div><span>${doc[1]}</span><span class="badge ${doc[2] === '可用' ? 'green' : 'blue'}">${doc[2]}</span><button class="btn icon-btn small">${icon('chevron')}</button></div>`).join('')}</div>`
 }
 
 function renderChannels() {
-  return `<h2 class="editor-title">渠道</h2><p class="editor-sub">将 AI 接待部署到官网、活动页或其他业务入口。</p>
+  return `${renderEditorHeading('渠道', '将 AI 接待部署到官网、活动页或其他业务入口。')}
     <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="www.fanruan.com, events.fanruan.com" data-dirty="true" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">&lt;script src=&quot;https://test.xiguan.cn/presales/widget.js&quot; data-site-key=&quot;site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF&quot; defer&gt;&lt;/script&gt;</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
     <div class="card channel-card"><div class="channel-head"><strong>IM 工具</strong><span class="badge gray">未连接</span></div><p style="font-size:11px;color:var(--muted);line-height:1.6">连接企业微信、飞书或钉钉，将高意向访客实时推送给销售团队。</p><button class="btn small" data-action="connect-im">连接 IM</button></div>
     <div class="card channel-card"><div class="channel-head"><strong>事件触发</strong><span class="badge blue">2 条规则</span></div><p style="font-size:11px;color:var(--muted)">监听价格页停留超过 30 秒、连续访问产品页 3 次。</p><button class="btn small">管理规则</button></div>`
@@ -337,14 +344,14 @@ function renderChannels() {
 
 function renderAppearance() {
   const colors = ['#13795b','#267661','#167596','#855d42','#6650a4']
-  return `<h2 class="editor-title">外观</h2><p class="editor-sub">统一设置网页入口、头像、名称以及窗口主题。</p>
+  return `${renderEditorHeading('外观', '统一设置网页入口、头像、名称以及窗口主题。')}
     <div class="card form-card"><h3>品牌与界面</h3><p>这些设置会同步到所有网站入口。</p><div class="field"><label>助手名称</label><input class="input" value="AI 接待" data-dirty="true" /></div><div class="field"><label>品牌主色</label><div class="color-row">${colors.map(color => `<button class="color-dot ${state.onboarding.color === color ? 'selected' : ''}" style="background:${color}" data-color="${color}" aria-label="${color}"></button>`).join('')}<input class="input" style="width:100px" value="${state.onboarding.color}" readonly /></div></div><div class="field"><label>欢迎语</label><textarea class="textarea" data-dirty="true">Hi，我是 AI 接待，可以描述您的需求～</textarea></div><label class="quality-check"><input type="checkbox" checked /> 显示技术支持标识</label><label class="quality-check"><input type="checkbox" checked /> 允许访客查看历史消息</label></div>
     <div class="card form-card"><h3>网页入口</h3><p>选择网页角落气泡或底部提问栏，右侧预览同步更新。</p><div class="template-grid"><button class="template active"><strong>右下角气泡</strong><span>适合产品官网和内容页面</span></button><button class="template"><strong>底部提问栏</strong><span>适合落地页与活动页</span></button><button class="template"><strong>内嵌模块</strong><span>嵌入指定页面区域</span></button></div></div>`
 }
 
-function renderPreview() {
+function renderPreview(closeable = false) {
   return `<div class="embedded-debug">
-    <div class="embedded-debug-head"><div><strong>调试 AI 接待</strong><span>基于当前草稿，不影响线上访客</span></div><button class="btn icon-btn ghost" data-action="close-debug">${icon('close')}</button></div>
+    <div class="embedded-debug-head"><div><strong>调试 AI 接待</strong><span>基于当前草稿，不影响线上访客</span></div>${closeable ? `<button class="btn icon-btn ghost" data-action="close-debug">${icon('close')}</button>` : ''}</div>
     <div class="embedded-debug-body">${state.debugMessages.map(message => `<div class="debug-message ${message.from}"><div class="bubble">${message.text}</div></div>`).join('')}</div>
     <div class="debug-compose"><input id="debug-input" class="input" placeholder="输入一个访客问题..." /><button class="btn primary icon-btn" data-action="debug-send">${icon('send')}</button></div>
   </div>`
@@ -429,6 +436,7 @@ document.addEventListener('click', event => {
   const agentSection = event.target.closest('[data-agent-section]')
   if (agentSection) {
     state.agentSection = agentSection.dataset.agentSection
+    if (state.agentSection === 'overview' || isAgentOperationSection()) state.debugOpen = false
     return renderApp()
   }
 
