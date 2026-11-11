@@ -161,8 +161,14 @@ function renderOperationsFrame() {
       </div>
       <div></div>
     </header>
-    ${state.route === 'conversations' ? renderConversations() : state.route === 'leads' ? renderLeads() : renderQna()}
+    ${renderOperationsContent(state.route)}
   </div>`
+}
+
+function renderOperationsContent(section) {
+  if (section === 'conversations') return renderConversations()
+  if (section === 'leads') return renderLeads()
+  return renderQna()
 }
 
 function renderContextProfile() {
@@ -250,29 +256,37 @@ const agentNavItems = [
   ['appearance','外观','palette']
 ]
 
+const agentOperationItems = [
+  ['conversations','会话','chat'],
+  ['leads','线索','users'],
+  ['qna','Q&A','spark']
+]
+
+function isAgentOperationSection() {
+  return agentOperationItems.some(item => item[0] === state.agentSection)
+}
+
 function renderAgent() {
+  const operationSection = isAgentOperationSection()
   return `<div class="agent-layout ${state.debugOpen ? 'debug-open' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><button class="btn icon-btn ghost" data-route="conversations">‹</button><strong>智能体管理</strong></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
       <div class="agent-nav-divider"></div>
-      <div class="agent-nav-group"><div class="agent-nav-group-label">${icon('spark')}<span>角色与提示词</span><span>⌄</span></div>
-        <button class="nav-item sub ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">指令内容</button>
-        <button class="nav-item sub" data-agent-section="prompt">人工回复</button>
-        <button class="nav-item sub" data-agent-section="prompt">披露边界</button>
-        <button class="nav-item sub" data-agent-section="prompt">高级设置</button>
-      </div>
+      <button class="nav-item ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">${icon('spark')}<span>角色与提示词</span></button>
       ${agentNavItems.filter(item => !['overview','prompt'].includes(item[0])).map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
       <div class="agent-nav-divider"></div>
+      ${agentOperationItems.map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
       <div class="agent-nav-spacer"></div><button class="nav-item" data-route="conversations">${icon('grid')}<span>会话管理</span></button>${renderContextProfile()}
     </aside>
     <header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange">未保存</span>' : state.published ? '<span class="badge green">已上线</span>' : '<span class="badge gray">草稿</span>'}</div>
       <div class="editor-actions"><button class="btn small" data-action="save-agent">保存</button><button class="btn small primary" data-action="publish-agent">${state.published ? '更新上线' : '发布上线'} ${icon('chevron')}</button><button class="btn small ${state.debugOpen ? 'soft' : ''}" data-action="open-debug">调试</button></div></header>
-    <section class="agent-editor"><div class="editor-body">${renderAgentSection()}</div></section>
+    <section class="agent-editor ${operationSection ? 'agent-operation-editor' : ''}"><div class="editor-body">${renderAgentSection()}</div></section>
     ${state.debugOpen ? `<aside class="preview-pane">${renderPreview()}</aside>` : ''}
   </div>`
 }
 
 function renderAgentSection() {
+  if (isAgentOperationSection()) return renderOperationsContent(state.agentSection)
   if (state.agentSection === 'overview') return renderAgentOverview()
   if (state.agentSection === 'prompt') return renderPrompt()
   if (state.agentSection === 'capabilities') return renderCapabilities()
