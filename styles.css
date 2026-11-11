@@ -355,7 +355,7 @@ button { color: inherit; }
 
 .agent-layout { height: 100vh; grid-template-columns: 230px minmax(560px, 1fr) 340px; background: white; }
 .agent-nav { display: flex; flex-direction: column; padding: 0 12px 10px; }
-.agent-nav-title { height: 64px; margin: 0 -12px 12px; padding: 0 12px; border-bottom: 1px solid var(--line-strong); display: flex; align-items: center; gap: 2px; }
+.agent-nav-title { height: 64px; margin: 0 -12px 12px; padding: 0 20px; border-bottom: 1px solid var(--line-strong); display: flex; align-items: center; }
 .agent-nav-title strong { font-size: 14px; }
 .agent-nav-divider { height: 1px; margin: 6px; background: var(--line-strong); flex: 0 0 auto; }
 .agent-nav-spacer { flex: 1; min-height: 20px; }
