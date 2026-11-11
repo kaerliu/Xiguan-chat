@@ -7,10 +7,67 @@
 
 /* ---------- 常量与默认配置 ---------- */
 
-const LEAD_FORM_FIELD_GROUPS = { name: 'name', company: 'company', phone: 'contact', wechat: 'contact', email: 'contact', use_case: 'use_case' }
-const LEAD_FORM_LABELS = { name: '姓名', company: '组织 / 公司', phone: '手机号', wechat: '微信号', email: '邮箱', use_case: '需求 / 用途' }
-const LEAD_FIELD_LABELS = { name: '姓名', company: '组织 / 公司', contact: '联系方式', use_case: '需求 / 用途' }
+/* 留资字段：一期只有六个系统字段，类型固定、可以关不能删；启用、显示名称、必填、顺序、占位文字、给 AI 的说明在能力里设。 */
+const LEAD_SYSTEM_FIELDS = [
+  { key: 'name', label: '姓名', type: '单行文本', placeholder: '怎么称呼你', ask: '怎么称呼你？' },
+  { key: 'company', label: '公司', type: '单行文本', placeholder: '公司名称', ask: '你们是哪家公司？' },
+  { key: 'phone', label: '手机号', type: '手机号', placeholder: '11 位手机号', ask: '方便留个手机号吗？顾问会尽快联系你。' },
+  { key: 'wechat', label: '微信号', type: '单行文本', placeholder: '微信号', ask: '方便留个微信号吗？顾问加你微信沟通。' },
+  { key: 'email', label: '邮箱', type: '邮箱', placeholder: 'name@company.com', ask: '方便留个邮箱吗？' },
+  { key: 'use_case', label: '需求', type: '多行文本', placeholder: '想解决什么问题', ask: '主要想解决什么问题？' }
+]
+const LEAD_FIELD_META = Object.fromEntries(LEAD_SYSTEM_FIELDS.map(item => [item.key, item]))
 const CONTACT_FIELDS = ['phone', 'wechat', 'email']
+const LEAD_DEFAULT_MESSAGES = { success: '已收到，顾问会带着这次的聊天记录联系你。', failure: '提交没有成功，请稍后再试。' }
+const LEAD_FORM_FIELD_WARN = 4
+
+function defaultLeadFields() {
+  const on = { name: true, company: true, phone: true, wechat: true }
+  return LEAD_SYSTEM_FIELDS.map(item => ({ key: item.key, label: item.label, enabled: Boolean(on[item.key]), required: false, placeholder: item.placeholder, ai_hint: '' }))
+}
+
+/** 把旧草稿（fields 为分组名数组 + form_fields）迁移成新的字段列表，并补齐缺省值。 */
+function normalizeLeadCapture(lead) {
+  const base = capabilityDefaults().actions.lead_capture
+  const next = { ...base, ...(lead || {}) }
+  const defaults = defaultLeadFields()
+  let fields
+  if (Array.isArray(next.fields) && next.fields.length && typeof next.fields[0] === 'object') {
+    const seen = new Set()
+    fields = next.fields.filter(item => item && LEAD_FIELD_META[item.key] && !seen.has(item.key) && seen.add(item.key)).map(item => ({ ...defaults.find(d => d.key === item.key), ...item }))
+    defaults.forEach(item => { if (!seen.has(item.key)) fields.push({ ...item, enabled: false }) })
+  } else if (Array.isArray(next.fields)) {
+    const group = key => CONTACT_FIELDS.includes(key) ? 'contact' : key
+    const shown = Array.isArray(lead?.form_fields) ? new Map(lead.form_fields.filter(Boolean).map(item => [item.field, item])) : null
+    fields = defaults.map(item => {
+      const allowed = next.fields.includes(group(item.key))
+      return { ...item, enabled: allowed && (shown ? shown.has(item.key) : true), required: Boolean(shown?.get(item.key)?.required) }
+    })
+  } else fields = defaults
+  delete next.form_fields
+  next.fields = fields
+  next.interaction = next.interaction === 'text' ? 'text' : 'widget'
+  next.max_invites = Math.min(3, Math.max(1, Number(next.max_invites) || 2))
+  if (typeof next.success_message !== 'string') next.success_message = LEAD_DEFAULT_MESSAGES.success
+  if (typeof next.failure_message !== 'string') next.failure_message = LEAD_DEFAULT_MESSAGES.failure
+  return next
+}
+
+const leadFieldsOf = lead => (lead?.fields || []).filter(item => item && typeof item === 'object' && LEAD_FIELD_META[item.key])
+const enabledLeadFields = lead => leadFieldsOf(lead).filter(item => item.enabled)
+const leadHasContactField = lead => enabledLeadFields(lead).some(item => CONTACT_FIELDS.includes(item.key))
+/** 访客看到的字段名：运营改过名就用新名字。 */
+function fieldLabel(key, lead = C().actions.lead_capture) {
+  const item = leadFieldsOf(lead).find(field => field.key === key)
+  return (item?.label || '').trim() || LEAD_FIELD_META[key]?.label || key
+}
+const leadMessage = (lead, kind) => String(lead?.[`${kind}_message`] || '').trim() || LEAD_DEFAULT_MESSAGES[kind]
+
+/** 发布前的硬性校验；有问题返回提示文字。 */
+function capPublishError() {
+  if (!leadHasContactField(C().actions.lead_capture)) return '留资表单的手机号、微信号、邮箱至少启用一项，否则不能发布'
+  return ''
+}
 
 const TRIGGER_LABELS = { ai: 'AI 在对话中判断后调用', page: '前端按页面规则触发', entry: '访客点入口或 AI 邀请' }
 const TRIGGER_ICONS = { ai: 'bot', entry: 'message', page: 'monitor' }
@@ -21,7 +78,7 @@ const RECOMMENDATIONS_SUMMARY = '每次回答后，在下方给出 2–3 个可�
 const MCP_SUMMARY = '接入你的业务系统（MCP 服务或 API），访客问订单、发票、试用开通时，助手直接查询或办理，不用转人工。'
 
 const CAPABILITIES = [
-  { id: 'lead_capture', name: '留资表单', icon: 'user-check', trigger: 'ai', summary: '在合适的时机邀请访客留下联系方式：可以弹出联系表单，也可以直接在对话里用文字询问；访客在对话中主动提供的联系方式也会记录。', interaction: { kind: 'widget', label: '联系表单' } },
+  { id: 'lead_capture', name: '留资表单', icon: 'user-check', trigger: 'ai', summary: '收集访客的联系方式和需求，存成一条线索。AI 判断什么时候邀请，按你选的收集方式弹表单或在对话里问。', interaction: { kind: 'widget', label: '联系表单' } },
   { id: 'assessment', name: '测评式营销', icon: 'circle-check', trigger: 'entry', summary: ASSESSMENT_SUMMARY, interaction: { kind: 'widget', label: '测评卡片' }, isNew: true },
   { id: 'human_handoff', name: '转人工', icon: 'headset', trigger: 'ai', summary: '按你配置的条件把对话转给人工，请求进入「人工」列表；外部通知通道为可选配置。', interaction: { kind: 'text', label: '纯文字' } },
   { id: 'asset_delivery', name: '资料交付', icon: 'file', trigger: 'ai', summary: '把知识库中带链接的资料以卡片形式发给访客；与引用溯源是两条独立通道。', interaction: { kind: 'widget', label: '资料卡片' } },
@@ -125,7 +182,7 @@ const DEFAULT_MCP = {
 function capabilityDefaults() {
   return {
     actions: {
-      lead_capture: { enabled: true, fields: ['name', 'company', 'contact', 'use_case'], form_fields: [{ field: 'company', required: false }, { field: 'phone', required: false }, { field: 'wechat', required: false }], form_size: 'medium', interaction: 'widget', instructions: '访客问到价格、方案对比、试用，或明确表示有采购需求时邀请填写；访客拒绝后不再追问，继续正常回答。' },
+      lead_capture: { enabled: true, interaction: 'widget', form_size: 'medium', fields: defaultLeadFields(), max_invites: 2, success_message: LEAD_DEFAULT_MESSAGES.success, failure_message: LEAD_DEFAULT_MESSAGES.failure, instructions: '访客问到报价、试用、演示时邀请留手机号；先把他的问题答完再邀请。访客拒绝后不再追问，继续正常回答。' },
       human_handoff: { enabled: true, instructions: '访客明确要求人工、询问合同或定制报价、或对回答表示不满时转人工；转交前告诉访客顾问会尽快联系。', help_url: 'https://help.xiguan.cn' },
       asset_delivery: { enabled: false, mode: 'immediate', max_items: 3, instructions: '访客明确索要白皮书、案例、产品手册或下载链接时，发送知识库里带链接的资料卡片。' }
     },
@@ -195,13 +252,61 @@ function baseAnswer(message) {
   return [...DEMO_ANSWERS].sort((a, b) => score(b[0]) - score(a[0]))[0][1]
 }
 
-function extractContact(message) {
-  const phone = message.match(/1[3-9]\d{9}/)?.[0]
-  const email = message.match(/[\w.+-]+@[\w-]+\.[\w.]+/)?.[0]
-  const wechat = message.match(/(?:微信|wx|wechat)[号是:：\s]*([A-Za-z][-_A-Za-z0-9]{5,19})/i)?.[1]
-  if (!phone && !email && !wechat) return null
-  const company = message.match(/([一-龥A-Za-z]{2,12}(?:科技|集团|公司|教育|咨询|网络|软件|信息|物流))/)?.[1]
-  return { ...(phone ? { phone } : {}), ...(email ? { email } : {}), ...(wechat ? { wechat } : {}), ...(company ? { company: company.replace(/^(我们是|我是|公司是|来自)/, '') } : {}) }
+const REFUSE_WORDS = ['不用了', '不需要', '不方便', '不想留', '不留', '算了', '先不', '不用', '没必要', '暂时不']
+const SELF_LEAD_WORDS = ['联系我', '留个电话', '留个联系方式', '留联系方式', '留下联系方式', '怎么联系', '加个微信', '加微信', '给我回电', '打给我', '让顾问联系']
+
+const hasContactIn = values => CONTACT_FIELDS.some(key => String(values?.[key] || '').trim())
+const newLeadSession = () => ({ human: false, captured: false, leadId: '', values: {}, invites: 0, refused: false, asking: null, queue: [], lastInvited: false, followUpAsked: false, failSave: false })
+const onlineLead = () => normalizeLeadCapture((JSON.parse(cfg.published).actions || capabilityDefaults().actions).lead_capture)
+
+/** 只取访客明确说出的值；关掉的字段不收集。 */
+function extractLeadValues(message, lead) {
+  const text = String(message || '')
+  const allow = new Set(enabledLeadFields(lead).map(item => item.key))
+  const company = text.match(/([一-龥A-Za-z]{2,12}(?:科技|集团|公司|教育|咨询|网络|软件|信息|物流))/)?.[1]?.replace(/^(我们公司是|我们是|我们|我是|公司是|来自|在)/, '')
+  const found = {
+    phone: text.match(/(?:\+\d{1,3}[\s-]?)?1[3-9]\d{9}/)?.[0],
+    email: text.match(/[\w.+-]+@[\w-]+\.[\w.]+/)?.[0],
+    wechat: text.match(/(?:微信|wx|vx|wechat)[号是:：\s]*([A-Za-z][-_A-Za-z0-9]{5,19})/i)?.[1],
+    company,
+    name: text.match(/(?:我叫|我姓|叫我|称呼我)\s*([一-龥A-Za-z]{1,6}?)(?=[，,。.！!\s\d]|就|电话|手机|微信|$)/)?.[1] || text.match(/我是\s*([一-龥]{1,3}(?:先生|女士|经理|总))/)?.[1]
+  }
+  return Object.fromEntries(Object.entries(found).filter(([key, value]) => value && allow.has(key)).map(([key, value]) => [key, value.trim()]))
+}
+
+/** AI 正在问某个非联系方式字段时，把访客的直接回答当作这一项的值。 */
+function answerFor(key, message) {
+  const text = String(message || '').trim()
+  if (!text || text.length > 60 || /[?？]/.test(text)) return ''
+  const value = text.replace(/^(我叫|我姓|叫我|我们公司是|我们是|公司是|是|主要是|想)/, '').replace(/[。.！!]$/, '').trim()
+  if (key === 'name' && value.length > 10) return ''
+  return value
+}
+
+function askText(key, lead) {
+  const label = fieldLabel(key, lead)
+  if (key === 'name') return '怎么称呼你？'
+  if (CONTACT_FIELDS.includes(key)) return `方便留个${label}吗？顾问会尽快联系你。`
+  if (key === 'use_case') return `方便说说你的${label}吗？比如想解决什么问题。`
+  return `方便说一下你的${label}吗？`
+}
+
+/** 对话方式要问的字段：按顺序，必填的都问；没有必填的联系方式时，补问第一个启用的联系方式。 */
+function textAskQueue(lead, values) {
+  const list = enabledLeadFields(lead).filter(item => !String(values[item.key] || '').trim())
+  const requiredContact = list.some(item => item.required && CONTACT_FIELDS.includes(item.key))
+  const firstContact = list.find(item => CONTACT_FIELDS.includes(item.key))
+  return list.filter(item => item.required || (!hasContactIn(values) && !requiredContact && item === firstContact)).map(item => item.key)
+}
+
+/** 保存到同一条线索：还没有联系方式时先暂存，不生成线索。 */
+function saveSessionLead(session) {
+  if (session.failSave) return { ok: false }
+  if (session.leadId) { updateDemoLead(session.leadId, session.values); return { ok: true, id: session.leadId, created: false } }
+  if (!hasContactIn(session.values)) return { ok: true, pending: true }
+  session.leadId = addDemoLead(session.values, session.values.use_case || '—')
+  session.captured = true
+  return { ok: true, id: session.leadId, created: true }
 }
 
 function pickMaterials(message, limit) {
@@ -209,45 +314,106 @@ function pickMaterials(message, limit) {
   return (matched.length ? matched : DEMO_MATERIALS.slice(0, 1)).slice(0, Math.max(1, limit)).map(item => ({ title: item.title, url: item.url, kind: item.kind, meta: 'www.example.com' }))
 }
 
-/** 调试台每轮处理（回答按线上已发布的配置）。session：{ captured, invited, human }。 */
+/** 调试台每轮处理（回答按线上已发布的配置）。session 见 newLeadSession()。 */
 function playgroundTurn(message, session) {
-  const meta = { suggestLeadForm: false, leadCaptured: false, leadId: null, handoffRequested: false, materials: [], humanMode: false }
+  const meta = { suggestLeadForm: false, leadCaptured: false, leadMerged: false, leadSaveFailed: false, leadId: null, got: [], refused: false, invited: false, selfRequest: false, asked: null, note: '', handoffRequested: false, materials: [], humanMode: false }
   if (session.human) return { text: '', meta: { ...meta, humanMode: true } }
   const online = JSON.parse(cfg.published).actions || capabilityDefaults().actions
-  const lead = online.lead_capture || {}
+  const lead = normalizeLeadCapture(online.lead_capture)
   const handoff = online.human_handoff || {}
   const asset = online.asset_delivery || {}
   const has = words => words.some(word => message.includes(word))
   const textMode = lead.interaction === 'text'
   const base = baseAnswer(message)
-  const contact = lead.enabled && !session.captured ? extractContact(message) : null
-  if (contact) {
-    session.captured = true
-    const leadId = addDemoLead(contact, '在对话中主动留下了联系方式。')
-    return { text: '好的，已记下你的联系方式，顾问会尽快联系你。有其他问题也可以继续问我。', meta: { ...meta, leadCaptured: true, leadId } }
+  const canInvite = lead.enabled && leadHasContactField(lead)
+  const wasInvited = session.lastInvited
+  const asking = session.asking
+  session.lastInvited = false
+  const isQuestion = /[?？]|吗$|呢$/.test(message.trim()) || has(INTENT_WORDS)
+  const askNext = (prefix, key) => { session.asking = key; return `${prefix}${askText(key, lead)}` }
+
+  // 访客明确拒绝：本次会话不再邀请
+  const got = extractLeadValues(message, lead)
+  if ((wasInvited || asking) && has(REFUSE_WORDS) && !hasContactIn(got)) {
+    Object.assign(session, { refused: true, asking: null, queue: [] })
+    return { text: isQuestion ? base : '好的，不留也没关系。还有什么想了解的，随时问我。', meta: { ...meta, refused: true } }
   }
+
+  // 访客说出的值：联系方式是平台行为，能力关闭也记录；合并进同一条线索
+  if (asking && !got[asking] && !CONTACT_FIELDS.includes(asking)) { const value = answerFor(asking, message); if (value) got[asking] = value }
+  if (Object.keys(got).length) {
+    Object.assign(session.values, got)
+    meta.got = Object.keys(got)
+    const saved = saveSessionLead(session)
+    if (!saved.ok) meta.leadSaveFailed = true
+    else if (saved.created) Object.assign(meta, { leadCaptured: true, leadId: saved.id })
+    else if (saved.id) Object.assign(meta, { leadMerged: true, leadId: saved.id })
+    const opener = isQuestion ? `${base}\n\n` : '好的。'
+    if (asking) {
+      session.queue = session.queue.filter(key => !session.values[key])
+      const next = session.queue.shift()
+      if (next) return { text: askNext(opener, next), meta: { ...meta, asked: next } }
+      session.asking = null
+    } else if (lead.enabled && session.captured && !session.refused && !session.followUpAsked) {
+      // 拿到联系方式后不再弹表单；还没填的字段（已有联系方式时不再追要别的联系方式），AI 顺带问一项
+      const missing = enabledLeadFields(lead).find(item => !CONTACT_FIELDS.includes(item.key) && !String(session.values[item.key] || '').trim())
+      if (missing) { session.followUpAsked = true; session.queue = []; return { text: askNext(`${opener}顺便问一下，`, missing.key), meta: { ...meta, asked: missing.key } } }
+    }
+    return { text: isQuestion ? base : '好的，还有其他想了解的可以继续问我。', meta }
+  }
+  const ignored = Boolean(asking)
+  if (ignored) Object.assign(session, { asking: null, queue: [] })
+  if (ignored) meta.note = '访客没有回答这一项，AI 先回答问题，这一轮不再追问。'
+
   if (handoff.enabled && has(HANDOFF_WORDS)) return { text: `好的，已为你转接人工客服，请稍等。${handoff.help_url ? `\n等待期间也可以先看看帮助中心：${handoff.help_url}` : ''}`, meta: { ...meta, handoffRequested: true } }
   if (asset.enabled && has(MATERIAL_WORDS)) {
     if (asset.mode === 'immediate' || session.captured) return { text: '好的，这是相关资料，点开即可查看：', meta: { ...meta, materials: pickMaterials(message, Number(asset.max_items) || 1) } }
-    if (asset.mode === 'contact_required') return { text: textMode ? '资料已经准备好了。方便留个手机号或微信吗？留下后我把下载链接发给你。' : '资料已经准备好了，留下联系方式就能获取下载链接。', meta: { ...meta, suggestLeadForm: Boolean(lead.enabled) && !textMode } }
+    if (asset.mode === 'contact_required') {
+      session.lastInvited = canInvite
+      return { text: textMode ? '资料已经准备好了。方便留个手机号或微信吗？留下后我把下载链接发给你。' : '资料已经准备好了，留下联系方式就能获取下载链接。', meta: { ...meta, suggestLeadForm: canInvite && !textMode } }
+    }
     return { text: '这份资料需要由顾问发送给你，我已经帮你转给人工顾问。', meta: { ...meta, handoffRequested: Boolean(handoff.enabled) } }
   }
-  if (lead.enabled && has(INTENT_WORDS) && !session.captured && !session.invited) {
-    session.invited = true
-    return textMode
-      ? { text: `${base}\n\n方便留个手机号或微信吗？我让顾问把详细信息发给你。`, meta }
-      : { text: `${base}\n\n方便留个联系方式吗？我让顾问把详细信息发给你。`, meta: { ...meta, suggestLeadForm: true } }
+
+  // 邀请：访客自己要留不受次数限制；AI 主动邀请受次数和拒绝限制
+  const selfRequest = canInvite && has(SELF_LEAD_WORDS)
+  if (selfRequest && session.captured) return { text: '好的，顾问会尽快联系你。还有什么想先了解的，可以继续问我。', meta }
+  const aiInvite = canInvite && !ignored && has(INTENT_WORDS) && !session.captured && !session.refused
+  if (aiInvite && session.invites >= lead.max_invites) meta.note = `本次会话已主动邀请 ${session.invites} 次，到达上限，不再邀请。`
+  if (selfRequest || (aiInvite && session.invites < lead.max_invites)) {
+    if (selfRequest) session.refused = false
+    else session.invites += 1
+    session.lastInvited = true
+    Object.assign(meta, { invited: true, selfRequest })
+    if (!textMode) return { text: selfRequest ? '好的，在下面留个联系方式就行，顾问会尽快联系你。' : `${base}\n\n方便留个联系方式吗？我让顾问把详细信息发给你。`, meta: { ...meta, suggestLeadForm: true } }
+    const queue = textAskQueue(lead, session.values)
+    const first = queue.shift()
+    session.queue = queue
+    return { text: askNext(selfRequest ? '好的。' : `${base}\n\n`, first), meta: { ...meta, asked: first } }
   }
   return { text: base, meta }
 }
 
-/** 演示中生成的调试线索，同步到「线索」列表。 */
+/** 演示中生成的调试线索，同步到「线索」列表；同一会话后补的信息合并进同一行。 */
+const demoLeadRows = {}
+const leadContactText = values => values.phone || values.wechat || values.email || '未获取'
 function addDemoLead(contact, need) {
-  const id = `demo-lead-${Date.now().toString(36)}`
+  const id = `demo-lead-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
   try {
-    leads.unshift([contact.name || '调试访客', contact.company || '调试会话', contact.phone || contact.wechat || contact.email || '未获取', need || '调试线索', '跟进中', '刚刚'])
+    const row = [contact.name || '调试访客', contact.company || '调试会话', leadContactText(contact), need || '—', '跟进中', '刚刚', '调试不推送']
+    leads.unshift(row)
+    demoLeadRows[id] = row
   } catch (_) {}
   return id
+}
+function updateDemoLead(id, values) {
+  const row = demoLeadRows[id]
+  if (!row) return
+  if (values.name) row[0] = values.name
+  if (values.company) row[1] = values.company
+  row[2] = leadContactText(values)
+  if (values.use_case) row[3] = values.use_case
+  row[5] = '刚刚'
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -277,10 +443,9 @@ function setCapEnabled(id, enabled) {
   } else d[id].enabled = enabled
 }
 
-function normalizeFormFields() {
-  const lead = C().actions.lead_capture
-  const seen = new Set()
-  return (lead.form_fields || []).filter(item => item && LEAD_FORM_FIELD_GROUPS[item.field] && lead.fields.includes(LEAD_FORM_FIELD_GROUPS[item.field]) && !seen.has(item.field) && seen.add(item.field))
+/** 表单里显示的字段（按顺序）：{ field, label, required, placeholder }。留资弹窗、测评也沿用这份设置。 */
+function normalizeFormFields(lead = C().actions.lead_capture) {
+  return enabledLeadFields(lead).map(item => ({ field: item.key, label: fieldLabel(item.key, lead), required: Boolean(item.required), placeholder: item.placeholder || '' }))
 }
 
 /* ---------- 通用片段 ---------- */
@@ -347,6 +512,7 @@ function renderCapabilityListCards() {
 function renderCapabilitiesConfig() {
   const cap = CAPABILITIES.find(item => item.id === cfg.capDetail)
   if (cap) {
+    if (cap.id === 'lead_capture') return renderLeadCaptureDetail(cap)
     if (cap.id === 'assessment') return renderAssessmentDetail(cap)
     if (cap.id === 'lead_popup') return renderLeadPopupDetail(cap)
     if (cap.id === 'recommendations') return renderRecommendationsDetail(cap)
@@ -361,7 +527,7 @@ function renderCapabilitiesConfig() {
     </section>`)
 }
 
-/* ---------- 通用能力详情（留资表单 / 转人工 / 资料交付 / 主动弹窗 / 沉默跟进） ---------- */
+/* ---------- 通用能力详情（转人工 / 资料交付 / 主动弹窗 / 沉默跟进） ---------- */
 
 function renderCapabilityDetail(cap) {
   const d = C()
@@ -369,8 +535,8 @@ function renderCapabilityDetail(cap) {
   const id = cap.id
   const enabled = isCapEnabled(id)
   const sec = name => `${id}:${name}`
-  const whenToUse = ['lead_capture', 'human_handoff', 'asset_delivery'].includes(id)
-  const placeholders = { lead_capture: '例如：仅在用户主动要求后续联系时邀请填写；拒绝后继续正常回答。', human_handoff: '写清哪些情况应转交，以及转交前需要告诉用户什么。', asset_delivery: '例如：仅在访客明确索要资料、案例或下载链接时发送。' }
+  const whenToUse = ['human_handoff', 'asset_delivery'].includes(id)
+  const placeholders = { human_handoff: '写清哪些情况应转交，以及转交前需要告诉用户什么。', asset_delivery: '例如：仅在访客明确索要资料、案例或下载链接时发送。' }
 
   const general = capSection(sec('general'), '通用', !whenToUse || Boolean(a[id].instructions.trim()), true, `<div class="cfg-form-grid">
       ${field('做什么', `<p class="capability-readonly">${cap.summary}</p>`, { full: true })}
@@ -380,39 +546,18 @@ function renderCapabilityDetail(cap) {
     </div>`)
 
   const interaction = capSection(sec('interaction'), '交互形式', true, false, `<div class="capability-interaction" role="radiogroup" aria-label="交互形式">${['text', 'widget'].map(kind => {
-      if (id === 'lead_capture') {
-        const current = (a.lead_capture.interaction || 'widget') === kind
-        return `<button type="button" class="capability-interaction-option is-switchable ${current ? 'is-current' : ''}" role="radio" aria-checked="${current}" data-lead-interaction="${kind}"><strong>${kind === 'text' ? '纯文字' : '小组件'}</strong><small>${kind === 'text' ? (current ? '当前使用：AI 在对话里用文字询问' : 'AI 在对话里直接询问联系方式，访客用文字回复') : (current ? '当前使用：联系表单' : '在对话里弹出联系表单，访客填写后提交')}</small></button>`
-      }
       const current = cap.interaction.kind === kind
       return `<div class="capability-interaction-option ${current ? 'is-current' : ''}" role="radio" aria-checked="${current}" aria-disabled="${!current}"><strong>${kind === 'text' ? '纯文字' : '小组件'}</strong><small>${!current ? '当前能力不支持' : cap.interaction.label === '纯文字' ? '当前使用' : `当前使用：${cap.interaction.label}`}</small></div>`
-    }).join('')}</div><small class="capability-hint">${id === 'lead_capture' ? '两种方式都会记录访客在对话中主动提供的联系方式；切换后右侧演示立即生效。' : '交互形式由能力决定，暂不支持切换。'}</small>`)
+    }).join('')}</div><small class="capability-hint">交互形式由能力决定，暂不支持切换。</small>`)
 
-  let widgetBody
-  if (id === 'lead_capture') {
-    const formFields = normalizeFormFields()
-    widgetBody = `${a.lead_capture.interaction === 'text' ? '<p class="capability-readonly">当前为「纯文字」，访客看不到联系表单；下面的表单设置在切回「小组件」后生效。</p>' : ''}
-      <div class="cfg-form-grid">
-        ${field('表单展示尺寸', capSelect('actions.lead_capture.form_size', [['small', '小 · 默认折叠'], ['medium', '标准 · 直接展开'], ['large', '大 · 宽松布局']]), { help: '小尺寸先显示一个填写入口，访客点击后再展开完整字段，可优先保留助手回复的可见空间。' })}
-        <div class="cfg-field full"><label>联系表单字段</label><small>选择访客表单中显示的项目，并设置哪些必填。未允许收集的字段无法启用。</small>
-          <div class="console-table-wrap lead-form-settings"><table class="console-table" aria-label="联系表单字段"><thead><tr><th scope="col">字段</th><th scope="col">显示</th><th scope="col">必填</th></tr></thead><tbody>${Object.keys(LEAD_FORM_FIELD_GROUPS).map(name => {
-            const selected = formFields.find(item => item.field === name)
-            const allowed = a.lead_capture.fields.includes(LEAD_FORM_FIELD_GROUPS[name])
-            const label = LEAD_FORM_LABELS[name]
-            return `<tr><td><strong>${label}</strong>${allowed ? '' : '<small>（未允许收集）</small>'}</td>
-              <td><label class="console-checkbox"><input type="checkbox" aria-label="显示${label}" data-form-field="${name}" data-form-kind="shown" ${selected ? 'checked' : ''} ${allowed ? '' : 'disabled'} /><span>显示</span></label></td>
-              <td><label class="console-checkbox"><input type="checkbox" aria-label="${label}必填" data-form-field="${name}" data-form-kind="required" ${selected?.required ? 'checked' : ''} ${allowed && selected ? '' : 'disabled'} /><span>必填</span></label></td></tr>`
-          }).join('')}</tbody></table></div>
-          <small>访客至少填写一种已显示的联系方式。未显示任何联系方式时，不展示联系表单；“必填”仅用于表单提交，不改变对话中的询问节奏。</small></div>
-      </div>`
-  } else if (id === 'asset_delivery') {
-    widgetBody = `<div class="cfg-form-grid">${field('每轮最多展示资料卡片', capNumber('actions.asset_delivery.max_items', 1, 10), { help: '可配置 1～10 条；平台不替你的智能体固定数量。' })}</div>`
-  } else widgetBody = '<p class="capability-readonly">该能力以纯文字交互，没有小组件。</p>'
+  const widgetBody = id === 'asset_delivery'
+    ? `<div class="cfg-form-grid">${field('每轮最多展示资料卡片', capNumber('actions.asset_delivery.max_items', 1, 10), { help: '可配置 1～10 条；平台不替你的智能体固定数量。' })}</div>`
+    : '<p class="capability-readonly">该能力以纯文字交互，没有小组件。</p>'
   const widget = capSection(sec('widget'), '小组件', true, false, `${widgetBody}<div class="capability-planned-row">${icon('spark', 'xs')}<span>用 AI 编辑小组件的内容与样式</span>${badge('', '即将上线')}</div>`)
 
-  const fields = capSection(sec('fields'), '需要访客提供的字段', true, false, id === 'lead_capture'
-    ? `<div class="cfg-field"><div class="console-inline-fields">${Object.entries(LEAD_FIELD_LABELS).map(([key, label]) => `<label class="console-checkbox"><input type="checkbox" data-lead-field="${key}" ${a.lead_capture.fields.includes(key) ? 'checked' : ''} /><span>${label}</span></label>`).join('')}</div><small>运行时只接受这里选中的字段；模型不得推测用户没有明确提供的内容。至少保留一项。</small></div>`
-    : id === 'asset_delivery' ? '<p class="capability-readonly">默认无需访客提供字段。交付条件为“收集联系方式后交付”时，依赖「留资表单」先收集联系方式。</p>' : '<p class="capability-readonly">无需访客提供字段。</p>')
+  const fields = capSection(sec('fields'), '需要访客提供的字段', true, false, id === 'asset_delivery'
+    ? '<p class="capability-readonly">默认无需访客提供字段。交付条件为“收集联系方式后交付”时，依赖「留资表单」先收集联系方式。</p>'
+    : '<p class="capability-readonly">无需访客提供字段。</p>')
 
   let more = ''
   if (id === 'human_handoff') more = capSection(sec('more'), '更多设置', true, false, `<div class="cfg-form-grid">${field('帮助中心地址（可选）', capInput('actions.human_handoff.help_url', 'type="url" placeholder="https://help.example.com"'))}</div>`)
@@ -425,6 +570,81 @@ function renderCapabilityDetail(cap) {
       <div class="agent-config-layout capability-demo-layout">
         <div class="agent-config-main capability-sections">${general}${interaction}${widget}${fields}${more}</div>
         <aside class="agent-config-side capability-demo-side">${renderDemoPanel(id, enabled)}</aside>
+      </div>
+    </section>`)
+}
+
+/* ---------- 留资表单详情：通用 / 收集方式 / 字段 / 表单样式 / 消息 / 次数 ---------- */
+
+const LEAD_MODES = [
+  { value: 'widget', title: '表单', sees: 'AI 回复下方出现联系表单，一次填完提交', fit: '要的字段多，想一次拿全' },
+  { value: 'text', title: '对话', sees: 'AI 在对话里一项一项问，访客直接打字回答', fit: '不想打断对话，只要一两项' }
+]
+
+function renderLeadCaptureDetail(cap) {
+  const lead = C().actions.lead_capture
+  const enabled = isCapEnabled('lead_capture')
+  const sec = name => `lead_capture:${name}`
+  const formMode = lead.interaction !== 'text'
+  const fields = leadFieldsOf(lead)
+  const enabledCount = fields.filter(item => item.enabled).length
+  const hasContact = leadHasContactField(lead)
+
+  const general = capSection(sec('general'), '通用', Boolean(lead.instructions.trim()), true, `<div class="cfg-form-grid">
+      ${field('做什么', '<p class="capability-readonly">收集访客的联系方式和需求，存成一条线索。AI 判断什么时候邀请，按你选的收集方式弹表单或在对话里问。</p>', { full: true })}
+      ${field('什么时候用', capTextarea('actions.lead_capture.instructions', 4, `maxlength="4000" placeholder="比如：访客问到报价、试用、演示时邀请留手机号；先把他的问题答完再邀请。" data-cap-done="${sec('general')}"`), { full: true, help: '写给 AI 的邀请时机，进入运行时；能力关闭时不会出现。能力开关优先于这里的指令。选「对话」方式时，收集规则也写在这里。' })}
+    </div>`)
+
+  const mode = capSection(sec('mode'), '收集方式', true, true, `<div class="lead-modes" role="radiogroup" aria-label="收集方式">${LEAD_MODES.map(item => {
+      const current = (lead.interaction === 'text' ? 'text' : 'widget') === item.value
+      return `<button type="button" class="lead-mode ${current ? 'is-current' : ''}" role="radio" aria-checked="${current}" data-lead-interaction="${item.value}"><strong>${item.title}${item.value === 'widget' ? badge('', '默认') : ''}</strong><span><em>访客看到</em>${item.sees}</span><span><em>适合</em>${item.fit}</span></button>`
+    }).join('')}</div>
+    <small class="capability-hint">不管选哪种，访客在对话里主动说出的手机号、微信号、邮箱都会被记录，补进同一条线索（这项能力关闭时也会记录）；收集方式只决定 AI 主动邀请时用哪种形式。</small>
+    ${!formMode ? '<small class="capability-hint">对话方式下「必填」没法强制，格式不对只能靠 AI 追问。</small>' : ''}`)
+
+  const rows = fields.map((item, index) => {
+    const meta = LEAD_FIELD_META[item.key]
+    const path = `actions.lead_capture.fields.${index}`
+    const contact = CONTACT_FIELDS.includes(item.key)
+    return `<li class="lead-field ${item.enabled ? '' : 'is-off'}" data-lead-row="${index}">
+      <div class="lead-field-top">
+        <span class="lead-field-handle" title="拖动调整顺序" aria-hidden="true" data-lead-handle>⋮⋮</span>
+        <label class="cfg-toggle-control lead-field-switch"><input type="checkbox" role="switch" aria-label="启用${esc(meta.label)}" data-bind="${path}.enabled" ${item.enabled ? 'checked' : ''} data-rerender="1" /><i></i></label>
+        <input class="lead-field-name" value="${esc(item.label)}" maxlength="20" aria-label="${esc(meta.label)}的显示名称" placeholder="${esc(meta.label)}" data-bind="${path}.label" data-demo-sync="1" />
+        <span class="lead-field-type">${meta.type}${contact ? ' · 联系方式' : ''}</span>
+        <label class="console-checkbox lead-field-required"><input type="checkbox" data-bind="${path}.required" ${item.required ? 'checked' : ''} ${item.enabled ? '' : 'disabled'} data-rerender="1" /><span>必填</span></label>
+        <span class="lead-field-move"><button type="button" class="cfg-btn sm ghost" aria-label="上移${esc(meta.label)}" data-lead-move="${index}:-1" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" class="cfg-btn sm ghost" aria-label="下移${esc(meta.label)}" data-lead-move="${index}:1" ${index === fields.length - 1 ? 'disabled' : ''}>↓</button></span>
+      </div>
+      ${item.enabled ? `<div class="lead-field-more">
+        <label class="${formMode ? '' : 'is-dim'}"><span>占位文字<small>表单方式用</small></span><input value="${esc(item.placeholder || '')}" maxlength="40" placeholder="${esc(meta.placeholder)}" data-bind="${path}.placeholder" data-demo-sync="1" /></label>
+        <label class="${formMode ? 'is-dim' : ''}"><span>给 AI 的说明<small>对话方式用</small></span><input value="${esc(item.ai_hint || '')}" maxlength="200" placeholder="例如：${esc(meta.ask)}" data-bind="${path}.ai_hint" /></label>
+      </div>` : ''}
+    </li>`
+  }).join('')
+  const fieldsSec = capSection(sec('fields'), '字段', hasContact, true, `
+    ${!hasContact ? capNotice('<strong>手机号、微信号、邮箱至少启用一项，否则不能发布。</strong>访客至少填一种联系方式才生成线索。') : ''}
+    ${formMode && enabledCount > LEAD_FORM_FIELD_WARN ? `<div class="cfg-notice info" role="status"><span class="cfg-notice-icon">${icon('alert', 'sm')}</span><div>已启用 ${enabledCount} 个字段。字段越多，填写的人越少。</div></div>` : ''}
+    <ol class="lead-fields" aria-label="字段">${rows}</ol>
+    <small class="capability-hint">拖动或用 ↑↓ 调整顺序，表单和对话都按这个顺序。六个系统字段类型固定，可以关、不能删；改名后，已有线索里这一项按新名字显示。</small>
+    <small class="capability-hint">必填：表单方式下不填不能提交；对话方式下 AI 会问到这一项，访客不答也不强求。AI 只存访客明确说出的值，不推测。</small>`)
+
+  const style = capSection(sec('style'), '表单样式', true, false, `${!formMode ? '<p class="capability-readonly">当前为「对话」方式，访客看不到联系表单；切回「表单」后生效。</p>' : ''}
+    <div class="cfg-form-grid">${field('尺寸', capSelect('actions.lead_capture.form_size', [['small', '小 · 先显示“填写信息”，点开再展开'], ['medium', '标准'], ['large', '大']]), { help: '小尺寸能给 AI 的回复多留一些空间。' })}</div>
+    <div class="capability-planned-row">${icon('spark', 'xs')}<span>用 AI 编辑表单的内容与样式</span>${badge('', '即将上线')}</div>`)
+
+  const messages = capSection(sec('messages'), '消息', true, false, `<div class="cfg-form-grid">
+      ${field('成功消息', capTextarea('actions.lead_capture.success_message', 2, `maxlength="200" placeholder="${LEAD_DEFAULT_MESSAGES.success}" data-demo-sync="1"`), { full: true, help: '表单提交成功，或对话里拿到联系方式并保存成功后显示。最多 200 字，留空用默认文案。' })}
+      ${field('失败消息', capTextarea('actions.lead_capture.failure_message', 2, `maxlength="200" placeholder="${LEAD_DEFAULT_MESSAGES.failure}" data-demo-sync="1"`), { full: true, help: '网络或服务出错、没有保存成功时显示。最多 200 字，留空用默认文案。' })}
+    </div><small class="capability-hint">只有保存成功才显示成功消息，AI 自己不会说“已记录”。字段校验的提示由平台固定，不在这里配。</small>`)
+
+  const times = capSection(sec('times'), '次数', true, false, `<div class="cfg-form-grid">${field('每次会话 AI 最多主动邀请', capSelect('actions.lead_capture.max_invites', [[1, '1 次'], [2, '2 次（默认）'], [3, '3 次']], 'data-type="number"'), { help: '弹一次表单或在对话里问一次联系方式，各算一次。' })}</div>
+    <ul class="lead-rules"><li>访客明确拒绝后，本次会话不再邀请；访客关掉表单算没回应，不算拒绝。</li><li>已经拿到联系方式后，不再弹表单；还没填的字段，AI 可以在对话里顺带问。</li><li>访客自己说要留联系方式时，不受次数限制。</li></ul>`)
+
+  return cfgPage('cap-lead_capture', `${capHeader(cap, enabled)}
+    <section class="cfg-body">${renderCfgHint()}${capNotices('lead_capture')}
+      <div class="agent-config-layout capability-demo-layout">
+        <div class="agent-config-main capability-sections">${general}${mode}${fieldsSec}${style}${messages}${times}</div>
+        <aside class="agent-config-side capability-demo-side">${renderDemoPanel('lead_capture', enabled)}</aside>
       </div>
     </section>`)
 }
@@ -485,7 +705,7 @@ const DEMO_SUBTITLES = {
 let demoSeq = 1
 
 function newDemo(id) {
-  return { id, epoch: Date.now(), messages: [], busy: false, session: { captured: false, invited: false, human: false }, formShown: false, decision: '', leadId: '', error: '', mode: 'ai', requestedAt: 0, lastVisitor: '', log: '', calls: [], pending: null, confirm: null, pattern: null, elapsed: 0, started: Date.now(), state: 'browsing', openedBy: '', stepIndex: 0, idleFrom: null, offset: 0, sending: false, forms: {}, tools: {} }
+  return { id, epoch: Date.now(), messages: [], busy: false, session: newLeadSession(), decision: '', leadId: '', error: '', mode: 'ai', requestedAt: 0, lastVisitor: '', log: '', calls: [], pending: null, confirm: null, pattern: null, elapsed: 0, started: Date.now(), state: 'browsing', openedBy: '', stepIndex: 0, idleFrom: null, offset: 0, sending: false, forms: {}, tools: {} }
 }
 
 function demoFor(id) {
@@ -590,7 +810,7 @@ function renderDemoMessage(demo, message, brand) {
     return `${demoMeta(brand, message.label)}<div class="xg-widget-message xg-widget-message--assistant">${message.text ? demoMarkdown(message.text) : '<span class="demo-typing"><i></i><i></i><i></i></span>'}${materials}</div>`
   }
   if (message.kind === 'human') return `${demoMeta(message.sender)}<div class="xg-widget-message xg-widget-message--human">${esc(message.text)}</div>`
-  if (message.kind === 'status') return `<div class="xg-widget-status-message demo-status is-${message.tone || 'ok'}">${esc(message.text)}</div>`
+  if (message.kind === 'status') return `<div class="xg-widget-status-message ${message.tone === 'error' ? 'xg-widget-status-message--error' : ''} demo-status is-${message.tone || 'ok'}">${esc(message.text)}</div>`
   if (message.kind === 'lead_form') return renderDemoLeadForm(demo, message)
   if (message.kind === 'tool') {
     const trace = message.trace
@@ -602,20 +822,42 @@ function renderDemoMessage(demo, message, brand) {
 }
 
 function renderDemoLeadForm(demo, message) {
-  if (message.done) return ''
+  if (message.done || message.closed) return ''
   const fields = normalizeFormFields()
+  if (!fields.some(item => CONTACT_FIELDS.includes(item.field))) return ''
   const size = ['small', 'medium', 'large'].includes(message.size) ? message.size : 'medium'
-  const form = demo.forms[message.id] || (demo.forms[message.id] = { expanded: size !== 'small', values: {}, error: '' })
+  const form = demo.forms[message.id] || (demo.forms[message.id] = { expanded: size !== 'small', values: {}, errors: {} })
+  const errors = form.errors || {}
+  const control = item => {
+    const attrs = `data-demo-form-field="${message.id}:${item.field}" placeholder="${esc(item.placeholder)}" ${errors[item.field] ? 'aria-invalid="true"' : ''}`
+    if (item.field === 'use_case') return `<textarea rows="2" ${attrs}>${esc(form.values[item.field] || '')}</textarea>`
+    const type = item.field === 'phone' ? 'type="tel" inputmode="tel"' : item.field === 'email' ? 'type="email" inputmode="email"' : 'type="text"'
+    return `<input ${type} value="${esc(form.values[item.field] || '')}" ${attrs} />`
+  }
+  const close = `<button type="button" class="xg-widget-lead-close" aria-label="关闭表单" title="关闭" data-demo-form-close="${message.id}">×</button>`
   return `<div class="xg-widget-lead-card xg-widget-lead-card--${size} ${form.expanded ? 'is-expanded' : ''} demo-lead"><div class="xg-widget-lead-intro"><h3>${esc(message.title)}</h3><p>${esc(message.description)}</p></div>
-    ${form.expanded ? `<form data-demo-form="${message.id}" novalidate>${fields.map(item => `<label data-field="${item.field}"><span>${LEAD_FORM_LABELS[item.field]}${item.required ? ' *' : ''}</span>${item.field === 'use_case' ? `<textarea rows="2" data-demo-form-field="${message.id}:${item.field}">${esc(form.values[item.field] || '')}</textarea>` : `<input value="${esc(form.values[item.field] || '')}" data-demo-form-field="${message.id}:${item.field}" />`}</label>`).join('')}${form.error ? `<p class="xg-widget-lead-error" role="alert">${esc(form.error)}</p>` : ''}<button type="submit">${esc(message.submitLabel)}</button></form>` : `<button type="button" class="xg-widget-lead-expand" data-demo-expand="${message.id}">填写信息</button>`}
+    ${form.expanded ? `<form data-demo-form="${message.id}" novalidate>${fields.map(item => `<label data-field="${item.field}"><span>${esc(item.label)}${item.required ? ' *' : ''}</span>${control(item)}${errors[item.field] ? `<small class="xg-widget-lead-field-error" role="alert">${esc(errors[item.field])}</small>` : ''}</label>`).join('')}<button type="submit">${esc(message.submitLabel)}</button></form>` : `<button type="button" class="xg-widget-lead-expand" data-demo-expand="${message.id}">填写信息</button>`}${close}
   </div>`
 }
 
+/** 平台固定的字段校验：必填、手机号（11 位或带国家区号）、邮箱格式、至少一种联系方式。返回 { 字段: 提示 }。 */
+function validateLeadForm(fields, values) {
+  const errors = {}
+  const value = key => String(values[key] || '').trim()
+  fields.forEach(item => {
+    const v = value(item.field)
+    if (!v) { if (item.required) errors[item.field] = `请填写${item.label}`; return }
+    if (item.field === 'phone' && !/^(?:(?:\+?86)?1[3-9]\d{9}|\+\d{7,17})$/.test(v.replace(/[\s-]/g, ''))) errors.phone = '请填写 11 位手机号，或带国家区号的号码'
+    if (item.field === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) errors.email = '邮箱格式不对'
+  })
+  const contacts = fields.filter(item => CONTACT_FIELDS.includes(item.field))
+  if (!contacts.length) errors._form = '没有可填写的联系方式'
+  else if (!contacts.some(item => value(item.field)) && !contacts.some(item => errors[item.field])) errors[contacts[0].field] = `${contacts.map(item => item.label).join('、')}至少填一项`
+  return errors
+}
+
 function validateContact(fields, values) {
-  const missing = fields.find(item => item.required && !String(values[item.field] || '').trim())
-  if (missing) return `请填写${LEAD_FORM_LABELS[missing.field]}`
-  if (!CONTACT_FIELDS.some(name => String(values[name] || '').trim())) return '请至少留一种联系方式'
-  return ''
+  return Object.values(validateLeadForm(fields, values))[0] || ''
 }
 
 const demoHints = (demo, items) => `<div class="demo-hints">${Array.from(new Set(items.filter(Boolean))).slice(0, 4).map(item => `<button type="button" ${demo.busy ? 'disabled' : ''} data-demo-send="${esc(item)}">${esc(item)}</button>`).join('')}</div>`
@@ -633,8 +875,16 @@ function renderDemoPanel(id, enabled) {
 
 function renderDemoBody(id) {
   const demo = demoFor(id)
-  if (id === 'lead_capture') return `${renderDemoWidget(demo)}
-    <div class="demo-panel"><div class="demo-panel-head">${icon('spark', 'xs')}<strong>试试这样问</strong></div>${demoHints(demo, ['我想了解一下价格', '可以安排一次演示吗？', ...quickLabels()])}<p>${demo.decision || '还没开始对话。'}</p>${demo.error ? `<small class="demo-error">${esc(demo.error)}</small>` : ''}<small>是否邀请由 AI 按左侧「什么时候用」和对话内容判断；表单字段和尺寸跟随左侧配置。</small></div>${leadLink(demo)}`
+  if (id === 'lead_capture') {
+    const lead = onlineLead()
+    const st = demo.session
+    const stats = [badge('', `${lead.interaction === 'text' ? '对话' : '表单'}方式`), badge(st.invites >= lead.max_invites ? 'warning' : '', `已主动邀请 ${st.invites} / ${lead.max_invites} 次`), st.refused ? badge('warning', '访客已拒绝') : '', st.leadId ? badge('success', '已生成线索') : badge('', '还没有线索')].join('')
+    return `${renderDemoWidget(demo)}
+    <div class="demo-panel"><div class="demo-panel-head">${icon('spark', 'xs')}<strong>试试这样问</strong></div>${demoHints(demo, ['我想了解一下价格', '我叫王明，在星云科技', '不用了，谢谢', '你们怎么联系我？'])}
+      <div class="demo-lead-stats">${stats}</div><p>${demo.decision || '还没开始对话。'}</p>${demo.error ? `<small class="demo-error">${esc(demo.error)}</small>` : ''}
+      <label class="console-checkbox"><input type="checkbox" data-demo-failsave ${st.failSave ? 'checked' : ''} /><span>模拟保存失败</span></label>
+      <small>是否邀请由 AI 按左侧「什么时候用」和对话内容判断；收集方式、次数、消息按线上版本，表单字段和尺寸跟随左侧草稿。</small></div>${leadLink(demo)}`
+  }
   if (id === 'human_handoff') {
     const waited = Math.max(0, Math.round((Date.now() - demo.requestedAt) / 1000))
     const tone = demo.mode === 'ai' ? '' : demo.mode === 'waiting' ? 'warning' : 'success'
@@ -695,7 +945,7 @@ function renderProactiveDemo(demo) {
   const brand = C().appearance.name.trim() || 'AI 助手'
   const { patterns, path, trigger } = proactiveTrigger(demo)
   const signature = JSON.stringify([path, trigger])
-  if (demo.signature !== signature) { Object.assign(demo, { signature, elapsed: 0, started: Date.now(), state: 'browsing', openedBy: '', messages: [], epoch: Date.now(), session: { captured: false, invited: false, human: false } }) }
+  if (demo.signature !== signature) { Object.assign(demo, { signature, elapsed: 0, started: Date.now(), state: 'browsing', openedBy: '', messages: [], epoch: Date.now(), session: newLeadSession() }) }
   const ruleText = !trigger ? '这个页面不会主动打扰访客' : trigger.kind === 'auto_open' ? `停留 ${trigger.delayMs / 1000} 秒后自动打开对话` : `停留 ${trigger.delayMs / 1000} 秒后显示主动消息「${esc(trigger.message)}」`
   return `<div class="site-demo" style="--site-demo-primary:${C().appearance.primary}">
       <div class="site-demo-tabs" role="tablist" aria-label="选择页面">${patterns.map(item => `<button type="button" role="tab" aria-selected="${item === demo.pattern}" class="${item === demo.pattern ? 'is-current' : ''}" data-demo-pattern="${esc(item)}">${item === '/' ? '首页' : esc(item)}</button>`).join('')}</div>
@@ -723,6 +973,22 @@ function renderIdleDemo(demo) {
   return `${renderDemoWidget(demo)}<div class="demo-panel"><div class="demo-panel-head">${icon('clock', 'xs')}<strong>沉默计时</strong>${badge('', '10 倍速')}</div>${status}${demoHints(demo, quickLabels())}<small>访客一回复就停止跟进，下一轮回答后重新计时。</small></div>`
 }
 
+/** 留资相关的系统消息与决策说明（留资表单、资料交付两个演示共用）。 */
+function applyLeadMeta(demo, meta) {
+  const lead = onlineLead()
+  const names = keys => keys.map(key => fieldLabel(key, lead)).join('、')
+  const notes = []
+  if (meta.leadSaveFailed) { demoPush(demo, { kind: 'status', tone: 'error', text: leadMessage(lead, 'failure') }); notes.push('保存没有成功，显示了失败消息；访客可以再发一次。') }
+  if (meta.leadCaptured) { demoPush(demo, { kind: 'status', text: leadMessage(lead, 'success') }); demo.leadId = meta.leadId; notes.push(`访客在对话里给出了${names(meta.got)}，保存成功后才显示成功消息，生成了一条线索。${lead.enabled ? '' : '（能力关闭时也会记录，这是平台行为。）'}`) }
+  else if (meta.leadMerged) notes.push(`访客补充了${names(meta.got)}，合并进同一条线索。`)
+  else if (meta.got.length && !meta.leadSaveFailed) notes.push(`记下了${names(meta.got)}；还没有联系方式，暂不生成线索，拿到后合并进同一条。`)
+  if (meta.refused) notes.push('访客明确拒绝了，本次会话不再邀请。')
+  if (meta.invited) notes.push(meta.selfRequest ? '访客自己说要留联系方式，不受邀请次数限制。' : `AI 判断这一轮适合邀请（第 ${demo.session.invites} / ${lead.max_invites} 次）。`)
+  if (meta.asked) { const hint = leadFieldsOf(lead).find(item => item.key === meta.asked)?.ai_hint?.trim(); notes.push(`在对话里问「${fieldLabel(meta.asked, lead)}」${hint ? `，按「给 AI 的说明」：${hint}` : ''}。`) }
+  if (meta.note) notes.push(meta.note)
+  return notes
+}
+
 /* 发送一句访客消息：按当前演示的能力处理 */
 function demoSend(text) {
   const value = String(text || '').trim()
@@ -735,16 +1001,11 @@ function demoSend(text) {
   demoRun(demo, async () => {
     demoPush(demo, { kind: 'user', text: value })
     const { meta } = await demoAnswer(demo, value)
+    const formSize = onlineLead().form_size
     if (id === 'lead_capture') {
-      if (meta.leadCaptured) {
-        demoPush(demo, { kind: 'status', text: '已记录访客在对话中留下的联系方式' })
-        demo.leadId = meta.leadId
-        demo.decision = '访客在对话里主动给出了联系方式，已直接记录。'
-      } else if (meta.suggestLeadForm && !demo.formShown) {
-        demo.formShown = true
-        demoPush(demo, { kind: 'lead_form', title: '留下联系方式', description: '方便的话留个联系方式，我们会尽快联系你。', submitLabel: '提交', size: C().actions.lead_capture.form_size })
-        demo.decision = 'AI 判断这一轮适合邀请留资，弹出了联系表单。'
-      } else demo.decision = demo.decision || 'AI 判断这一轮还不适合邀请留资。'
+      const notes = applyLeadMeta(demo, meta)
+      if (meta.suggestLeadForm) { demoPush(demo, { kind: 'lead_form', title: '留下联系方式', description: '方便的话留个联系方式，我们会尽快联系你。', submitLabel: '提交', size: formSize }); notes.push('弹出了联系表单。') }
+      demo.decision = notes.join(' ') || 'AI 判断这一轮还不适合邀请。'
     }
     if (id === 'human_handoff' && demo.mode === 'ai' && meta.handoffRequested) {
       demoPush(demo, { kind: 'status', text: '已提交人工接管请求' })
@@ -752,9 +1013,10 @@ function demoSend(text) {
       demo.requestedAt = Date.now()
     }
     if (id === 'asset_delivery') {
+      applyLeadMeta(demo, meta)
       demo.log = meta.materials.length ? `本轮交付了 ${meta.materials.length} 份资料。` : '本轮没有交付资料：可能是问题与资料无关、交付条件未满足，或知识库里没有带链接的资料。'
       if (meta.handoffRequested) demoPush(demo, { kind: 'status', text: '已提交人工接管请求' })
-      if (meta.suggestLeadForm) demoPush(demo, { kind: 'lead_form', title: '留下联系方式', description: '留下联系方式后即可获取资料。', submitLabel: '提交', size: C().actions.lead_capture.form_size })
+      if (meta.suggestLeadForm) demoPush(demo, { kind: 'lead_form', title: '留下联系方式', description: '留下联系方式后即可获取资料。', submitLabel: '提交', size: formSize })
     }
     if (id === 'idle_follow_up') demo.idleFrom = Date.now()
   })
@@ -764,14 +1026,35 @@ function demoSubmitLead(messageId) {
   const demo = cfg.demo
   const form = demo?.forms[messageId]
   if (!form) return
-  const error = validateContact(normalizeFormFields(), form.values)
-  form.error = error
-  if (error) return refreshDemo()
+  const lead = C().actions.lead_capture
+  const fields = normalizeFormFields()
+  form.errors = validateLeadForm(fields, form.values)
+  if (Object.keys(form.errors).length) return refreshDemo()
   demo.error = ''
+  if (demo.session.failSave) {
+    // 保存失败：显示失败消息，表单保留已填内容，可以重新提交
+    demoPush(demo, { kind: 'status', tone: 'error', text: leadMessage(lead, 'failure') })
+    demo.decision = '保存没有成功：显示失败消息，表单保留已填内容。取消「模拟保存失败」后重新提交，只会生成一条线索。'
+    return refreshDemo()
+  }
+  const values = Object.fromEntries(fields.map(item => [item.field, String(form.values[item.field] || '').trim()]).filter(([, value]) => value))
+  Object.assign(demo.session.values, values)
+  const created = !demo.session.leadId
+  const saved = saveSessionLead(demo.session)
   demoUpdate(demo, messageId, { done: true })
-  demo.session.captured = true
-  demoPush(demo, { kind: 'status', text: demo.id === 'asset_delivery' ? '已留下联系方式，再问一次即可拿到资料' : '已收到，顾问会尽快联系你' })
-  demo.leadId = addDemoLead(form.values, '在调试台演示中留下了联系方式。')
+  demoPush(demo, { kind: 'status', text: leadMessage(lead, 'success') })
+  if (demo.id === 'asset_delivery') demoPush(demo, { kind: 'status', text: '再问一次即可拿到资料' })
+  demo.leadId = saved.id || demo.leadId
+  demo.decision = created ? '表单提交成功，生成了一条线索。之后不再弹表单。' : '表单提交成功，补进了同一条线索，不会重复生成。'
+  refreshDemo()
+}
+
+function demoCloseLeadForm(messageId) {
+  const demo = cfg.demo
+  if (!demo) return
+  demoUpdate(demo, messageId, { closed: true })
+  demo.session.lastInvited = false
+  demo.decision = '访客关掉了表单：算没回应，不算拒绝。还有邀请次数时，AI 之后仍可能再邀请。'
   refreshDemo()
 }
 
@@ -938,7 +1221,7 @@ function renderAssessPreview() {
   const assistant = text => `<div class="assess-assistant">${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${text}</div></div>`
   const leadCard = (title, description, submit) => {
     const fields = normalizeFormFields().filter(item => item.field !== 'use_case')
-    return `<div class="xg-widget-lead-card assess-lead"><div class="xg-widget-lead-intro"><h3>${esc(title)}</h3><p>${esc(description)}</p></div><form data-assess-form novalidate>${fields.map(item => `<label data-field="${item.field}"><span>${LEAD_FORM_LABELS[item.field]}${item.required ? ' *' : ''}</span><input value="${esc(st.form.values[item.field] || '')}" data-assess-field="${item.field}" /></label>`).join('')}${st.form.error ? `<p class="xg-widget-lead-error" role="alert">${esc(st.form.error)}</p>` : ''}<button type="submit">${esc(submit)}</button></form></div>`
+    return `<div class="xg-widget-lead-card assess-lead"><div class="xg-widget-lead-intro"><h3>${esc(title)}</h3><p>${esc(description)}</p></div><form data-assess-form novalidate>${fields.map(item => `<label data-field="${item.field}"><span>${esc(item.label)}${item.required ? ' *' : ''}</span><input value="${esc(st.form.values[item.field] || '')}" placeholder="${esc(item.placeholder || '')}" data-assess-field="${item.field}" /></label>`).join('')}${st.form.error ? `<p class="xg-widget-lead-error" role="alert">${esc(st.form.error)}</p>` : ''}<button type="submit">${esc(submit)}</button></form></div>`
   }
   let body = ''
   if (st.phase === 'welcome') body = `<div class="assess-quick">${s.show_entry_button ? `<button type="button" class="assess-entry" data-action="cfg-assess-start">${icon('circle-check', 'xs')}${esc(s.entry_label)}</button>` : ''}<div class="xg-widget-quick-actions">${d.appearance.quickButtons.filter(item => item.text.trim()).map(item => `<button type="button" aria-disabled="true" title="预览只演示测评流程">${esc(item.text)}</button>`).join('')}</div>${!s.show_entry_button ? '<button type="button" class="assess-ai-invite" data-action="cfg-assess-start">演示：AI 在对话中邀请访客做测评</button>' : ''}</div>`
@@ -1055,7 +1338,7 @@ function popupDemo() {
 function popupFields(rule) {
   const fields = normalizeFormFields().filter(item => item.field !== 'use_case')
   if (rule.delivery !== 'email') return fields
-  return [...fields.filter(item => item.field !== 'email'), { field: 'email', required: true }]
+  return [...fields.filter(item => item.field !== 'email'), { field: 'email', label: fieldLabel('email'), required: true, placeholder: LEAD_FIELD_META.email.placeholder }]
 }
 
 function renderPopupPreview() {
@@ -1069,7 +1352,7 @@ function renderPopupPreview() {
   if (st.phase === 'open' || st.phase === 'done') {
     const body = st.phase === 'open'
       ? `<form class="popup-body" data-popup-form novalidate><p>${esc(rule.material.description)}</p><ul class="popup-highlights">${rule.material.highlights.filter(item => item.trim()).map(item => `<li>${icon('check', 'xs')}${esc(item)}</li>`).join('')}</ul>
-          <div class="popup-fields">${popupFields(rule).map(item => `<label><span>${LEAD_FORM_LABELS[item.field]}${item.required ? ' *' : ''}</span><input value="${esc(st.form.values[item.field] || '')}" data-popup-field="${item.field}" /></label>`).join('')}</div>
+          <div class="popup-fields">${popupFields(rule).map(item => `<label><span>${esc(item.label)}${item.required ? ' *' : ''}</span><input value="${esc(st.form.values[item.field] || '')}" placeholder="${esc(item.placeholder || '')}" data-popup-field="${item.field}" /></label>`).join('')}</div>
           ${st.form.error ? `<p class="popup-error" role="alert">${esc(st.form.error)}</p>` : ''}<button type="submit" class="popup-submit">${esc(rule.button_label || '免费领取')}</button><small class="popup-privacy">提交即表示同意我们的顾问就该资料与你联系</small></form>`
       : `<div class="popup-body popup-done"><span class="popup-done-icon">${icon('check')}</span>${rule.delivery === 'download' ? `<strong>已开始下载</strong><p>《${esc(rule.material.title)}》正在下载，没有反应可以点下面的按钮。</p><button type="button" class="popup-submit">${icon('download', 'xs')}${esc(rule.material.file_name)}（${esc(rule.material.file_size)}）</button>` : rule.delivery === 'email' ? `<strong>已发送到你的邮箱</strong><p>《${esc(rule.material.title)}》已发送到 ${esc(contact.email || '')}，几分钟内没收到请检查垃圾箱。</p>` : `<strong>已收到你的申请</strong><p>顾问会在 1 个工作日内把《${esc(rule.material.title)}》发给你，并解答相关问题。</p>`}</div>`
     card = `<div class="popup-overlay"><div class="popup-card" role="dialog" aria-label="${esc(rule.material.title)}"><button type="button" class="popup-close" aria-label="关闭弹窗" data-action="cfg-popup-close">×</button><div class="popup-cover"><span class="popup-kind">${esc(rule.material.kind)}</span><strong>${esc(rule.material.title)}</strong><small>${fileType} · ${esc(rule.material.file_size)}</small></div>${body}</div></div>`
@@ -1351,24 +1634,7 @@ function capHandleChange(event) {
   }
   if (target.matches('[data-assess-multiple]')) { C().assessment.questions[Number(target.dataset.assessMultiple)].multiple = target.value === 'multiple'; renderApp(); return true }
   if (target.matches('[data-rec-keywords]')) { C().recommendations.scenes[Number(target.dataset.recKeywords)].keywords = target.value.split(/[,，、\s]+/).filter(Boolean); renderApp(); return true }
-  if (target.matches('[data-form-field]')) {
-    const lead = C().actions.lead_capture
-    const name = target.dataset.formField
-    const selected = new Map(normalizeFormFields().map(item => [item.field, item]))
-    if (target.dataset.formKind === 'shown') { if (target.checked) selected.set(name, { field: name, required: false }); else selected.delete(name) }
-    else selected.set(name, { field: name, required: target.checked })
-    lead.form_fields = Object.keys(LEAD_FORM_FIELD_GROUPS).flatMap(key => selected.has(key) ? [selected.get(key)] : [])
-    renderApp()
-    return true
-  }
-  if (target.matches('[data-lead-field]')) {
-    const lead = C().actions.lead_capture
-    const key = target.dataset.leadField
-    const fields = target.checked ? [...new Set([...lead.fields, key])] : lead.fields.filter(item => item !== key)
-    if (fields.length) { lead.fields = fields; lead.form_fields = normalizeFormFields() } else toast('至少保留一项需要访客提供的字段', 'info')
-    renderApp()
-    return true
-  }
+  if (target.matches('[data-demo-failsave]')) { if (cfg.demo) cfg.demo.session.failSave = target.checked; return true }
   if (target.matches('[data-mcp-trace]')) { cfg.demo = newDemo('mcp'); renderApp(); return true }
   return false
 }
@@ -1524,6 +1790,8 @@ function capHandleClick(event) {
   if ((el = pick('[data-demo-close]'))) { cfg.demo.state = 'browsing'; cfg.demo.started = Date.now() - cfg.demo.elapsed * 200; refreshDemo(); return true }
   if ((el = pick('[data-demo-pattern]'))) { cfg.demo.pattern = el.dataset.demoPattern; refreshDemo(); return true }
   if ((el = pick('[data-lead-interaction]'))) { C().actions.lead_capture.interaction = el.dataset.leadInteraction; renderApp(); return true }
+  if ((el = pick('[data-lead-move]'))) { const [index, step] = el.dataset.leadMove.split(':').map(Number); moveLeadField(index, index + step); return true }
+  if ((el = pick('[data-demo-form-close]'))) { demoCloseLeadForm(Number(el.dataset.demoFormClose)); return true }
   if ((el = pick('[data-rule-add]'))) {
     const key = el.dataset.ruleAdd
     const d = C()
@@ -1571,3 +1839,46 @@ document.addEventListener('toggle', event => {
 }, true)
 
 document.addEventListener('submit', event => { capHandleSubmit(event) })
+
+/* 留资字段排序：按住左侧把手拖动 */
+function moveLeadField(from, to) {
+  const list = C().actions.lead_capture.fields
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return
+  const [item] = list.splice(from, 1)
+  list.splice(to, 0, item)
+  renderApp()
+}
+let leadDragFrom = null
+document.addEventListener('mousedown', event => {
+  const handle = event.target.closest?.('[data-lead-handle]')
+  const row = handle?.closest('[data-lead-row]')
+  if (row) row.draggable = true
+})
+document.addEventListener('dragstart', event => {
+  const row = event.target.closest?.('[data-lead-row]')
+  if (!row || !row.draggable) return
+  leadDragFrom = Number(row.dataset.leadRow)
+  row.classList.add('is-dragging')
+  try { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(leadDragFrom)) } catch (_) {}
+})
+document.addEventListener('dragover', event => {
+  if (leadDragFrom == null) return
+  const row = event.target.closest?.('[data-lead-row]')
+  if (!row) return
+  event.preventDefault()
+  document.querySelectorAll('.lead-field.is-drop-target').forEach(node => node !== row && node.classList.remove('is-drop-target'))
+  row.classList.add('is-drop-target')
+})
+document.addEventListener('drop', event => {
+  if (leadDragFrom == null) return
+  const row = event.target.closest?.('[data-lead-row]')
+  if (!row) return
+  event.preventDefault()
+  const from = leadDragFrom
+  leadDragFrom = null
+  moveLeadField(from, Number(row.dataset.leadRow))
+})
+document.addEventListener('dragend', () => {
+  leadDragFrom = null
+  document.querySelectorAll('[data-lead-row]').forEach(node => { node.draggable = false; node.classList.remove('is-dragging', 'is-drop-target') })
+})

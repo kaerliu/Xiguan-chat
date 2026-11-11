@@ -121,6 +121,7 @@ function mergeConfigDraft(stored) {
     flag('proactive', on => { mergedCaps.auto_open.enabled = on })
     flag('follow_up', on => { mergedCaps.idle_follow_up.enabled = on })
   }
+  mergedCaps.actions.lead_capture = normalizeLeadCapture(mergedCaps.actions.lead_capture)
   const { capabilities: _legacyCapabilities, capabilityWhen: _legacyWhen, ...rest } = stored
   return {
     ...base,
@@ -859,6 +860,8 @@ function handleConfigClick(event) {
     cfgWrite(cfgStorageKeys.saved, cfg.draft)
     toast('草稿已保存到当前浏览器，发布后才会影响访客')
   } else if (name === 'cfg-publish') {
+    const publishError = capPublishError()
+    if (publishError) { toast(publishError, 'info'); return true }
     cfg.saved = cfg.published = cfgSnapshot()
     cfgWrite(cfgStorageKeys.saved, cfg.draft)
     cfgWrite(cfgStorageKeys.published, cfg.draft)

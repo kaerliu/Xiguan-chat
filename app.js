@@ -58,11 +58,11 @@ const conversations = [
 ]
 
 const leads = [
-  ['张先生', '星云制造集团', '138****5721', '集团经营分析', '高意向', '今天 11:56'],
-  ['王女士', '云图科技', 'wang@yun*****.com', 'BI 产品选型', '跟进中', '今天 10:34'],
-  ['陈经理', '远航零售', '186****0943', '门店数据分析', '高意向', '昨天 16:20'],
-  ['刘老师', '智源教育', 'liu@zhi*****.cn', '教育行业方案', '待识别', '昨天 09:12'],
-  ['匿名访客', '—', '未获取', 'FineReport 试用', '培育中', '11 月 8 日']
+  ['张先生', '星云制造集团', '138****5721', '集团经营分析', '高意向', '今天 11:56', '已推送'],
+  ['王女士', '云图科技', 'wang@yun*****.com', 'BI 产品选型', '跟进中', '今天 10:34', '推送失败'],
+  ['陈经理', '远航零售', '186****0943', '门店数据分析', '高意向', '昨天 16:20', '已推送'],
+  ['刘老师', '智源教育', 'liu@zhi*****.cn', '教育行业方案', '待识别', '昨天 09:12', '已推送'],
+  ['匿名访客', '—', '未获取', 'FineReport 试用', '培育中', '11 月 8 日', '未推送']
 ]
 
 const qaItems = [
@@ -224,13 +224,25 @@ function renderMessage(message) {
   return `<div class="message ${message.from}">${message.from !== 'visitor' ? `<div class="avatar ${message.from === 'ai' ? 'agent' : ''}">${message.from === 'ai' ? 'AI' : '特'}</div>` : ''}<div class="bubble">${message.text}<div class="message-meta"><span>${label}</span><span>${message.time}</span></div></div>${message.from === 'visitor' ? `<div class="avatar">${label.slice(0,1)}</div>` : ''}</div>`
 }
 
+/** 线索推送状态：按通知设置推到企业微信或 CRM；失败时运营可以重推，访客无感知。 */
+function renderLeadPush(status, index) {
+  if (status === '推送失败') return `<span class="lead-push"><span class="badge red">推送失败</span><button class="btn small" data-action="lead-repush" data-repush="${index}">重推</button></span>`
+  if (status === '已推送') return '<span class="badge green">已推送</span>'
+  return `<span class="badge gray">${status || '未推送'}</span>`
+}
+
+function leadSummaryChip() {
+  const fields = typeof cfg !== 'undefined' ? enabledLeadFields(cfg.draft.actions.lead_capture) : []
+  return `<div class="summary-chip"><strong>${fields.length} 个收集字段</strong><span>${fields.map(item => fieldLabel(item.key, cfg.draft.actions.lead_capture)).join('、') || '未启用'}</span></div>`
+}
+
 function renderLeads() {
   return `<div class="content"><div class="data-page">
     <div class="page-head"><div><h2>访客线索</h2><p>AI 从会话中自动识别和补全的潜在客户</p></div><div><button class="btn">${icon('external')} 导出</button> <button class="btn primary" data-action="add-lead">${icon('plus')} 新建线索</button></div></div>
     <div class="stat-grid">${[['本周新增','38','↑ 18.7%'],['高意向线索','12','↑ 4 位'],['联系方式获取率','64%','↑ 8.2%'],['人工跟进中','9','3 位今日待办']].map(x => `<div class="card stat-card"><div class="label"><span>${x[0]}</span>${icon('arrow')}</div><div class="value">${x[1]}</div><div class="trend">${x[2]}</div></div>`).join('')}</div>
     <div class="card filter-bar"><div class="search" style="width:240px">${icon('search')}<input placeholder="搜索姓名、公司或联系方式" /></div><select class="select"><option>全部意向</option><option>高意向</option><option>跟进中</option></select><select class="select"><option>全部来源</option><option>官网产品页</option><option>活动落地页</option></select><button class="btn icon-btn">${icon('filter')}</button></div>
-    <div class="card table-wrap"><table class="data-table"><thead><tr><th>联系人</th><th>联系方式</th><th>需求 / 用途</th><th>状态</th><th>最近互动</th><th></th></tr></thead><tbody>
-      ${leads.map((lead,index) => `<tr><td><div class="contact-cell"><div class="avatar">${lead[0][0]}</div><div><strong>${lead[0]}</strong><span>${lead[1]}</span></div></div></td><td>${lead[2]}</td><td>${lead[3]}</td><td><span class="badge ${lead[4] === '高意向' ? 'orange' : lead[4] === '跟进中' ? 'blue' : 'gray'}">${lead[4]}</span></td><td>${lead[5]}</td><td><button class="btn icon-btn small" data-lead="${index}">${icon('chevron')}</button></td></tr>`).join('')}
+    <div class="card table-wrap"><table class="data-table"><thead><tr><th>联系人</th><th>联系方式</th><th>需求 / 用途</th><th>状态</th><th>推送</th><th>最近互动</th><th></th></tr></thead><tbody>
+      ${leads.map((lead,index) => `<tr><td><div class="contact-cell"><div class="avatar">${lead[0][0]}</div><div><strong>${lead[0]}</strong><span>${lead[1]}</span></div></div></td><td>${lead[2]}</td><td>${lead[3]}</td><td><span class="badge ${lead[4] === '高意向' ? 'orange' : lead[4] === '跟进中' ? 'blue' : 'gray'}">${lead[4]}</span></td><td>${renderLeadPush(lead[6], index)}</td><td>${lead[5]}</td><td><button class="btn icon-btn small" data-lead="${index}">${icon('chevron')}</button></td></tr>`).join('')}
     </tbody></table></div>
   </div></div>`
 }
@@ -299,7 +311,7 @@ function renderAgentOverview() {
   const enabled = Object.values(state.capabilities).filter(Boolean).length
   return `<div class="card overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>角色与提示词</h3><button class="btn small ghost" data-agent-section="prompt">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><p style="margin:0;color:var(--muted);font-size:11px;line-height:1.7">你是帆软官网的真人接待，像一位专业、热情的售前顾问。优先理解访客的行业和场景，再提供相关方案与案例。</p></div></div>
-    <div class="card summary-card"><div class="summary-head"><h3>能力</h3><button class="btn small ghost" data-agent-section="capabilities">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>${enabled} 项已启用</strong><span>信息收集、人工协作等</span></div><div class="summary-chip"><strong>3 个收集字段</strong><span>姓名、公司、联系方式</span></div><div class="summary-chip"><strong>自动接待</strong><span>全天候运行</span></div></div></div></div>
+    <div class="card summary-card"><div class="summary-head"><h3>能力</h3><button class="btn small ghost" data-agent-section="capabilities">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>${enabled} 项已启用</strong><span>信息收集、人工协作等</span></div>${leadSummaryChip()}<div class="summary-chip"><strong>自动接待</strong><span>全天候运行</span></div></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>知识库</h3><button class="btn small ghost" data-agent-section="knowledge">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>5 个知识源</strong><span>文档、网页和 Q&A</span></div><div class="summary-chip"><strong>54 条知识</strong><span>结构化率 100%</span></div><div class="summary-chip"><strong>83% 命中率</strong><span>最近 7 天</span></div></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>渠道与外观</h3><button class="btn small ghost" data-agent-section="appearance">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>2 个网站</strong><span>官网、活动站点</span></div><div class="summary-chip"><strong>品牌色</strong><span>${state.onboarding.color}</span></div><div class="summary-chip"><strong>桌面端入口</strong><span>气泡 + 侧边窗口</span></div></div></div></div>`
 }
@@ -362,7 +374,7 @@ function renderDebug() {
 
 function renderModal() {
   if (state.modal === 'invite') return `<div class="modal-backdrop" data-action="close-modal"><div class="modal" style="width:500px" data-modal-card><div class="modal-head"><div><h2>邀请成员</h2><p>成员将通过邮件收到加入工作区的邀请。</p></div><button class="btn icon-btn ghost" data-action="close-modal">${icon('close')}</button></div><div class="modal-body"><div class="field"><label>邮箱地址</label><input id="invite-email" class="input" placeholder="name@company.com" /></div><div class="field"><label>角色</label><select class="select"><option>销售坐席</option><option>运营管理员</option><option>查看者</option></select></div></div><div class="modal-foot"><span></span><button class="btn primary" data-action="submit-invite">发送邀请</button></div></div></div>`
-  if (state.modal === 'capability') return `<div class="modal-backdrop" data-action="close-modal"><div class="modal" data-modal-card><div class="modal-head"><div><h2>配置「信息收集」</h2><p>设置 AI 可以收集和联系表单中显示的字段。</p></div><button class="btn icon-btn ghost" data-action="close-modal">${icon('close')}</button></div><div class="modal-body"><div class="field"><label>允许收集的字段</label><div class="onboarding-cols">${['姓名','组织 / 公司','手机号','微信号','邮箱','需求 / 用途'].map((field,index) => `<label class="choice-card ${[0,1,2,4].includes(index) ? 'selected' : ''}"><input type="checkbox" ${[0,1,2,4].includes(index) ? 'checked' : ''} style="display:none" /><strong>${field}</strong><p>可设置是否在联系表单中显示与必填。</p></label>`).join('')}</div></div><div class="field"><label>能力说明（可选）</label><textarea class="textarea" placeholder="例如：仅在用户主动索取资料后邀请填写。"></textarea></div></div><div class="modal-foot"><span></span><button class="btn primary" data-action="save-capability">保存配置</button></div></div></div>`
+  if (state.modal === 'capability') return `<div class="modal-backdrop" data-action="close-modal"><div class="modal" data-modal-card><div class="modal-head"><div><h2>配置「信息收集」</h2><p>设置 AI 可以收集和联系表单中显示的字段。</p></div><button class="btn icon-btn ghost" data-action="close-modal">${icon('close')}</button></div><div class="modal-body"><div class="field"><label>允许收集的字段</label><div class="onboarding-cols">${['姓名','公司','手机号','微信号','邮箱','需求'].map((field,index) => `<label class="choice-card ${[0,1,2,4].includes(index) ? 'selected' : ''}"><input type="checkbox" ${[0,1,2,4].includes(index) ? 'checked' : ''} style="display:none" /><strong>${field}</strong><p>可设置是否在联系表单中显示与必填。</p></label>`).join('')}</div></div><div class="field"><label>能力说明（可选）</label><textarea class="textarea" placeholder="例如：仅在用户主动索取资料后邀请填写。"></textarea></div></div><div class="modal-foot"><span></span><button class="btn primary" data-action="save-capability">保存配置</button></div></div></div>`
   return ''
 }
 
@@ -504,6 +516,7 @@ document.addEventListener('click', event => {
   if (name === 'restart-onboarding') { enterAgentOverview(); state.onboardingStep = 0; return renderApp() }
   if (name === 'open-personal') { state.profileOpen = false; state.route = 'enterprise'; state.settingsSection = 'personal'; return renderApp() }
   if (name === 'logout') return toast('这是交互原型，未执行真实退出', 'info')
+  if (name === 'lead-repush') { const row = leads[Number(action.dataset.repush)]; if (row) row[6] = '已推送'; toast('已重新推送到企业微信'); return renderApp() }
   if (name === 'add-lead') return toast('新建线索表单已打开（原型演示）')
   if (name === 'add-qna' || name === 'add-knowledge') return toast('添加入口已响应（原型演示）')
 })

@@ -2079,3 +2079,48 @@ button { color: inherit; }
 .cfg-lp-avatar-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .cfg-mascot-option.is-upload { position: relative; cursor: pointer; }
 .cfg-entry-picker-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; color: #8a5a10; font-size: 12px; background: #fbf3e4; border-radius: 8px; }
+
+/* 留资表单：收集方式与字段 */
+.cfg-notice.info{color:#1f3f66;background:#eef4fb;border-color:#d3e2f3}
+.cfg-notice.info .cfg-notice-icon{color:#3a6ea5}
+.lead-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.lead-mode{display:grid;gap:6px;padding:12px 14px;color:var(--console-text);text-align:left;font:inherit;background:#fff;border:1px solid var(--console-border);border-radius:8px;cursor:pointer}
+.lead-mode:hover{border-color:var(--console-brand)}
+.lead-mode.is-current{background:var(--console-brand-soft);border-color:var(--console-brand);box-shadow:inset 0 0 0 1px var(--console-brand)}
+.lead-mode strong{display:flex;align-items:center;gap:6px;color:var(--console-text-strong);font-size:13px}
+.lead-mode span{color:var(--console-muted);font-size:12px;line-height:1.5}
+.lead-mode em{margin-right:6px;color:var(--console-subtle);font-style:normal;font-weight:600}
+.lead-fields{display:grid;gap:8px;margin:10px 0 0;padding:0;list-style:none}
+.lead-field{padding:10px 12px;background:#fff;border:1px solid var(--console-border-soft);border-radius:8px}
+.lead-field.is-off{background:#fafafa}
+.lead-field.is-off .lead-field-name{color:var(--console-muted)}
+.lead-field.is-dragging{opacity:.45}
+.lead-field.is-drop-target{border-color:var(--console-brand);box-shadow:inset 0 0 0 1px var(--console-brand)}
+.lead-field-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lead-field-handle{color:var(--console-subtle);font-size:12px;letter-spacing:-2px;cursor:grab;user-select:none}
+.lead-field-name{flex:1 1 140px;min-width:0;max-width:220px;min-height:30px;padding:4px 8px;font:inherit;font-size:13px;font-weight:600;color:var(--console-text-strong);border:1px solid var(--console-border-soft);border-radius:6px}
+.lead-field-type{color:var(--console-muted);font-size:11px;white-space:nowrap}
+.lead-field-required{margin-left:auto}
+.lead-field-required input{width:15px;height:15px;min-height:15px;margin:0;padding:0}
+.lead-field-move{display:inline-flex;gap:2px}
+.lead-field-move .cfg-btn{min-width:26px;padding:0 6px}
+.lead-field-more{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;padding-left:24px}
+.lead-field-more label{display:grid;gap:4px;font-size:12px;color:var(--console-subtle)}
+.lead-field-more label span{display:flex;gap:6px;align-items:baseline}
+.lead-field-more small{color:var(--console-muted);font-size:11px}
+.lead-field-more input{min-height:30px;padding:4px 8px;font:inherit;font-size:12px;border:1px solid var(--console-border-soft);border-radius:6px}
+.lead-field-more label.is-dim{opacity:.55}
+.lead-rules{display:grid;gap:4px;margin:10px 0 0;padding-left:18px;color:var(--console-muted);font-size:12px;line-height:1.55}
+@media(max-width:600px){.lead-modes,.lead-field-more{grid-template-columns:1fr}.lead-field-more{padding-left:0}.lead-field-required{margin-left:0}}
+
+/* 演示：联系表单的关闭按钮与字段错误 */
+.xg-widget-lead-card{position:relative}
+.xg-widget-lead-card .xg-widget-lead-close{position:absolute;top:6px;right:6px;width:26px;min-width:0;height:26px;min-height:0;padding:0;color:var(--xg-widget-ink-muted);background:transparent;border-radius:50%;font-size:16px;line-height:1;cursor:pointer}
+.xg-widget-lead-card .xg-widget-lead-close:hover{background:var(--xg-widget-paper-muted)}
+.xg-widget-lead-card--small:not(.is-expanded) .xg-widget-lead-close{position:static}
+.xg-widget-lead-card .xg-widget-lead-intro{padding-right:22px}
+.xg-widget-lead-field-error{color:#a72c2c;font-size:11px;line-height:1.4}
+.demo-lead-stats{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.xg-widget-lead-card--small:not(.is-expanded){grid-template-columns:minmax(0,1fr) auto auto}
+.badge.red { background: #fbeaea; color: #a72c2c; }
+.lead-push { display: inline-flex; align-items: center; gap: 6px; }
