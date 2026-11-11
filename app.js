@@ -73,7 +73,7 @@ const qaItems = [
 ]
 
 const state = {
-  route: 'conversations',
+  route: 'agent',
   profileOpen: false,
   company: '帆软软件',
   conversationMode: 'all',
@@ -268,7 +268,7 @@ function renderAgent() {
   const overviewSection = state.agentSection === 'overview'
   const showDebug = overviewSection || (!operationSection && !configSection && state.debugOpen)
   return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${operationSection ? 'operation-section' : ''} ${configSection ? 'config-section' : ''}">
-    <aside class="agent-nav"><div class="agent-nav-title"><button class="btn icon-btn ghost" data-route="conversations">‹</button><strong>智能体管理</strong></div>
+    <aside class="agent-nav"><div class="agent-nav-title"><strong>吸管 · AI 接待</strong></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
       <div class="agent-nav-divider"></div>
       <button class="nav-item ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">${icon('bot')}<span>角色与提示词</span></button>
@@ -326,7 +326,7 @@ function renderPreview(closeable = false) {
 function renderEnterprise() {
   const personal = ['personal', 'security'].includes(state.settingsSection)
   const sections = personal ? [['personal','个人信息','grid'],['security','账号与安全','shield']] : [['workspace','工作区设置','settings'],['members','成员管理','users']]
-  return `<div class="settings-page"><header class="settings-header"><button class="btn icon-btn ghost" data-route="conversations">‹</button><strong>${personal ? '个人设置' : '企业管理'}</strong></header><div class="settings-layout"><aside class="settings-nav">${sections.map(item => `<button class="nav-item ${state.settingsSection === item[0] ? 'active' : ''}" data-settings-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}</aside><section class="settings-main">${renderSettingsSection()}</section></div></div>`
+  return `<div class="settings-page"><header class="settings-header"><button class="btn icon-btn ghost" data-action="return-agent-overview">‹</button><strong>${personal ? '个人设置' : '企业管理'}</strong></header><div class="settings-layout"><aside class="settings-nav">${sections.map(item => `<button class="nav-item ${state.settingsSection === item[0] ? 'active' : ''}" data-settings-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}</aside><section class="settings-main">${renderSettingsSection()}</section></div></div>`
 }
 
 function renderSettingsSection() {
@@ -377,6 +377,21 @@ function routeTo(route) {
   state.route = route
   state.profileOpen = false
   if (route === 'agent') state.agentSection ||= 'overview'
+  renderApp()
+}
+
+function enterAgentOverview() {
+  state.route = 'agent'
+  state.agentSection = 'overview'
+  state.debugOpen = false
+  state.profileOpen = false
+}
+
+function completeOnboarding() {
+  localStorage.setItem('xiguan-onboarding', 'done')
+  state.onboardingStep = null
+  enterAgentOverview()
+  toast('欢迎使用吸管，AI 接待草稿已准备好')
   renderApp()
 }
 
@@ -463,6 +478,7 @@ document.addEventListener('click', event => {
   if (!action) return
   const name = action.dataset.action
   if (name === 'toggle-profile') { state.profileOpen = !state.profileOpen; return renderApp() }
+  if (name === 'return-agent-overview') { enterAgentOverview(); return renderApp() }
   if (name === 'takeover') { state.takeover = true; conversations.find(item => item.id === state.activeConversation).status = 'human'; toast('已接管会话，AI 自动回复已暂停'); return renderApp() }
   if (name === 'return-ai') { state.takeover = false; conversations.find(item => item.id === state.activeConversation).status = 'ai'; toast('会话已交还 AI 接待'); return renderApp() }
   if (name === 'send-message') return sendMessage()
@@ -483,9 +499,9 @@ document.addEventListener('click', event => {
   if (name === 'close-modal') { if (!event.target.closest('[data-modal-card]') || event.target.closest('[data-action="close-modal"]')) { state.modal = null; renderApp() } return }
   if (name === 'onboarding-next') return onboardingNext()
   if (name === 'onboarding-back') { state.onboardingStep = Math.max(1, state.onboardingStep - 1); return renderApp() }
-  if (name === 'close-onboarding') { state.onboardingStep = null; return renderApp() }
-  if (name === 'finish-onboarding') { localStorage.setItem('xiguan-onboarding', 'done'); state.onboardingStep = null; state.route = 'agent'; state.agentSection = 'overview'; toast('欢迎使用吸管，AI 接待草稿已准备好'); return renderApp() }
-  if (name === 'restart-onboarding') { state.profileOpen = false; state.onboardingStep = 0; return renderApp() }
+  if (name === 'close-onboarding') { state.onboardingStep = null; enterAgentOverview(); return renderApp() }
+  if (name === 'finish-onboarding') return completeOnboarding()
+  if (name === 'restart-onboarding') { enterAgentOverview(); state.onboardingStep = 0; return renderApp() }
   if (name === 'open-personal') { state.profileOpen = false; state.route = 'enterprise'; state.settingsSection = 'personal'; return renderApp() }
   if (name === 'logout') return toast('这是交互原型，未执行真实退出', 'info')
   if (name === 'add-lead') return toast('新建线索表单已打开（原型演示）')
