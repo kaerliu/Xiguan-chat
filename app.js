@@ -529,7 +529,7 @@ function renderAgent() {
   const operationSection = isAgentOperationSection()
   const overviewSection = state.agentSection === 'overview'
   const capabilityDetail = state.agentSection === 'capabilities' && !!state.activeCapability
-  const showDebug = overviewSection || capabilityDetail || (!operationSection && state.debugOpen)
+  const showDebug = overviewSection || capabilityDetail || (state.agentSection !== 'channels' && !operationSection && state.debugOpen)
   return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${overviewSection ? 'overview-section' : ''} ${operationSection ? 'operation-section' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><strong>吸管 · AI 接待</strong></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
@@ -567,8 +567,8 @@ function renderAgentOverview() {
     <div class="card summary-card"><div class="summary-head"><h3>渠道与外观</h3><button class="btn small ghost" data-agent-section="appearance">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>2 个网站</strong><span>官网、活动站点</span></div><div class="summary-chip"><strong>品牌色</strong><span>${state.onboarding.color}</span></div><div class="summary-chip"><strong>桌面端入口</strong><span>气泡 + 侧边窗口</span></div></div></div></div>`
 }
 
-function renderEditorHeading(title, description) {
-  return `<div class="editor-section-head"><div><h2 class="editor-title">${title}</h2><p class="editor-sub">${description}</p></div><button class="btn" data-action="${state.debugOpen ? 'close-debug' : 'open-debug'}">${state.debugOpen ? '收起调试' : '调试'}</button></div>`
+function renderEditorHeading(title, description, showDebugAction = true) {
+  return `<div class="editor-section-head"><div><h2 class="editor-title">${title}</h2><p class="editor-sub">${description}</p></div>${showDebugAction ? `<button class="btn" data-action="${state.debugOpen ? 'close-debug' : 'open-debug'}">${state.debugOpen ? '收起调试' : '调试'}</button>` : ''}</div>`
 }
 
 function renderPromptEditor(field, label, rows) {
@@ -761,7 +761,7 @@ function renderKnowledge() {
 }
 
 function renderChannels() {
-  return `${renderEditorHeading('渠道', '将 AI 接待部署到官网、活动页或其他业务入口。')}
+  return `${renderEditorHeading('渠道', '将 AI 接待部署到官网、活动页或其他业务入口。', false)}
     <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="www.fanruan.com, events.fanruan.com" data-dirty="true" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">&lt;script src=&quot;https://test.xiguan.cn/presales/widget.js&quot; data-site-key=&quot;site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF&quot; defer&gt;&lt;/script&gt;</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
     <div class="card channel-card"><div class="channel-head"><strong>IM 工具</strong><span class="badge gray">未连接</span></div><p style="font-size:11px;color:var(--muted);line-height:1.6">连接企业微信、飞书或钉钉，将高意向访客实时推送给销售团队。</p><button class="btn small" data-action="connect-im">连接 IM</button></div>
     <div class="card channel-card"><div class="channel-head"><strong>事件触发</strong><span class="badge blue">2 条规则</span></div><p style="font-size:11px;color:var(--muted)">监听价格页停留超过 30 秒、连续访问产品页 3 次。</p><button class="btn small">管理规则</button></div>`
@@ -922,7 +922,7 @@ document.addEventListener('click', event => {
     if (state.agentSection === 'overview') {
       state.debugOpen = false
       state.previewMode = 'website'
-    } else state.debugOpen = !isAgentOperationSection()
+    } else state.debugOpen = state.agentSection !== 'channels' && !isAgentOperationSection()
     return renderApp()
   }
 
