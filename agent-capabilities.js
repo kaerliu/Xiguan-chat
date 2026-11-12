@@ -257,7 +257,7 @@ const SELF_LEAD_WORDS = ['联系我', '留个电话', '留个联系方式', '留
 
 const hasContactIn = values => CONTACT_FIELDS.some(key => String(values?.[key] || '').trim())
 const newLeadSession = () => ({ human: false, captured: false, leadId: '', values: {}, invites: 0, refused: false, asking: null, queue: [], lastInvited: false, followUpAsked: false, failSave: false })
-const onlineLead = () => normalizeLeadCapture((JSON.parse(cfg.published).actions || capabilityDefaults().actions).lead_capture)
+const debugLead = () => normalizeLeadCapture(C().actions.lead_capture)
 
 /** 只取访客明确说出的值；关掉的字段不收集。 */
 function extractLeadValues(message, lead) {
@@ -314,18 +314,19 @@ function pickMaterials(message, limit) {
   return (matched.length ? matched : DEMO_MATERIALS.slice(0, 1)).slice(0, Math.max(1, limit)).map(item => ({ title: item.title, url: item.url, kind: item.kind, meta: 'www.example.com' }))
 }
 
-/** 调试台每轮处理（回答按线上已发布的配置）。session 见 newLeadSession()。 */
-function playgroundTurn(message, session) {
+/** 能力调试台每轮只运行当前能力，并使用左侧草稿。session 见 newLeadSession()。 */
+function playgroundTurn(message, session, scope) {
   const meta = { suggestLeadForm: false, leadCaptured: false, leadMerged: false, leadSaveFailed: false, leadId: null, got: [], refused: false, invited: false, selfRequest: false, asked: null, note: '', handoffRequested: false, materials: [], humanMode: false }
   if (session.human) return { text: '', meta: { ...meta, humanMode: true } }
-  const online = JSON.parse(cfg.published).actions || capabilityDefaults().actions
-  const lead = normalizeLeadCapture(online.lead_capture)
-  const handoff = online.human_handoff || {}
-  const asset = online.asset_delivery || {}
+  const actions = C().actions || capabilityDefaults().actions
+  const lead = normalizeLeadCapture(actions.lead_capture)
+  const handoff = scope === 'human_handoff' ? actions.human_handoff || {} : {}
+  const asset = scope === 'asset_delivery' ? actions.asset_delivery || {} : {}
+  const capturesLead = scope === 'lead_capture' || scope === 'asset_delivery'
   const has = words => words.some(word => message.includes(word))
   const textMode = lead.interaction === 'text'
   const base = baseAnswer(message)
-  const canInvite = lead.enabled && leadHasContactField(lead)
+  const canInvite = leadHasContactField(lead) && (scope === 'lead_capture' ? lead.enabled : scope === 'asset_delivery' && asset.enabled && lead.enabled)
   const wasInvited = session.lastInvited
   const asking = session.asking
   session.lastInvited = false
@@ -333,7 +334,7 @@ function playgroundTurn(message, session) {
   const askNext = (prefix, key) => { session.asking = key; return `${prefix}${askText(key, lead)}` }
 
   // 访客明确拒绝：本次会话不再邀请
-  const got = extractLeadValues(message, lead)
+  const got = capturesLead ? extractLeadValues(message, lead) : {}
   if ((wasInvited || asking) && has(REFUSE_WORDS) && !hasContactIn(got)) {
     Object.assign(session, { refused: true, asking: null, queue: [] })
     return { text: isQuestion ? base : '好的，不留也没关系。还有什么想了解的，随时问我。', meta: { ...meta, refused: true } }
@@ -354,7 +355,7 @@ function playgroundTurn(message, session) {
       const next = session.queue.shift()
       if (next) return { text: askNext(opener, next), meta: { ...meta, asked: next } }
       session.asking = null
-    } else if (lead.enabled && session.captured && !session.refused && !session.followUpAsked) {
+    } else if (scope === 'lead_capture' && lead.enabled && session.captured && !session.refused && !session.followUpAsked) {
       // 拿到联系方式后不再弹表单；还没填的字段（已有联系方式时不再追要别的联系方式），AI 顺带问一项
       const missing = enabledLeadFields(lead).find(item => !CONTACT_FIELDS.includes(item.key) && !String(session.values[item.key] || '').trim())
       if (missing) { session.followUpAsked = true; session.queue = []; return { text: askNext(`${opener}顺便问一下，`, missing.key), meta: { ...meta, asked: missing.key } } }
@@ -376,9 +377,9 @@ function playgroundTurn(message, session) {
   }
 
   // 邀请：访客自己要留不受次数限制；AI 主动邀请受次数和拒绝限制
-  const selfRequest = canInvite && has(SELF_LEAD_WORDS)
+  const selfRequest = scope === 'lead_capture' && canInvite && has(SELF_LEAD_WORDS)
   if (selfRequest && session.captured) return { text: '好的，顾问会尽快联系你。还有什么想先了解的，可以继续问我。', meta }
-  const aiInvite = canInvite && !ignored && has(INTENT_WORDS) && !session.captured && !session.refused
+  const aiInvite = scope === 'lead_capture' && canInvite && !ignored && has(INTENT_WORDS) && !session.captured && !session.refused
   if (aiInvite && session.invites >= lead.max_invites) meta.note = `本次会话已主动邀请 ${session.invites} 次，到达上限，不再邀请。`
   if (selfRequest || (aiInvite && session.invites < lead.max_invites)) {
     if (selfRequest) session.refused = false
@@ -476,6 +477,43 @@ function capHeader(cap, enabled, extraBadge = '') {
   </header>`
 }
 
+function renderCapabilityWorkbench(key, cap, enabled, main, preview, notices = '') {
+  return cfgPage(key, `<div class="capability-workbench">
+    <main class="capability-workbench-main">
+      ${capHeader(cap, enabled)}
+      <div class="capability-workbench-scroll"><section class="cfg-body">${notices}${main}</section></div>
+    </main>
+    <aside class="capability-workbench-debug">${preview}</aside>
+  </div>`)
+}
+
+function renderCapabilityDebugPanel(cap, description, body) {
+  const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-cap-debug-reset">${icon('rotate', 'xs')}<span>新会话</span></button>`
+  return `<section class="cfg-panel cfg-debug-panel capability-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="cfg-panel-body"><div class="capability-debug-canvas">${body}</div></div></section>`
+}
+
+function saveCapabilityDebugSession(id) {
+  if (!id) return
+  cfg.capDebugSessions[id] = { demo: cfg.demo, assess: cfg.assess, popup: cfg.popup, rec: cfg.rec }
+}
+
+function loadCapabilityDebugSession(id) {
+  const session = cfg.capDebugSessions[id] || {}
+  cfg.demo = session.demo || null
+  cfg.assess = session.assess || null
+  cfg.popup = session.popup || null
+  cfg.rec = session.rec || null
+}
+
+function resetCapabilityDebugSession(id) {
+  if (!id) return
+  cfg.demo = null
+  cfg.assess = null
+  cfg.popup = null
+  cfg.rec = null
+  cfg.capDebugSessions[id] = { demo: null, assess: null, popup: null, rec: null }
+}
+
 function valueBanner(cls, title, text, fit, steps) {
   return `<div class="${cls}-banner"><div class="${cls}-banner-copy"><strong>${title}</strong><p>${text}</p><small>${fit}</small></div>
     <ol class="${cls}-steps">${steps.map(([iconName, stepTitle, stepText], index) => `<li><span class="${cls}-step-icon">${icon(iconName, 'sm')}</span><strong>${index + 1}. ${stepTitle}</strong><small>${stepText}</small></li>`).join('')}</ol></div>`
@@ -564,13 +602,10 @@ function renderCapabilityDetail(cap) {
   if (id === 'proactive') more = capSection(sec('rules'), '触发规则', true, true, renderProactiveRules())
   if (id === 'idle_follow_up') more = capSection(sec('rules'), '触发规则', d.idle_follow_up.steps.every(step => step.message.trim()), true, renderIdleSteps())
 
-  return cfgPage(`cap-${id}`, `${capHeader(cap, enabled)}
-    <section class="cfg-body">${capNotices(id)}
-      <div class="agent-config-layout capability-demo-layout">
-        <div class="agent-config-main capability-sections">${general}${interaction}${widget}${fields}${more}</div>
-        <aside class="agent-config-side capability-demo-side">${renderDemoPanel(id, enabled)}</aside>
-      </div>
-    </section>`)
+  return renderCapabilityWorkbench(`cap-${id}`, cap, enabled,
+    `<div class="capability-sections">${general}${interaction}${widget}${fields}${more}</div>`,
+    renderDemoPanel(id, enabled),
+    capNotices(id))
 }
 
 /* ---------- 留资表单详情：通用 / 收集方式 / 字段 / 表单样式 / 消息 / 次数 ---------- */
@@ -639,13 +674,10 @@ function renderLeadCaptureDetail(cap) {
   const times = capSection(sec('times'), '次数', true, false, `<div class="cfg-form-grid">${field('每次会话 AI 最多主动邀请', capSelect('actions.lead_capture.max_invites', [[1, '1 次'], [2, '2 次（默认）'], [3, '3 次']], 'data-type="number"'), { help: '弹一次表单或在对话里问一次联系方式，各算一次。' })}</div>
     <ul class="lead-rules"><li>访客明确拒绝后，本次会话不再邀请；访客关掉表单算没回应，不算拒绝。</li><li>已经拿到联系方式后，不再弹表单；还没填的字段，AI 可以在对话里顺带问。</li><li>访客自己说要留联系方式时，不受次数限制。</li></ul>`)
 
-  return cfgPage('cap-lead_capture', `${capHeader(cap, enabled)}
-    <section class="cfg-body">${capNotices('lead_capture')}
-      <div class="agent-config-layout capability-demo-layout">
-        <div class="agent-config-main capability-sections">${general}${mode}${fieldsSec}${style}${messages}${times}</div>
-        <aside class="agent-config-side capability-demo-side">${renderDemoPanel('lead_capture', enabled)}</aside>
-      </div>
-    </section>`)
+  return renderCapabilityWorkbench('cap-lead_capture', cap, enabled,
+    `<div class="capability-sections">${general}${mode}${fieldsSec}${style}${messages}${times}</div>`,
+    renderDemoPanel('lead_capture', enabled),
+    capNotices('lead_capture'))
 }
 
 function renderProactiveRules() {
@@ -747,7 +779,7 @@ async function demoAnswer(demo, question) {
   const id = demoPush(demo, { kind: 'assistant', text: '', streaming: true })
   refreshDemo()
   await sleep(500)
-  const { text, meta } = playgroundTurn(question, demo.session)
+  const { text, meta } = playgroundTurn(question, demo.session, demo.id)
   if (!demoAlive(demo, epoch)) return { text, meta }
   if (meta.humanMode) {
     demo.messages = demo.messages.filter(item => item.id !== id)
@@ -864,25 +896,23 @@ const quickLabels = () => C().appearance.quickButtons.map(item => item.text).fil
 const leadLink = demo => demo.leadId ? `<div class="demo-panel demo-lead-result"><div class="demo-panel-head">${icon('user-check', 'xs')}<strong>已生成调试线索</strong>${badge('success', '调试')}</div><small>调试会话产生的线索不会推送通知，在「线索」里勾选「含调试会话」可以看到。</small><button type="button" class="cfg-btn sm outline" data-action="cfg-go-leads">${icon('arrow', 'xs')}<span>去线索页查看</span></button></div>` : ''
 
 function renderDemoPanel(id, enabled) {
-  const answersOnline = ['lead_capture', 'human_handoff', 'asset_delivery'].includes(id)
-  const changed = cfgSnapshot() !== cfg.published
-  const body = `${!enabled ? `<div class="demo-off-note">能力还没开启，访客暂时看不到${answersOnline ? '；开启并发布后，下面的对话才会出现这项能力。' : '；下面演示开启后的效果。'}</div>` : ''}
-    ${enabled && answersOnline && changed ? '<div class="demo-off-note">有未发布的改动：回答仍按线上版本，发布后再试一次。</div>' : ''}
+  const cap = CAPABILITIES.find(item => item.id === id)
+  const body = `${!enabled ? '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>' : ''}
     <div data-demo-root>${renderDemoBody(id)}</div>`
-  return cfgPanel('演示', DEMO_SUBTITLES[id], `<div class="demo-preview">${body}</div>`, { cls: 'widget-preview-frame', actions: `<button type="button" class="cfg-btn sm ghost" data-action="cfg-demo-restart">${icon('refresh', 'xs')}<span>重新开始</span></button>` })
+  return renderCapabilityDebugPanel(cap, DEMO_SUBTITLES[id], `<div class="demo-preview">${body}</div>`)
 }
 
 function renderDemoBody(id) {
   const demo = demoFor(id)
   if (id === 'lead_capture') {
-    const lead = onlineLead()
+    const lead = debugLead()
     const st = demo.session
     const stats = [badge('', `${lead.interaction === 'text' ? '对话' : '表单'}方式`), badge(st.invites >= lead.max_invites ? 'warning' : '', `已主动邀请 ${st.invites} / ${lead.max_invites} 次`), st.refused ? badge('warning', '访客已拒绝') : '', st.leadId ? badge('success', '已生成线索') : badge('', '还没有线索')].join('')
     return `${renderDemoWidget(demo)}
     <div class="demo-panel"><div class="demo-panel-head">${icon('spark', 'xs')}<strong>试试这样问</strong></div>${demoHints(demo, ['我想了解一下价格', '我叫王明，在星云科技', '不用了，谢谢', '你们怎么联系我？'])}
       <div class="demo-lead-stats">${stats}</div><p>${demo.decision || '还没开始对话。'}</p>${demo.error ? `<small class="demo-error">${esc(demo.error)}</small>` : ''}
       <label class="console-checkbox"><input type="checkbox" data-demo-failsave ${st.failSave ? 'checked' : ''} /><span>模拟保存失败</span></label>
-      <small>是否邀请由 AI 按左侧「什么时候用」和对话内容判断；收集方式、次数、消息按线上版本，表单字段和尺寸跟随左侧草稿。</small></div>${leadLink(demo)}`
+      <small>是否邀请由 AI 按左侧「什么时候用」和对话内容判断；收集方式、次数、消息、表单字段和尺寸都跟随左侧当前草稿。</small></div>${leadLink(demo)}`
   }
   if (id === 'human_handoff') {
     const waited = Math.max(0, Math.round((Date.now() - demo.requestedAt) / 1000))
@@ -974,7 +1004,7 @@ function renderIdleDemo(demo) {
 
 /** 留资相关的系统消息与决策说明（留资表单、资料交付两个演示共用）。 */
 function applyLeadMeta(demo, meta) {
-  const lead = onlineLead()
+  const lead = debugLead()
   const names = keys => keys.map(key => fieldLabel(key, lead)).join('、')
   const notes = []
   if (meta.leadSaveFailed) { demoPush(demo, { kind: 'status', tone: 'error', text: leadMessage(lead, 'failure') }); notes.push('保存没有成功，显示了失败消息；访客可以再发一次。') }
@@ -1000,7 +1030,7 @@ function demoSend(text) {
   demoRun(demo, async () => {
     demoPush(demo, { kind: 'user', text: value })
     const { meta } = await demoAnswer(demo, value)
-    const formSize = onlineLead().form_size
+    const formSize = debugLead().form_size
     if (id === 'lead_capture') {
       const notes = applyLeadMeta(demo, meta)
       if (meta.suggestLeadForm) { demoPush(demo, { kind: 'lead_form', title: '留下联系方式', description: '方便的话留个联系方式，我们会尽快联系你。', submitLabel: '提交', size: formSize }); notes.push('弹出了联系表单。') }
@@ -1189,14 +1219,10 @@ function renderAssessmentDetail(cap) {
   const banner = `<div class="assess-banner"><div class="assess-banner-copy"><strong>把“要电话”变成“送方案”</strong><p>访客更愿意为一份“专门给我的方案”留下联系方式。答题过程本身就是需求调研，每条线索都带着规模、现状和痛点。</p><small>适合需要诊断、有多个版本或套餐的业务：SaaS 选型、教育课程、装修、保险、医美、企业服务…</small></div>
     <ol class="assess-steps">${[['circle-check', '访客答题', '3–5 道选择题，1 分钟答完'], ['spark', '自动出方案', '按得分匹配最合适的方案'], ['user-check', '留资解锁', '想看完整方案，先留联系方式']].map(([iconName, title, text], index) => `<li><span class="assess-step-icon">${icon(iconName, 'sm')}</span><strong>${index + 1}. ${title}</strong><small>${text}</small></li>`).join('')}</ol></div>`
 
-  return cfgPage('cap-assessment', `${capHeader(cap, s.enabled)}
-    <section class="cfg-body">${capNotices('assessment')}
-      ${needsLead ? capNotice('<strong>留资表单未开启。</strong>测评会直接给出完整方案，不会收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}
-      <div class="agent-config-layout assess-layout">
-        <div class="agent-config-main">${banner}<div class="capability-sections">${entry}${questions}${results}${gate}</div></div>
-        <aside class="agent-config-side assess-side">${cfgPanel('访客体验预览', '可以直接点选作答，体验访客从测评到留资的完整过程；显示当前草稿。', `<div data-assess-root>${renderAssessPreview()}</div>`, { cls: 'widget-preview-frame' })}</aside>
-      </div>
-    </section>`)
+  return renderCapabilityWorkbench('cap-assessment', cap, s.enabled,
+    `${banner}<div class="capability-sections">${entry}${questions}${results}${gate}</div>`,
+    renderCapabilityDebugPanel(cap, '可以直接点选作答，体验访客从测评到留资的完整过程。', `<div data-assess-root>${renderAssessPreview()}</div>`),
+    `${capNotices('assessment')}${needsLead ? capNotice('<strong>留资表单未开启。</strong>测评会直接给出完整方案，不会收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}`)
 }
 
 function assessDemo() {
@@ -1312,14 +1338,10 @@ function renderLeadPopupDetail(cap) {
     <div class="cfg-field"><label>同一访客最多</label><span class="proto-inline"><input class="console-input" type="number" min="1" max="90" value="${p.frequency_days}" data-bind="lead_popup.frequency_days" data-type="number" data-clamp="1,90" data-live="popup" /> 天弹一次</span><small>所有规则合计；访客关掉弹窗也算一次，避免反复打扰。</small></div>
     <div class="cfg-field full">${capCheck('lead_popup.skip_known_visitors', '已经留过联系方式的访客不再弹', 'data-live="popup"')}${capCheck('lead_popup.attach_to_lead', '把领取的资料和来源页面写入线索，销售跟进时直接可见')}</div>
   </div>`)
-  return cfgPage('cap-lead_popup', `${capHeader(cap, p.enabled)}
-    <section class="cfg-body">${capNotices('lead_popup')}
-      ${!d.actions.lead_capture.enabled ? capNotice('<strong>留资表单未开启。</strong>弹窗的表单字段沿用「留资表单」的设置，开启后才能收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}
-      <div class="agent-config-layout proto-layout">
-        <div class="proto-main">${valueBanner('proto', '用一份好资料，换一个联系方式', '访客在价格页、博客、案例页停留时，最关心的东西不一样。按页面送上对口的资料，比统一弹“留个电话”更自然；领了什么资料，也说明了对方在意什么。', '适合内容型获客：有白皮书、案例集、报价单、测算工具等可下载资料的 B2B 业务。', [['globe', '按页面匹配', '不同页面配置不同资料'], ['clock', '合适时机弹出', '停留、滚动或准备离开时'], ['download', '留资领取', '提交后下载 / 发邮箱 / 顾问发送']])}<div class="capability-sections">${rules}${freq}</div></div>
-        <aside class="agent-config-side proto-side">${cfgPanel('官网效果预览', '切换页面看不同资料；可以直接填写提交，体验访客领取的完整过程。', `<div data-popup-root>${renderPopupPreview()}</div>`, { cls: 'widget-preview-frame' })}</aside>
-      </div>
-    </section>`)
+  return renderCapabilityWorkbench('cap-lead_popup', cap, p.enabled,
+    `${valueBanner('proto', '用一份好资料，换一个联系方式', '访客在价格页、博客、案例页停留时，最关心的东西不一样。按页面送上对口的资料，比统一弹“留个电话”更自然；领了什么资料，也说明了对方在意什么。', '适合内容型获客：有白皮书、案例集、报价单、测算工具等可下载资料的 B2B 业务。', [['globe', '按页面匹配', '不同页面配置不同资料'], ['clock', '合适时机弹出', '停留、滚动或准备离开时'], ['download', '留资领取', '提交后下载 / 发邮箱 / 顾问发送']])}<div class="capability-sections">${rules}${freq}</div>`,
+    renderCapabilityDebugPanel(cap, '切换页面看不同资料；可以直接填写提交，体验访客领取的完整过程。', `<div data-popup-root>${renderPopupPreview()}</div>`),
+    `${capNotices('lead_popup')}${!d.actions.lead_capture.enabled ? capNotice('<strong>留资表单未开启。</strong>弹窗的表单字段沿用「留资表单」的设置，开启后才能收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}`)
 }
 
 function popupDemo() {
@@ -1422,13 +1444,10 @@ function renderRecommendationsDetail(cap) {
     }).join('')}</div>
     <div class="proto-editor-foot"><button type="button" class="cfg-btn sm outline" data-action="cfg-rec-add" ${r.scenes.length >= 10 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加场景</span></button></div>
     ${field('兜底推荐（每行一个）', capLines('recommendations.fallback', 2, 'data-live="rec"'), { help: '没命中任何场景、或推荐数量不够时补上。' })}`)
-  return cfgPage('cap-recommendations', `${capHeader(cap, r.enabled)}
-    <section class="cfg-body">${capNotices('recommendations')}
-      <div class="agent-config-layout proto-layout">
-        <div class="proto-main">${valueBanner('proto', '帮访客想好下一个问题', '很多访客问完第一句就走了，不是没兴趣，而是不知道接着问什么。每次回答后推荐几个相关追问，点一下就能继续，对话轮数和留资率都会上来。', '和「快捷问题」的区别：快捷问题是欢迎语下方的固定入口；推荐消息跟着对话走，每轮都按当前话题更新。', [['message', '访客提问', '助手正常回答'], ['spark', '按话题推荐', '命中场景给预设问题，不够由 AI 补'], ['arrow', '点一下继续', '推荐随新回答更新']])}<div class="capability-sections">${mode}${scenes}</div></div>
-        <aside class="agent-config-side proto-side">${cfgPanel('访客体验预览', '可以直接提问或点推荐继续聊；改左侧配置，已有回答的推荐会立即重算。', `<div data-rec-root>${renderRecPreview()}</div>`, { cls: 'widget-preview-frame' })}</aside>
-      </div>
-    </section>`)
+  return renderCapabilityWorkbench('cap-recommendations', cap, r.enabled,
+    `${valueBanner('proto', '帮访客想好下一个问题', '很多访客问完第一句就走了，不是没兴趣，而是不知道接着问什么。每次回答后推荐几个相关追问，点一下就能继续，对话轮数和留资率都会上来。', '和「快捷问题」的区别：快捷问题是欢迎语下方的固定入口；推荐消息跟着对话走，每轮都按当前话题更新。', [['message', '访客提问', '助手正常回答'], ['spark', '按话题推荐', '命中场景给预设问题，不够由 AI 补'], ['arrow', '点一下继续', '推荐随新回答更新']])}<div class="capability-sections">${mode}${scenes}</div>`,
+    renderCapabilityDebugPanel(cap, '可以直接提问或点推荐继续聊；改左侧配置，已有回答的推荐会立即重算。', `<div data-rec-root>${renderRecPreview()}</div>`),
+    capNotices('recommendations'))
 }
 
 function recState() {
@@ -1519,13 +1538,10 @@ function renderMcpDetail(cap) {
     <div class="cfg-field full">${capCheck('mcp.show_trace_to_visitor', '在对话里向访客显示「正在查询…」的过程卡片', 'data-mcp-trace="1"')}</div>
   </div>`)
   const demo = demoFor('mcp')
-  return cfgPage('cap-mcp', `${capHeader(cap, m.enabled)}
-    <section class="cfg-body">${capNotices('mcp')}
-      <div class="agent-config-layout proto-layout">
-        <div class="proto-main">${valueBanner('proto', '让助手直接查业务系统', '访客问“我的发票开了没”“帮我开个试用”，以前只能转人工；接上业务系统后，助手在对话里直接查询、直接办理，几秒钟给出准确答复。', '适合有订单、账户、工单等业务数据的企业；写操作可以设置为先让访客确认再执行。', [['plug', '接入服务', '填 MCP 服务地址或 API，选择鉴权'], ['settings', '挑选工具', '开启需要的工具，写清调用时机'], ['message', '对话中调用', '助手按需调用，把结果说给访客听']])}<div class="capability-sections">${servers}${settings}</div></div>
-        <aside class="agent-config-side proto-side">${cfgPanel('演示', `直接在窗口里问订单发票、开通试用或系统状态；当前 ${toolCount} 个工具可用，返回数据为示例。`, `<div class="demo-preview">${m.enabled ? '' : '<div class="demo-off-note">能力还没开启，访客暂时用不到；下面演示开启后的效果。</div>'}<div data-demo-root>${renderMcpDemo(demo)}</div></div>`, { cls: 'widget-preview-frame', actions: `<button type="button" class="cfg-btn sm ghost" data-action="cfg-demo-restart">${icon('refresh', 'xs')}<span>重新开始</span></button>` })}</aside>
-      </div>
-    </section>`)
+  return renderCapabilityWorkbench('cap-mcp', cap, m.enabled,
+    `${valueBanner('proto', '让助手直接查业务系统', '访客问“我的发票开了没”“帮我开个试用”，以前只能转人工；接上业务系统后，助手在对话里直接查询、直接办理，几秒钟给出准确答复。', '适合有订单、账户、工单等业务数据的企业；写操作可以设置为先让访客确认再执行。', [['plug', '接入服务', '填 MCP 服务地址或 API，选择鉴权'], ['settings', '挑选工具', '开启需要的工具，写清调用时机'], ['message', '对话中调用', '助手按需调用，把结果说给访客听']])}<div class="capability-sections">${servers}${settings}</div>`,
+    renderCapabilityDebugPanel(cap, `直接在窗口里问订单发票、开通试用或系统状态；当前 ${toolCount} 个工具可用，返回数据为示例。`, `<div class="demo-preview">${m.enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会调用工具；开启后可立即测试左侧草稿。</div>'}<div data-demo-root>${renderMcpDemo(demo)}</div></div>`),
+    capNotices('mcp'))
 }
 
 const mcpTools = () => C().mcp.servers.flatMap(server => server.tools)
@@ -1700,9 +1716,10 @@ function capHandleKeydown(event) {
 function capAction(name, el) {
   const d = C()
   const demo = cfg.demo
-  if (name === 'cfg-cap-back') { cfg.capDetail = null; renderApp(); return true }
+  if (name === 'cfg-cap-back') { saveCapabilityDebugSession(cfg.capDetail); cfg.capDetail = null; renderApp(); return true }
+  if (name === 'cfg-cap-debug-reset') { resetCapabilityDebugSession(cfg.capDetail); renderApp(); return true }
   if (name === 'cfg-demo-restart') { if (demo) cfg.demo = newDemo(demo.id); renderApp(); return true }
-  if (name === 'cfg-go-leads') { state.agentSection = 'leads'; cfg.capDetail = null; renderApp(); toast('调试线索已加入「线索」列表'); return true }
+  if (name === 'cfg-go-leads') { saveCapabilityDebugSession(cfg.capDetail); state.agentSection = 'leads'; cfg.capDetail = null; renderApp(); toast('调试线索已加入「线索」列表'); return true }
   if (name === 'cfg-demo-takeover' && demo) { demo.mode = 'human'; demo.session.human = true; demoPush(demo, { kind: 'status', text: '人工客服已接入', tone: 'info' }); refreshDemo(); return true }
   if (name === 'cfg-demo-release' && demo) { demo.mode = 'ai'; demo.session.human = false; demoPush(demo, { kind: 'status', text: '已回到 AI 助手', tone: 'info' }); refreshDemo(); return true }
   if (name === 'cfg-demo-reply' && demo) {
@@ -1765,7 +1782,13 @@ function capHandleClick(event) {
   let el
   if ((el = pick('[data-demo-link]'))) { event.preventDefault(); return true }
   if ((el = pick('[data-cap-toggle]'))) { const id = el.dataset.capToggle; setCapEnabled(id, !isCapEnabled(id)); renderApp(); return true }
-  if ((el = pick('[data-cap-config]'))) { cfg.capDetail = el.dataset.capConfig; cfg.demo = null; cfg.assess = null; cfg.popup = null; cfg.rec = null; renderApp(); return true }
+  if ((el = pick('[data-cap-config]'))) {
+    saveCapabilityDebugSession(cfg.capDetail)
+    cfg.capDetail = el.dataset.capConfig
+    loadCapabilityDebugSession(cfg.capDetail)
+    renderApp()
+    return true
+  }
   if ((el = pick('[data-demo-send]'))) { if (cfg.demo?.id === 'mcp' || cfg.demo) demoSend(el.dataset.demoSend); return true }
   if ((el = pick('[data-demo-submit]'))) {
     const scope = el.dataset.demoSubmit

@@ -177,7 +177,7 @@ const cfg = {
   tbExpanded: null, tbPending: null, tbImageBusy: '', tbImageError: null, uploadBusy: '', uploadError: '',
   chat: [], chatStartedAt: nowClock(), typing: false,
   // 能力详情页：折叠状态与各演示的运行状态
-  secOpen: {}, demo: null, assess: null, popup: null, rec: null, popupActive: '', recScene: '', mcpTool: ''
+  secOpen: {}, demo: null, assess: null, popup: null, rec: null, capDebugSessions: {}, popupActive: '', recScene: '', mcpTool: ''
 }
 
 /* ---------- 草稿状态 ---------- */
@@ -237,6 +237,10 @@ const renderCfgHint = () => `<p class="cfg-hint">${icon('shield', 'sm')}<span>�
 
 function cfgPanel(title, desc, body, { cls = '', actions = '', flush = false } = {}) {
   return `<section class="cfg-panel ${cls}"><div class="cfg-panel-head"><div class="cfg-panel-heading"><h3>${title}</h3>${desc ? `<p>${desc}</p>` : ''}</div>${actions ? `<div class="cfg-panel-actions">${actions}</div>` : ''}</div><div class="cfg-panel-body ${flush ? 'flush' : ''}">${body}</div></section>`
+}
+
+function renderCfgDebugToolbar({ description, center = '', actions = '' }) {
+  return `<div class="cfg-debug-toolbar"><strong class="cfg-debug-title">调试台</strong>${center}<span class="cfg-debug-description">${description}</span><div class="cfg-debug-actions">${actions}</div></div>`
 }
 
 function cfgField(label, control, { help = '', full = false, cls = '' } = {}) {
@@ -337,6 +341,11 @@ function resetWidgetChat() {
   cfg.chatStartedAt = nowClock()
 }
 
+function renderCfgDebugPanel() {
+  const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>新会话</span></button>`
+  return `<section class="cfg-panel cfg-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="cfg-panel-body"><div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></div></section>`
+}
+
 /* ---------- 角色与提示词 ---------- */
 
 function renderPersonaConfig() {
@@ -359,11 +368,14 @@ function renderPersonaConfig() {
       ${promptField('guardrails', '业务边界（Guardrails）', 8000, '写业务上不应回答、何时停止或转交等边界。平台安全、证据和工具协议始终优先，业务边界可由你修改。')}
       <div class="cfg-field full"><small>两块内容都会直接进入智能体指令；平台不识别隐藏标题。当前总长度 <span data-count="total">${(d.general.length + d.guardrails.length).toLocaleString()}</span> / 20,000。</small></div>
     </div>`)
-  const debug = cfgPanel('调试台', '边改边试：回答按线上版本生成，发布后草稿改动生效。', `<div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div>`, { cls: 'cfg-debug-panel', actions: `<button type="button" class="cfg-btn sm outline" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>新会话</span></button>` })
-  return cfgPage('prompt', `${renderCfgHeader({ title: '角色与提示词', desc: '定义智能体的角色、回答方式与业务边界；平台安全协议和已启用能力会独立生效。' })}
-    <section class="cfg-body">
-      <div class="cfg-layout is-persona"><div class="cfg-main">${model}${templates}${instructions}</div><aside class="cfg-side is-sticky">${debug}</aside></div>
-    </section>
+  const debug = renderCfgDebugPanel()
+  return cfgPage('prompt', `<div class="cfg-persona-workbench">
+      <main class="cfg-persona-scroll">
+        ${renderCfgHeader({ title: '角色与提示词', desc: '定义智能体的角色、回答方式与业务边界；平台安全协议和已启用能力会独立生效。' })}
+        <section class="cfg-body"><div class="cfg-main">${model}${templates}${instructions}</div></section>
+      </main>
+      <aside class="cfg-persona-debug">${debug}</aside>
+    </div>
     ${cfg.fullscreen ? `<div class="cfg-scrim" data-action="cfg-fullscreen" data-field="${cfg.fullscreen}"></div>` : ''}`)
 }
 
@@ -781,7 +793,17 @@ function handleConfigClick(event) {
   if (tbHandleClick(event)) return true
 
   // 从侧边栏切换页面时回到各页的默认视图（交给 app.js 继续处理路由）
-  if (pick('[data-agent-section]') && !pick('[data-agent-section]').closest('.cfg-page')) { cfg.capDetail = null; cfg.demo = null; cfg.fullscreen = null; cfg.kbModal = null; return false }
+  if (pick('[data-agent-section]') && !pick('[data-agent-section]').closest('.cfg-page')) {
+    if (typeof saveCapabilityDebugSession === 'function') saveCapabilityDebugSession(cfg.capDetail)
+    cfg.capDetail = null
+    cfg.demo = null
+    cfg.assess = null
+    cfg.popup = null
+    cfg.rec = null
+    cfg.fullscreen = null
+    cfg.kbModal = null
+    return false
+  }
 
   if ((el = pick('[data-cfg-template]'))) {
     const template = personaTemplates[Number(el.dataset.cfgTemplate)]
