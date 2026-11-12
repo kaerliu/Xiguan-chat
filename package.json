@@ -1,0 +1,7 @@
+{
+  "name": "xiguan-chat-prototype",
+  "private": true,
+  "scripts": {
+    "dev": "node dev-server.js"
+  }
+}

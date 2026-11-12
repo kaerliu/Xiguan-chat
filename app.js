@@ -339,7 +339,7 @@ function renderAgentSection() {
 
 function renderAgentOverview() {
   const enabled = CAPABILITIES.filter(cap => isCapEnabled(cap.id)).length
-  return `<div class="card overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div></div>
+  return `<div class="overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>角色与提示词</h3><button class="btn small ghost" data-agent-section="prompt">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><p style="margin:0;color:var(--muted);font-size:11px;line-height:1.7">你是帆软官网的真人接待，像一位专业、热情的售前顾问。优先理解访客的行业和场景，再提供相关方案与案例。</p></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>能力</h3><button class="btn small ghost" data-agent-section="capabilities">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>${enabled} 项已启用</strong><span>信息收集、人工协作等</span></div>${leadSummaryChip()}<div class="summary-chip"><strong>自动接待</strong><span>全天候运行</span></div></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>知识库</h3><button class="btn small ghost" data-agent-section="knowledge">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>5 个知识源</strong><span>文档、网页和 Q&A</span></div><div class="summary-chip"><strong>54 条知识</strong><span>结构化率 100%</span></div><div class="summary-chip"><strong>83% 命中率</strong><span>最近 7 天</span></div></div></div></div>
@@ -369,10 +369,13 @@ function renderConversationPreview() {
 function renderOverviewPreview() {
   const website = previewWebsiteUrl(state.onboarding.website)
   const assistantName = escapeHtml(state.onboarding.assistantName)
+  const enabled = CAPABILITIES.filter(cap => isCapEnabled(cap.id)).length
+  const modes = `<div class="segmented preview-mode-segment"><button class="${state.previewMode === 'website' ? 'active' : ''}" data-preview-mode="website">官网界面</button><button class="${state.previewMode === 'conversation' ? 'active' : ''}" data-preview-mode="conversation">对话界面</button></div>`
   const content = state.previewMode === 'website'
     ? `<div class="website-preview-stage"><div class="website-preview-browser"><div class="website-preview-bar"><span></span><span></span><span></span><div class="website-preview-url">${escapeHtml(website)}</div>${icon('external')}</div><div class="website-preview-frame"><iframe title="用户官网预览" src="${escapeHtml(website)}" sandbox="allow-forms allow-popups allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe><div class="ai-entry-guide"><span>AI 客服入口</span><strong>访客从这里唤起客服</strong></div><button class="ai-entry-trigger" style="--preview-brand:${state.onboarding.color}" data-preview-mode="conversation" aria-label="打开${assistantName}">${icon('chat')}<i></i></button></div></div></div>`
-    : renderConversationPreview()
-  return `<div class="embedded-debug overview-preview"><div class="embedded-debug-head overview-preview-head"><div class="segmented preview-mode-segment"><button class="${state.previewMode === 'website' ? 'active' : ''}" data-preview-mode="website">官网界面</button><button class="${state.previewMode === 'conversation' ? 'active' : ''}" data-preview-mode="conversation">对话界面</button></div></div><div class="overview-preview-body">${content}</div></div>`
+    : `<div class="overview-conversation-debug"><div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></div>`
+  const reset = state.previewMode === 'conversation' ? `<button type="button" class="cfg-btn sm outline" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>新会话</span></button>` : ''
+  return `<div class="embedded-debug overview-preview">${renderCfgDebugToolbar({ description: `全局调试 · 综合 ${enabled} 项已启用能力`, center: modes, actions: reset })}<div class="overview-preview-body">${content}</div></div>`
 }
 
 function renderPreview(closeable = false, overview = false) {
