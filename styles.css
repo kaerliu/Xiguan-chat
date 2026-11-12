@@ -2169,3 +2169,17 @@ button { color: inherit; }
 .xg-widget-lead-card--small:not(.is-expanded){grid-template-columns:minmax(0,1fr) auto auto}
 .badge.red { background: #fbeaea; color: #a72c2c; }
 .lead-push { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- 能力：转人工 / MCP / 推荐消息补充样式 ---------- */
+.cfg-badge.danger { color: #a3261f; background: #fdecea; }
+.demo-handoff-sim { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; background: #f7f8f8; border-radius: 8px; }
+.demo-handoff-sim small { color: var(--console-muted); font-size: 11px; }
+.mcp-key-saved { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mcp-key-saved small { color: var(--console-muted); font-size: 11px; }
+.mcp-key-saved input { flex: 1; min-width: 160px; }
+.mcp-test { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mcp-test input { flex: 1; min-width: 140px; }
+.mcp-test-result { margin: 6px 0 0; padding: 10px; max-height: 180px; overflow: auto; font-size: 11px; line-height: 1.5; background: #f7f8f8; border-radius: 8px; white-space: pre-wrap; }
+.mcp-test-result.is-error, .mcp-error { color: #a3261f; }
+.mcp-confirm { margin: 8px 0 0; }
+.rec-debug .console-checkbox { font-size: 12px; }
