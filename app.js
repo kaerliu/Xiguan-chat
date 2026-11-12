@@ -339,7 +339,7 @@ function renderAgentSection() {
 
 function renderAgentOverview() {
   const enabled = CAPABILITIES.filter(cap => isCapEnabled(cap.id)).length
-  return `<div class="card overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div></div>
+  return `<div class="overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>角色与提示词</h3><button class="btn small ghost" data-agent-section="prompt">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><p style="margin:0;color:var(--muted);font-size:11px;line-height:1.7">你是帆软官网的真人接待，像一位专业、热情的售前顾问。优先理解访客的行业和场景，再提供相关方案与案例。</p></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>能力</h3><button class="btn small ghost" data-agent-section="capabilities">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>${enabled} 项已启用</strong><span>信息收集、人工协作等</span></div>${leadSummaryChip()}<div class="summary-chip"><strong>自动接待</strong><span>全天候运行</span></div></div></div></div>
     <div class="card summary-card"><div class="summary-head"><h3>知识库</h3><button class="btn small ghost" data-agent-section="knowledge">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>5 个知识源</strong><span>文档、网页和 Q&A</span></div><div class="summary-chip"><strong>54 条知识</strong><span>结构化率 100%</span></div><div class="summary-chip"><strong>83% 命中率</strong><span>最近 7 天</span></div></div></div></div>

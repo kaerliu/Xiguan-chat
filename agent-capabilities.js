@@ -463,7 +463,6 @@ function capNotice(text, action = '') {
 function capNotices(selected) {
   const a = C().actions
   let html = ''
-  if (a.human_handoff.enabled && (!selected || selected === 'human_handoff')) html += capNotice('<strong>外部接管提醒尚未配置。</strong>访客的转人工请求仍会进入「人工」列表，但不会额外推送到企业微信。', '<button type="button" class="cfg-btn sm outline" data-agent-section="channels">配置通知通道</button>')
   if (a.asset_delivery.enabled && a.asset_delivery.mode === 'contact_required' && !a.lead_capture.enabled && (!selected || selected === 'asset_delivery' || selected === 'lead_capture')) html += capNotice('资料设置为“收集联系方式后交付”，但留资表单未开启，链接将一直被隐藏。')
   return html
 }
