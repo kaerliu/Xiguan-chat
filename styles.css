@@ -355,8 +355,11 @@ button { color: inherit; }
 
 .agent-layout { height: 100vh; grid-template-columns: 230px minmax(560px, 1fr) 340px; background: white; }
 .agent-nav { display: flex; flex-direction: column; padding: 0 12px 10px; }
-.agent-nav-title { height: 64px; margin: 0 -12px 12px; padding: 0 20px; border-bottom: 1px solid var(--line-strong); display: flex; align-items: center; }
+.agent-nav-title { height: 64px; margin: 0 -12px 12px; padding: 0 16px 0 20px; border-bottom: 1px solid var(--line-strong); display: flex; align-items: center; gap: 10px; }
 .agent-nav-title strong { font-size: 14px; }
+.product-logic-link { margin-left: auto; padding: 5px 8px; color: var(--brand); font-size: 10px; font-weight: 600; line-height: 1; text-decoration: none; white-space: nowrap; background: var(--brand-soft); border: 1px solid #cfe3dc; border-radius: 6px; }
+.product-logic-link:hover { color: #0d6047; background: #e2f2eb; border-color: #a9d1c2; }
+.product-logic-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .agent-nav-divider { height: 1px; margin: 6px; background: var(--line-strong); flex: 0 0 auto; }
 .agent-nav-spacer { flex: 1; min-height: 20px; }
 .agent-nav > .context-profile { margin: 0 -2px; }
@@ -470,8 +473,13 @@ button { color: inherit; }
    智能体搭建：角色与提示词 / 能力 / 知识库 / 外观
    合并自「吸管控制台-单文件复刻」，全部使用 cfg- 前缀，避免影响其他页面。
    ========================================================================== */
-.agent-layout.config-section > .agent-editor { grid-row: 1 / -1; overflow: hidden; }
+.agent-layout.config-section > .agent-editor { grid-row: 2; overflow: hidden; }
+.agent-layout.config-section { --c-primary: #005bc1; --c-primary-hover: #004b9f; }
 .agent-config-editor > .editor-body { height: 100%; max-width: none; padding: 0; }
+.editor-context { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.editor-context > strong { color: var(--ink); font-size: 13px; }
+.cfg-editor-actions { --c-primary: #005bc1; --c-primary-hover: #004b9f; align-items: center; }
+.cfg-editor-actions .icon.sm { width: 16px; height: 16px; }
 
 .cfg-page {
   --c-brand: #1e5b4b; --c-brand-soft: #eef5f2; --c-brand-border: #c8ddd6;
@@ -486,8 +494,8 @@ button { color: inherit; }
 .cfg-page .icon.sm { width: 16px; height: 16px; }
 .cfg-page .icon.xs { width: 14px; height: 14px; }
 
-/* 页头 */
-.cfg-page-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 94px; padding: 18px 24px; background: #fff; border-bottom: 1px solid var(--c-border-soft); }
+/* 内容区页头 */
+.cfg-page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; min-height: 94px; padding: 26px 24px 12px; background: var(--c-page); }
 .cfg-page-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .cfg-page-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; color: var(--c-brand); background: var(--c-brand-soft); border-radius: 9px; }
 .cfg-page-heading { display: grid; gap: 4px; min-width: 0; }
@@ -698,7 +706,7 @@ button { color: inherit; }
 
 /* 外观工作台 */
 .cfg-page.is-workbench { display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; background: #fff; }
-.cfg-page.is-workbench .cfg-page-header { min-height: 76px; padding: 13px 22px; }
+.cfg-page.is-workbench .cfg-page-header { min-height: 86px; padding: 20px 22px 12px; }
 .cfg-page.is-workbench .cfg-page-header h1 { font-size: 20px; }
 .cfg-page.is-workbench .cfg-page-header p { font-size: 11px; }
 .cfg-workbench { display: grid; grid-template-columns: 420px minmax(0, 1fr); min-height: 0; }

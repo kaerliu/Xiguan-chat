@@ -301,13 +301,18 @@ function isAgentOperationSection() {
   return agentOperationItems.some(item => item[0] === state.agentSection)
 }
 
+function renderAgentTop() {
+  return `<header class="editor-top"><div class="editor-context"><strong>AI 接待</strong>${renderCfgStatus()}</div>
+    <div class="editor-actions cfg-editor-actions" id="cfg-actions">${renderCfgDraftActions()}</div></header>`
+}
+
 function renderAgent() {
   const operationSection = isAgentOperationSection()
   const configSection = isConfigSection()
   const overviewSection = state.agentSection === 'overview'
   const showDebug = overviewSection || (state.agentSection !== 'channels' && !operationSection && !configSection && state.debugOpen)
   return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${overviewSection ? 'overview-section' : ''} ${operationSection ? 'operation-section' : ''} ${configSection ? 'config-section' : ''}">
-    <aside class="agent-nav"><div class="agent-nav-title"><strong>吸管 · AI 接待</strong></div>
+    <aside class="agent-nav"><div class="agent-nav-title"><strong>吸管 · AI 接待</strong><a class="product-logic-link" href="./product-logic.html" target="_blank" rel="noopener">产品逻辑</a></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
       <div class="agent-nav-divider"></div>
       <button class="nav-item ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">${icon('bot')}<span>角色与提示词</span></button>
@@ -316,9 +321,7 @@ function renderAgent() {
       ${agentOperationItems.map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
       <div class="agent-nav-spacer"></div>${renderContextProfile()}
     </aside>
-    ${operationSection || configSection ? '' : `<header class="editor-top"><div><strong style="font-size:13px">AI 接待</strong> ${state.dirty ? '<span class="badge orange" data-agent-status>未保存</span>' : state.published ? '<span class="badge green" data-agent-status>已上线</span>' : '<span class="badge gray" data-agent-status>草稿</span>'}</div>
-      <div class="editor-actions"><button class="btn small" data-action="save-agent">保存</button><button class="btn small primary" data-action="publish-agent">${state.published ? '更新上线' : '发布上线'} ${icon('chevron')}</button></div></header>
-    `}
+    ${operationSection ? '' : renderAgentTop()}
     <section class="agent-editor ${operationSection ? 'agent-operation-editor' : ''} ${configSection ? 'agent-config-editor' : ''}"><div class="editor-body">${renderAgentSection()}</div></section>
     ${showDebug ? `<aside class="preview-pane">${renderPreview(!overviewSection, overviewSection)}</aside>` : ''}
   </div>`
@@ -348,8 +351,10 @@ function renderEditorHeading(title, description, showDebugAction = true) {
 }
 
 function renderChannels() {
+  const channels = cfg.draft.channels
+  const deployCode = `<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${channels.siteKey}" defer></script>`
   return `${renderEditorHeading('渠道', '将 AI 接待部署到官网、活动页或其他业务入口。', false)}
-    <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="www.fanruan.com, events.fanruan.com" data-dirty="true" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">&lt;script src=&quot;https://test.xiguan.cn/presales/widget.js&quot; data-site-key=&quot;site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF&quot; defer&gt;&lt;/script&gt;</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
+    <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="${esc(channels.allowedDomains)}" data-bind="channels.allowedDomains" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="${esc(channels.siteKey)}" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">${esc(deployCode)}</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
     <div class="card channel-card"><div class="channel-head"><strong>IM 工具</strong><span class="badge gray">未连接</span></div><p style="font-size:11px;color:var(--muted);line-height:1.6">连接企业微信、飞书或钉钉，将高意向访客实时推送给销售团队。</p><button class="btn small" data-action="connect-im">连接 IM</button></div>
     <div class="card channel-card"><div class="channel-head"><strong>事件触发</strong><span class="badge blue">2 条规则</span></div><p style="font-size:11px;color:var(--muted)">监听价格页停留超过 30 秒、连续访问产品页 3 次。</p><button class="btn small">管理规则</button></div>`
 }
@@ -559,12 +564,10 @@ document.addEventListener('click', event => {
   if (name === 'send-message') return sendMessage()
   if (name === 'save-note') return toast('质量判断已保存')
   if (name === 'copy-id') return copyText(conversations.find(item => item.id === state.activeConversation).name, '会话 ID 已复制')
-  if (name === 'save-agent') { state.dirty = false; toast('草稿已保存'); return renderApp() }
-  if (name === 'publish-agent') { state.published = true; state.dirty = false; toast('AI 接待已发布上线'); return renderApp() }
   if (name === 'open-debug') { state.debugOpen = true; return renderApp() }
   if (name === 'close-debug') { state.debugOpen = false; return renderApp() }
   if (name === 'debug-send') return debugSend()
-  if (name === 'copy-code') return copyText('<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="site_d78w..."></script>', '部署代码已复制')
+  if (name === 'copy-code') return copyText(`<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${cfg.draft.channels.siteKey}" defer></script>`, '部署代码已复制')
   if (name === 'connect-im') return toast('已发起企业微信连接（原型演示）')
   if (name === 'save-workspace' || name === 'save-personal') return toast('设置已保存')
   if (name === 'invite-member') { state.modal = 'invite'; return renderApp() }
@@ -591,7 +594,6 @@ document.addEventListener('input', event => {
     if (field === 'welcomeMessage') document.querySelectorAll('.preview-conversation-message.ai:first-child .bubble').forEach(node => { node.textContent = event.target.value })
     return
   }
-  if (event.target.matches('[data-dirty]')) { state.dirty = true; showAgentDirtyStatus() }
 })
 
 document.addEventListener('change', event => {

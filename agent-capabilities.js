@@ -470,10 +470,9 @@ function capNotices(selected) {
 function capHeader(cap, enabled, extraBadge = '') {
   return `<header class="capability-detail-head">
     <button type="button" class="cfg-btn sm ghost" data-action="cfg-cap-back">${icon('arrow-left', 'xs')}<span>能力</span></button>
-    <span class="capability-detail-title"><span class="capability-card-icon">${icon(cap.icon, 'sm')}</span><h1>${cap.name}</h1>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}${renderCfgStatus()}${extraBadge}</span>
+    <span class="capability-detail-title"><span class="capability-card-icon">${icon(cap.icon, 'sm')}</span><h1>${cap.name}</h1>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}${extraBadge}</span>
     <span class="cfg-capdetail-spacer"></span>
     <label class="cfg-capdetail-switch"><span>${enabled ? '已开启' : '未开启'}</span><button type="button" class="cfg-switch ${enabled ? 'on' : ''}" role="switch" aria-checked="${enabled}" aria-label="启用${cap.name}" data-cap-toggle="${cap.id}"></button></label>
-    <div class="cfg-action-group" id="cfg-actions">${renderCfgDraftActions()}</div>
   </header>`
 }
 
@@ -519,8 +518,8 @@ function renderCapabilitiesConfig() {
     if (cap.id === 'mcp') return renderMcpDetail(cap)
     return renderCapabilityDetail(cap)
   }
-  return cfgPage('capabilities', `${renderCfgHeader({ title: '能力', desc: '按需打开智能体能做的事。关闭后，对应提示、工具、回执和会话状态都不会进入运行时。', extra: renderCfgStatus() })}
-    <section class="cfg-body">${renderCfgHint()}${capNotices(null)}
+  return cfgPage('capabilities', `${renderCfgHeader({ title: '能力', desc: '按需打开智能体能做的事。关闭后，对应提示、工具、回执和会话状态都不会进入运行时。' })}
+    <section class="cfg-body">${capNotices(null)}
       <div class="cfg-toolbar"><div class="cfg-search">${icon('search', 'sm')}<input id="cfg-cap-search" type="search" placeholder="搜索能力" aria-label="搜索能力" value="${esc(cfg.capSearch)}" /></div>
         <select id="cfg-cap-trigger" class="cfg-select" aria-label="按触发方式筛选"><option value="all">全部触发方式</option>${Object.entries(TRIGGER_LABELS).map(([key, label]) => `<option value="${key}" ${cfg.capTrigger === key ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
       <div class="cfg-cap-grid" id="cfg-cap-grid">${renderCapabilityListCards()}</div>
@@ -566,7 +565,7 @@ function renderCapabilityDetail(cap) {
   if (id === 'idle_follow_up') more = capSection(sec('rules'), '触发规则', d.idle_follow_up.steps.every(step => step.message.trim()), true, renderIdleSteps())
 
   return cfgPage(`cap-${id}`, `${capHeader(cap, enabled)}
-    <section class="cfg-body">${renderCfgHint()}${capNotices(id)}
+    <section class="cfg-body">${capNotices(id)}
       <div class="agent-config-layout capability-demo-layout">
         <div class="agent-config-main capability-sections">${general}${interaction}${widget}${fields}${more}</div>
         <aside class="agent-config-side capability-demo-side">${renderDemoPanel(id, enabled)}</aside>
@@ -641,7 +640,7 @@ function renderLeadCaptureDetail(cap) {
     <ul class="lead-rules"><li>访客明确拒绝后，本次会话不再邀请；访客关掉表单算没回应，不算拒绝。</li><li>已经拿到联系方式后，不再弹表单；还没填的字段，AI 可以在对话里顺带问。</li><li>访客自己说要留联系方式时，不受次数限制。</li></ul>`)
 
   return cfgPage('cap-lead_capture', `${capHeader(cap, enabled)}
-    <section class="cfg-body">${renderCfgHint()}${capNotices('lead_capture')}
+    <section class="cfg-body">${capNotices('lead_capture')}
       <div class="agent-config-layout capability-demo-layout">
         <div class="agent-config-main capability-sections">${general}${mode}${fieldsSec}${style}${messages}${times}</div>
         <aside class="agent-config-side capability-demo-side">${renderDemoPanel('lead_capture', enabled)}</aside>
@@ -1191,7 +1190,7 @@ function renderAssessmentDetail(cap) {
     <ol class="assess-steps">${[['circle-check', '访客答题', '3–5 道选择题，1 分钟答完'], ['spark', '自动出方案', '按得分匹配最合适的方案'], ['user-check', '留资解锁', '想看完整方案，先留联系方式']].map(([iconName, title, text], index) => `<li><span class="assess-step-icon">${icon(iconName, 'sm')}</span><strong>${index + 1}. ${title}</strong><small>${text}</small></li>`).join('')}</ol></div>`
 
   return cfgPage('cap-assessment', `${capHeader(cap, s.enabled)}
-    <section class="cfg-body">${renderCfgHint()}${capNotices('assessment')}
+    <section class="cfg-body">${capNotices('assessment')}
       ${needsLead ? capNotice('<strong>留资表单未开启。</strong>测评会直接给出完整方案，不会收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}
       <div class="agent-config-layout assess-layout">
         <div class="agent-config-main">${banner}<div class="capability-sections">${entry}${questions}${results}${gate}</div></div>
@@ -1314,7 +1313,7 @@ function renderLeadPopupDetail(cap) {
     <div class="cfg-field full">${capCheck('lead_popup.skip_known_visitors', '已经留过联系方式的访客不再弹', 'data-live="popup"')}${capCheck('lead_popup.attach_to_lead', '把领取的资料和来源页面写入线索，销售跟进时直接可见')}</div>
   </div>`)
   return cfgPage('cap-lead_popup', `${capHeader(cap, p.enabled)}
-    <section class="cfg-body">${renderCfgHint()}${capNotices('lead_popup')}
+    <section class="cfg-body">${capNotices('lead_popup')}
       ${!d.actions.lead_capture.enabled ? capNotice('<strong>留资表单未开启。</strong>弹窗的表单字段沿用「留资表单」的设置，开启后才能收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}
       <div class="agent-config-layout proto-layout">
         <div class="proto-main">${valueBanner('proto', '用一份好资料，换一个联系方式', '访客在价格页、博客、案例页停留时，最关心的东西不一样。按页面送上对口的资料，比统一弹“留个电话”更自然；领了什么资料，也说明了对方在意什么。', '适合内容型获客：有白皮书、案例集、报价单、测算工具等可下载资料的 B2B 业务。', [['globe', '按页面匹配', '不同页面配置不同资料'], ['clock', '合适时机弹出', '停留、滚动或准备离开时'], ['download', '留资领取', '提交后下载 / 发邮箱 / 顾问发送']])}<div class="capability-sections">${rules}${freq}</div></div>
@@ -1424,7 +1423,7 @@ function renderRecommendationsDetail(cap) {
     <div class="proto-editor-foot"><button type="button" class="cfg-btn sm outline" data-action="cfg-rec-add" ${r.scenes.length >= 10 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加场景</span></button></div>
     ${field('兜底推荐（每行一个）', capLines('recommendations.fallback', 2, 'data-live="rec"'), { help: '没命中任何场景、或推荐数量不够时补上。' })}`)
   return cfgPage('cap-recommendations', `${capHeader(cap, r.enabled)}
-    <section class="cfg-body">${renderCfgHint()}${capNotices('recommendations')}
+    <section class="cfg-body">${capNotices('recommendations')}
       <div class="agent-config-layout proto-layout">
         <div class="proto-main">${valueBanner('proto', '帮访客想好下一个问题', '很多访客问完第一句就走了，不是没兴趣，而是不知道接着问什么。每次回答后推荐几个相关追问，点一下就能继续，对话轮数和留资率都会上来。', '和「快捷问题」的区别：快捷问题是欢迎语下方的固定入口；推荐消息跟着对话走，每轮都按当前话题更新。', [['message', '访客提问', '助手正常回答'], ['spark', '按话题推荐', '命中场景给预设问题，不够由 AI 补'], ['arrow', '点一下继续', '推荐随新回答更新']])}<div class="capability-sections">${mode}${scenes}</div></div>
         <aside class="agent-config-side proto-side">${cfgPanel('访客体验预览', '可以直接提问或点推荐继续聊；改左侧配置，已有回答的推荐会立即重算。', `<div data-rec-root>${renderRecPreview()}</div>`, { cls: 'widget-preview-frame' })}</aside>
@@ -1521,7 +1520,7 @@ function renderMcpDetail(cap) {
   </div>`)
   const demo = demoFor('mcp')
   return cfgPage('cap-mcp', `${capHeader(cap, m.enabled)}
-    <section class="cfg-body">${renderCfgHint()}${capNotices('mcp')}
+    <section class="cfg-body">${capNotices('mcp')}
       <div class="agent-config-layout proto-layout">
         <div class="proto-main">${valueBanner('proto', '让助手直接查业务系统', '访客问“我的发票开了没”“帮我开个试用”，以前只能转人工；接上业务系统后，助手在对话里直接查询、直接办理，几秒钟给出准确答复。', '适合有订单、账户、工单等业务数据的企业；写操作可以设置为先让访客确认再执行。', [['plug', '接入服务', '填 MCP 服务地址或 API，选择鉴权'], ['settings', '挑选工具', '开启需要的工具，写清调用时机'], ['message', '对话中调用', '助手按需调用，把结果说给访客听']])}<div class="capability-sections">${servers}${settings}</div></div>
         <aside class="agent-config-side proto-side">${cfgPanel('演示', `直接在窗口里问订单发票、开通试用或系统状态；当前 ${toolCount} 个工具可用，返回数据为示例。`, `<div class="demo-preview">${m.enabled ? '' : '<div class="demo-off-note">能力还没开启，访客暂时用不到；下面演示开启后的效果。</div>'}<div data-demo-root>${renderMcpDemo(demo)}</div></div>`, { cls: 'widget-preview-frame', actions: `<button type="button" class="cfg-btn sm ghost" data-action="cfg-demo-restart">${icon('refresh', 'xs')}<span>重新开始</span></button>` })}</aside>

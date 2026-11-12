@@ -26,6 +26,7 @@ python3 -m http.server 8123
 - `agent-capabilities.js`：能力列表与每个能力的配置详情、右侧演示（留资表单、转人工、资料交付、主动弹窗、沉默跟进，以及测评式营销、留资弹窗、推荐消息、MCP 调用）。
 - `agent-toolbar.js`：官网侧边工具栏的模板、按钮编辑器、弹出面板预览和图片上传处理。
 - `agent-config.js`：草稿状态（保存 / 发布 / 放弃）、角色与提示词、知识库、外观，以及上面两个文件的事件接入。
+- `product-logic.html`：产品逻辑记录页；本地环境可编辑并保存到浏览器，线上环境自动只读。
 - `assets/xiguan-logo-fill.png`：对话窗口底部「吸管 提供技术支持」的图标。
 
-四页共用一份草稿，保存在浏览器本地（`xiguan-agent-config-draft` / `xiguan-agent-config-published`）；清空这两个键即可恢复默认。
+概览与五个配置页共用同一套顶部草稿状态和发布操作；角色、能力、知识库、外观与渠道配置保存在浏览器本地（`xiguan-agent-config-draft` / `xiguan-agent-config-published`），清空这两个键即可恢复默认。

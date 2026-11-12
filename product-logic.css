@@ -1,0 +1,40 @@
+:root {
+  color-scheme: light;
+  --ink: #18211d;
+  --muted: #68736d;
+  --line: #dfe5e1;
+  --brand: #13795b;
+  --brand-soft: #e8f4ee;
+  --page: #f5f7f5;
+  font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); background: var(--page); }
+button, textarea { font: inherit; }
+
+.logic-shell { width: min(1040px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0 28px; }
+.logic-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.logic-eyebrow { color: var(--brand); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.logic-header h1 { margin: 8px 0 7px; font-size: 32px; line-height: 1.2; letter-spacing: -.03em; }
+.logic-header p { margin: 0; color: var(--muted); font-size: 14px; }
+.logic-actions { display: flex; align-items: center; gap: 10px; }
+.logic-mode { padding: 7px 10px; color: var(--brand); font-size: 12px; background: var(--brand-soft); border-radius: 7px; }
+.logic-mode.readonly { color: #68736d; background: #e9ecea; }
+.logic-actions button { height: 34px; padding: 0 16px; color: #fff; background: var(--brand); border: 0; border-radius: 8px; cursor: pointer; }
+.logic-actions button:hover { background: #0d684d; }
+.logic-actions button:disabled { color: #9aa29e; background: #e4e7e5; cursor: not-allowed; }
+.logic-editor-card { overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 36px rgba(24, 49, 38, .06); }
+.logic-editor-meta { min-height: 42px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--line); }
+.logic-editor-meta .saved { color: var(--brand); }
+#logic-editor { display: block; width: 100%; min-height: calc(100vh - 245px); padding: 24px 26px 40px; color: var(--ink); font: 14px/1.85 "SFMono-Regular", Consolas, "Liberation Mono", monospace; background: #fff; border: 0; outline: 0; resize: vertical; tab-size: 2; }
+#logic-editor:focus { box-shadow: inset 0 0 0 2px rgba(19, 121, 91, .18); }
+#logic-editor[readonly] { color: #35413b; background: #fafbfa; cursor: default; }
+.logic-footnote { margin: 12px 4px 0; color: var(--muted); font-size: 11px; }
+
+@media (max-width: 680px) {
+  .logic-shell { width: min(100% - 24px, 1040px); padding-top: 24px; }
+  .logic-header { align-items: flex-start; flex-direction: column; }
+  .logic-actions { width: 100%; justify-content: space-between; }
+  #logic-editor { min-height: calc(100vh - 290px); padding: 18px; }
+}

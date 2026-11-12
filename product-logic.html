@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f7f5" />
+    <title>产品逻辑 · 吸管 AI 接待</title>
+    <link rel="stylesheet" href="./product-logic.css" />
+  </head>
+  <body>
+    <main class="logic-shell">
+      <header class="logic-header">
+        <div>
+          <span class="logic-eyebrow">吸管 · AI 接待</span>
+          <h1>产品逻辑</h1>
+          <p>记录原型设计中的产品判断、交互约定和待验证问题。</p>
+        </div>
+        <div class="logic-actions">
+          <span id="logic-mode" class="logic-mode"></span>
+          <button id="logic-save" type="button">保存</button>
+        </div>
+      </header>
+
+      <section class="logic-editor-card">
+        <div class="logic-editor-meta">
+          <span id="logic-save-state">尚未修改</span>
+          <span id="logic-count">0 字</span>
+        </div>
+        <textarea id="logic-editor" aria-label="产品逻辑正文" spellcheck="true"></textarea>
+      </section>
+
+      <p class="logic-footnote">本地编辑内容保存在当前浏览器中；线上环境仅用于查看。</p>
+    </main>
+    <script src="./product-logic.js"></script>
+  </body>
+</html>

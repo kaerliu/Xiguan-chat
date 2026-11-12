@@ -72,6 +72,10 @@ function defaultConfigDraft() {
     guardrails: base.guardrails,
     ...capabilityDefaults(),
     retrieval: { turns: 3, chunkChars: 600, contextChars: 2400, keywordLimit: 30, taxonomy: '', aliases: '', allSources: true, sensitive: true },
+    channels: {
+      allowedDomains: 'www.fanruan.com, events.fanruan.com',
+      siteKey: 'site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF'
+    },
     appearance: {
       entry: 'bubble',
       accent: '#123C35', size: 'md', pulse: true,
@@ -128,6 +132,7 @@ function mergeConfigDraft(stored) {
     ...rest,
     ...mergedCaps,
     retrieval: { ...base.retrieval, ...(stored.retrieval || {}) },
+    channels: { ...base.channels, ...(stored.channels || {}) },
     appearance: {
       ...base.appearance,
       ...(stored.appearance || {}),
@@ -221,10 +226,10 @@ function setCfgValue(path, value) {
 
 /* ---------- 通用片段 ---------- */
 
-function renderCfgHeader({ title, desc, iconName = '', crumb = '', extra = '', actions = '', draftActions = true }) {
+function renderCfgHeader({ title, desc, iconName = '', crumb = '', extra = '', actions = '' }) {
   return `<header class="cfg-page-header">
     <div class="cfg-page-title">${iconName ? `<span class="cfg-page-icon">${icon(iconName)}</span>` : ''}<div class="cfg-page-heading">${crumb}<div class="cfg-title-row"><h1>${title}</h1>${extra}</div><p>${desc}</p></div></div>
-    <div class="cfg-page-actions">${actions}${draftActions ? `<div class="cfg-action-group" id="cfg-actions">${renderCfgDraftActions()}</div>` : ''}</div>
+    ${actions ? `<div class="cfg-page-actions">${actions}</div>` : ''}
   </header>`
 }
 
@@ -355,8 +360,8 @@ function renderPersonaConfig() {
       <div class="cfg-field full"><small>两块内容都会直接进入智能体指令；平台不识别隐藏标题。当前总长度 <span data-count="total">${(d.general.length + d.guardrails.length).toLocaleString()}</span> / 20,000。</small></div>
     </div>`)
   const debug = cfgPanel('调试台', '边改边试：回答按线上版本生成，发布后草稿改动生效。', `<div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div>`, { cls: 'cfg-debug-panel', actions: `<button type="button" class="cfg-btn sm outline" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>新会话</span></button>` })
-  return cfgPage('prompt', `${renderCfgHeader({ title: '角色与提示词', desc: '定义智能体的角色、回答方式与业务边界；平台安全协议和已启用能力会独立生效。', extra: renderCfgStatus() })}
-    <section class="cfg-body">${renderCfgHint()}
+  return cfgPage('prompt', `${renderCfgHeader({ title: '角色与提示词', desc: '定义智能体的角色、回答方式与业务边界；平台安全协议和已启用能力会独立生效。' })}
+    <section class="cfg-body">
       <div class="cfg-layout is-persona"><div class="cfg-main">${model}${templates}${instructions}</div><aside class="cfg-side is-sticky">${debug}</aside></div>
     </section>
     ${cfg.fullscreen ? `<div class="cfg-scrim" data-action="cfg-fullscreen" data-field="${cfg.fullscreen}"></div>` : ''}`)
@@ -452,9 +457,8 @@ function renderKnowledgeConfig() {
   return cfgPage(`knowledge-${cfg.kbTab}`, `${renderCfgHeader({
       title: '知识库',
       desc: '智能体答得准不准，取决于它手里有没有企业自己的资料。文件、网站、文本片段与 Q&A 都在这里维护。',
-      extra: `<span class="cfg-badge success">${docs} 份资料 · ${qas} 条 Q&A</span>${cfg.kbTab === 'settings' ? renderCfgStatus() : ''}`,
-      actions: `<button type="button" class="cfg-btn outline" data-action="cfg-kb-refresh">${icon('refresh', 'sm')}<span>刷新</span></button>`,
-      draftActions: cfg.kbTab === 'settings'
+      extra: `<span class="cfg-badge success">${docs} 份资料 · ${qas} 条 Q&A</span>`,
+      actions: `<button type="button" class="cfg-btn outline" data-action="cfg-kb-refresh">${icon('refresh', 'sm')}<span>刷新</span></button>`
     })}
     <div class="cfg-tabs-bar"><div class="cfg-tabs" role="tablist" aria-label="知识库标签">${tabs.map(([key, label, count]) => `<button type="button" role="tab" aria-selected="${cfg.kbTab === key}" class="${cfg.kbTab === key ? 'active' : ''}" data-kb-tab="${key}"><span>${label}</span>${count !== '' ? `<b>${count}</b>` : ''}</button>`).join('')}</div></div>
     <section class="cfg-body" role="tabpanel">${panel}</section>
@@ -656,7 +660,7 @@ function renderAppearanceConfig() {
       <span class="cfg-preview-status"><i></i>${cfg.previewSurface === 'site' ? `${entryLabel(cfg.entryTab)}${cfg.entryTab === a.entry ? '' : ' · 尚未设为官网入口'}` : cfgStatus() === 'synced' ? '与线上一致' : '草稿预览'}</span>${cfg.previewSurface === 'chat' ? `<button type="button" class="cfg-btn sm ghost" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>重置对话</span></button>` : ''}</div>
     <div id="cfg-preview-canvas" class="cfg-preview-canvas is-${cfg.previewSurface}">${renderPreviewCanvas()}</div>
   </section>`
-  return `<div class="cfg-page is-workbench">${renderCfgHeader({ title: '外观', iconName: 'sliders', desc: '决定访客在官网上看到什么、怎么打开对话。左侧配置，右侧实时预览草稿效果，发布后对访客生效。', extra: renderCfgStatus() })}
+  return `<div class="cfg-page is-workbench">${renderCfgHeader({ title: '外观', desc: '决定访客在官网上看到什么、怎么打开对话。左侧配置，右侧实时预览草稿效果，发布后对访客生效。' })}
     ${renderToolbarPendingModal()}
     <div class="cfg-workbench"><aside class="cfg-controls" aria-label="外观配置"><div class="cfg-controls-scroll" data-keep-scroll="cfg-appearance-controls">${picker}${accordion}</div></aside>${stage}</div>
   </div>`
