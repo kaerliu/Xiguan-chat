@@ -343,7 +343,7 @@ function resetWidgetChat() {
 
 function renderCfgDebugPanel() {
   const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>新会话</span></button>`
-  return `<section class="cfg-panel cfg-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="cfg-panel-body"><div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></div></section>`
+  return `<section class="cfg-panel cfg-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></section>`
 }
 
 /* ---------- 角色与提示词 ---------- */

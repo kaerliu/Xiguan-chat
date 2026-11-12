@@ -489,7 +489,7 @@ function renderCapabilityWorkbench(key, cap, enabled, main, preview, notices = '
 
 function renderCapabilityDebugPanel(cap, description, body) {
   const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-cap-debug-reset">${icon('rotate', 'xs')}<span>新会话</span></button>`
-  return `<section class="cfg-panel cfg-debug-panel capability-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="cfg-panel-body"><div class="capability-debug-canvas">${body}</div></div></section>`
+  return `<section class="cfg-panel cfg-debug-panel capability-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="capability-debug-canvas">${body}</div></section>`
 }
 
 function saveCapabilityDebugSession(id) {
