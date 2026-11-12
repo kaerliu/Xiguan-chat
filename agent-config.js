@@ -126,6 +126,10 @@ function mergeConfigDraft(stored) {
     flag('follow_up', on => { mergedCaps.idle_follow_up.enabled = on })
   }
   mergedCaps.actions.lead_capture = normalizeLeadCapture(mergedCaps.actions.lead_capture)
+  mergedCaps.mcp = normalizeMcp(stored.mcp || mergedCaps.mcp)
+  mergedCaps.recommendations = normalizeRecommendations(stored.recommendations || mergedCaps.recommendations)
+  // 沉默跟进：话术最多 3 条；主动弹窗：旧版没有「访客回应后怎么接」
+  mergedCaps.idle_follow_up.steps = (mergedCaps.idle_follow_up.steps || []).slice(0, IDLE_MAX_PER_SESSION)
   const { capabilities: _legacyCapabilities, capabilityWhen: _legacyWhen, ...rest } = stored
   return {
     ...base,
