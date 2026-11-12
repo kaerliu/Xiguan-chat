@@ -211,6 +211,7 @@ function refreshCfgChrome() {
   if (status) status.outerHTML = renderCfgStatus()
   const actions = $('#cfg-actions')
   if (actions) actions.innerHTML = renderCfgDraftActions()
+  document.querySelectorAll('[data-capability-save]').forEach(button => { button.disabled = cfgSnapshot() === cfg.saved })
 }
 
 function getCfgValue(path) {

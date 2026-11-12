@@ -468,11 +468,13 @@ function capNotices(selected) {
 }
 
 function capHeader(cap, enabled, extraBadge = '') {
+  const unsaved = cfgSnapshot() !== cfg.saved
   return `<header class="capability-detail-head">
     <button type="button" class="cfg-btn sm ghost" data-action="cfg-cap-back">${icon('arrow-left', 'xs')}<span>能力</span></button>
     <span class="capability-detail-title"><span class="capability-card-icon">${icon(cap.icon, 'sm')}</span><h1>${cap.name}</h1>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}${extraBadge}</span>
     <span class="cfg-capdetail-spacer"></span>
     <label class="cfg-capdetail-switch"><span>${enabled ? '已开启' : '未开启'}</span><button type="button" class="cfg-switch ${enabled ? 'on' : ''}" role="switch" aria-checked="${enabled}" aria-label="启用${cap.name}" data-cap-toggle="${cap.id}"></button></label>
+    <button type="button" class="cfg-btn sm primary capability-detail-save" data-action="cfg-save" data-capability-save ${unsaved ? '' : 'disabled'}>${icon('save', 'xs')}<span>保存</span></button>
   </header>`
 }
 
