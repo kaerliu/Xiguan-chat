@@ -554,19 +554,21 @@ function capHeader(cap, enabled, extraBadge = '') {
   </header>`
 }
 
+/** 能力详情页：左侧配置分区，右侧演示面板（跟随页面滚动、吸顶），布局同控制台原型。 */
 function renderCapabilityWorkbench(key, cap, enabled, main, preview, notices = '') {
-  return cfgPage(key, `<div class="capability-workbench">
-    <main class="capability-workbench-main">
-      ${capHeader(cap, enabled)}
-      <div class="capability-workbench-scroll"><section class="cfg-body">${notices}${main}</section></div>
-    </main>
-    <aside class="capability-workbench-debug">${preview}</aside>
-  </div>`)
+  return cfgPage(key, `${capHeader(cap, enabled)}
+    <section class="cfg-body">${notices}
+      <div class="agent-config-layout capability-demo-layout">
+        <div class="agent-config-main">${main}</div>
+        <aside class="agent-config-side capability-demo-side">${preview}</aside>
+      </div>
+    </section>`)
 }
 
-function renderCapabilityDebugPanel(cap, description, body) {
-  const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-cap-debug-reset">${icon('rotate', 'xs')}<span>新会话</span></button>`
-  return `<section class="cfg-panel cfg-debug-panel capability-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="capability-debug-canvas">${body}</div></section>`
+/** 右侧演示面板：标题默认「演示」，带「重新开始」（清空本能力的调试会话）。 */
+function renderCapabilityDebugPanel(cap, description, body, { title = '演示', restart = true } = {}) {
+  const actions = restart ? `<button type="button" class="cfg-btn sm ghost" data-action="cfg-cap-debug-reset">${icon('refresh', 'xs')}<span>重新开始</span></button>` : ''
+  return cfgPanel(title, description, body, { cls: 'widget-preview-frame', actions })
 }
 
 function saveCapabilityDebugSession(id) {
@@ -1404,7 +1406,7 @@ function renderAssessmentDetail(cap) {
 
   return renderCapabilityWorkbench('cap-assessment', cap, s.enabled,
     `${banner}<div class="capability-sections">${entry}${questions}${results}${gate}</div>`,
-    renderCapabilityDebugPanel(cap, '可以直接点选作答，体验访客从测评到留资的完整过程。', `<div data-assess-root>${renderAssessPreview()}</div>`),
+    renderCapabilityDebugPanel(cap, '可以直接点选作答，体验访客从测评到留资的完整过程；显示当前草稿。', `<div data-assess-root>${renderAssessPreview()}</div>`, { title: '访客体验预览', restart: false }),
     `${capNotices('assessment')}${needsLead ? capNotice('<strong>留资表单未开启。</strong>测评会直接给出完整方案，不会收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}`)
 }
 
@@ -1523,7 +1525,7 @@ function renderLeadPopupDetail(cap) {
   </div>`)
   return renderCapabilityWorkbench('cap-lead_popup', cap, p.enabled,
     `${valueBanner('proto', '用一份好资料，换一个联系方式', '访客在价格页、博客、案例页停留时，最关心的东西不一样。按页面送上对口的资料，比统一弹“留个电话”更自然；领了什么资料，也说明了对方在意什么。', '适合内容型获客：有白皮书、案例集、报价单、测算工具等可下载资料的 B2B 业务。', [['globe', '按页面匹配', '不同页面配置不同资料'], ['clock', '合适时机弹出', '停留、滚动或准备离开时'], ['download', '留资领取', '提交后下载 / 发邮箱 / 顾问发送']])}<div class="capability-sections">${rules}${freq}</div>`,
-    renderCapabilityDebugPanel(cap, '切换页面看不同资料；可以直接填写提交，体验访客领取的完整过程。', `<div data-popup-root>${renderPopupPreview()}</div>`),
+    renderCapabilityDebugPanel(cap, '切换页面看不同资料；可以直接填写提交，体验访客领取的完整过程。', `<div data-popup-root>${renderPopupPreview()}</div>`, { title: '官网效果预览', restart: false }),
     `${capNotices('lead_popup')}${!d.actions.lead_capture.enabled ? capNotice('<strong>留资表单未开启。</strong>弹窗的表单字段沿用「留资表单」的设置，开启后才能收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}`)
 }
 
@@ -1614,7 +1616,7 @@ function renderRecommendationsDetail(cap) {
       ${field('每条最多字数', `<p class="capability-readonly">平台固定 ${REC_MAX_CHARS} 字</p>`, { help: '超长的单条直接丢掉，不截断。' })}
     </div>`)
   const rules = capRules(cap, ['只根据当前对话和这一轮用到的资料生成，不推荐知识库里没有的内容；可以推荐引向已开启能力的说法，比如留资表单开着时推“我想预约演示”。', '和快捷按钮同时存在：有推荐消息的那一轮，快捷按钮收起；没有推荐消息时，快捷按钮按外观里「首轮对话后继续显示」的设置。', '生成失败、结果为空、超长或格式不对时，这一轮不显示，不影响回答。', '不让访客多等：推荐消息和回答一起出来，或者在回答显示完之后补上。', '访客点了推荐消息，这句话按普通访客消息处理，走 Q&A 匹配和知识检索。', '人工接管中不生成推荐消息。'])
-  const side = renderCapabilityDebugPanel(cap, '直接提问或点推荐继续聊；改左侧设置后，最近一轮的推荐会按新设置重算。', `<div class="demo-preview">${enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>'}<div data-rec-root>${renderRecPreview()}</div></div>`)
+  const side = renderCapabilityDebugPanel(cap, '直接提问或点推荐继续聊；改左侧设置后，最近一轮的推荐会按新设置重算。', `<div class="demo-preview">${enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>'}<div data-rec-root>${renderRecPreview()}</div></div>`, { title: '访客体验预览', restart: false })
   return capDetailPage(cap, enabled, [general, interaction, settings, rules], side)
 }
 

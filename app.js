@@ -110,6 +110,7 @@ const state = {
   dirty: false,
   debugOpen: false,
   previewMode: 'website',
+  debugTab: 'config',
   debugMessages: [],
   settingsSection: 'workspace',
   onboardingStep: localStorage.getItem('xiguan-onboarding') ? null : 0,
@@ -283,7 +284,7 @@ function renderQna() {
 }
 
 const agentNavItems = [
-  ['overview','概览','grid'],
+  ['overview','调试台','spark'],
   ['prompt','角色与提示词','bot'],
   ['capabilities','能力','plug'],
   ['knowledge','知识库','book'],
@@ -313,7 +314,7 @@ function renderAgent() {
   const showDebug = overviewSection || (state.agentSection !== 'channels' && !operationSection && !configSection && state.debugOpen)
   return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${overviewSection ? 'overview-section' : ''} ${operationSection ? 'operation-section' : ''} ${configSection ? 'config-section' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><strong>吸管 · AI 接待</strong><a class="product-logic-link" href="./product-logic.html" target="_blank" rel="noopener">产品逻辑</a></div>
-      <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('grid')}<span>概览</span></button>
+      <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('spark')}<span>调试台</span></button>
       <div class="agent-nav-divider"></div>
       <button class="nav-item ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">${icon('bot')}<span>角色与提示词</span></button>
       ${agentNavItems.filter(item => !['overview','prompt'].includes(item[0])).map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
@@ -337,13 +338,75 @@ function renderAgentSection() {
   return renderAppearanceConfig()
 }
 
+/* ---------- 调试台（原「概览」）：左侧一屏看全配置 / 运行轨迹，右侧官网页面 / 对话窗口 ---------- */
+
+function debugCard(anchor, iconName, title, link, body) {
+  return `<section class="debug-card" id="debug-card-${anchor}"><header class="debug-card-head">${icon(iconName, 'xs')}<strong>${title}</strong>${link ? `<span class="debug-card-link">${link}</span>` : ''}</header><div class="debug-card-body">${body}</div></section>`
+}
+
+const debugRow = (label, value) => `<div class="debug-row"><span>${label}</span><strong>${value}</strong></div>`
+
+function renderDebugConfigTab() {
+  const d = cfg.draft
+  const a = d.appearance
+  const docs = cfg.sources.filter(item => item.type !== 'qa').length
+  const qas = cfg.sources.length - docs
+  const enabledCaps = CAPABILITIES.filter(cap => isCapEnabled(cap.id))
+  const jump = [['prompt', 'bot', '提示词'], ['knowledge', 'book', '知识库'], ['capabilities', 'plug', '能力'], ['appearance', 'sliders', '外观']]
+  const goto = (section, label) => `<button type="button" class="debug-link" data-agent-section="${section}">${label} ${icon('arrow', 'xs')}</button>`
+  const prompt = debugCard('prompt', 'bot', '提示词', goto('prompt', '完整编辑'), `
+    ${debugRow('模型', '<em>Auto · 平台自动选择</em>')}
+    <div class="cfg-field"><label for="debug-general">通用指令</label><textarea id="debug-general" rows="6" data-bind="general" maxlength="16000" spellcheck="false">${escapeHtml(d.general)}</textarea></div>
+    <div class="cfg-field"><label for="debug-guardrails">业务边界</label><textarea id="debug-guardrails" rows="4" data-bind="guardrails" maxlength="8000" spellcheck="false">${escapeHtml(d.guardrails)}</textarea></div>`)
+  const knowledge = debugCard('knowledge', 'book', '知识库', goto('knowledge', '管理知识库'), `
+    <div class="debug-stats"><div><strong>${docs}</strong><span>份资料</span></div><div><strong>${qas}</strong><span>条问答</span></div><div><strong>${cfg.unanswered.length}</strong><span>个未答问题</span></div></div>
+    <label class="debug-line"><span>参考的对话轮数</span><select data-bind="retrieval.turns" data-type="number">${[1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${Number(d.retrieval.turns) === n ? 'selected' : ''}>${n} 轮</option>`).join('')}</select></label>
+    <label class="debug-line"><span>向访客显示引用来源</span><span class="cfg-toggle-control"><input type="checkbox" role="switch" data-bind="appearance.citations" ${a.citations ? 'checked' : ''} /><i></i></span></label>
+    ${debugRow('证据预算', `${Number(d.retrieval.contextChars || 0).toLocaleString()} 字`)}`)
+  const caps = debugCard('capabilities', 'plug', `能力（已开启 ${enabledCaps.length} 个）`, goto('capabilities', '全部能力'), `<ul class="debug-cap-list">${CAPABILITIES.map(cap => {
+    const on = isCapEnabled(cap.id)
+    return `<li class="${on ? '' : 'is-off'}"><button type="button" class="cfg-switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" aria-label="启用${cap.name}" data-cap-toggle="${cap.id}"></button><span>${cap.name}</span>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}<button type="button" class="debug-link" data-debug-cap="${cap.id}">配置 ${icon('arrow', 'xs')}</button></li>`
+  }).join('')}</ul>`)
+  const appearance = debugCard('appearance', 'sliders', '外观', goto('appearance', '打开外观'), `
+    <div class="cfg-field"><label for="debug-name">助手名称</label><input id="debug-name" value="${escapeHtml(a.name)}" data-bind="appearance.name" data-live="widget" maxlength="20" /></div>
+    <div class="cfg-field"><label for="debug-welcome">欢迎语</label><textarea id="debug-welcome" rows="3" data-bind="appearance.welcome" data-live="widget">${escapeHtml(a.welcome)}</textarea></div>
+    ${debugRow('主色', `<span class="debug-swatch" style="background:${escapeHtml(a.primary)}"></span>${escapeHtml(String(a.primary).toUpperCase())}`)}
+    ${debugRow('官网入口', escapeHtml(entryLabel(a.entry)))}
+    ${debugRow('快捷问题', `${a.quickButtons.filter(item => item.text.trim()).length} 个`)}`)
+  return `<nav class="debug-jump" aria-label="跳到配置">${jump.map(([anchor, iconName, label]) => `<button type="button" data-debug-jump="${anchor}">${icon(iconName, 'sm')}<span>${label}</span></button>`).join('')}</nav>${prompt}${knowledge}${caps}${appearance}`
+}
+
+function renderDebugTraceTab() {
+  const t = cfg.debugTrace
+  const tools = CAPABILITIES.filter(cap => isCapEnabled(cap.id))
+  const route = debugCard('route', 'spark', '本轮路由', `<span class="cfg-badge ${t ? 'success' : ''}">${t ? '已回答' : '就绪'}</span>`, `
+    ${debugRow('模型', t ? 'Auto' : '等待运行')}
+    ${debugRow('固定答案', t?.qa ? `命中「${escapeHtml(t.qa)}」` : '未命中')}
+    ${debugRow('引用', `${t?.refs || 0} 条`)}
+    ${debugRow('线索', '未收集')}`)
+  const toolCard = debugCard('tools', 'plug', '下发工具', '', t ? `<div class="debug-chips">${tools.map(cap => `<span class="cfg-badge">${cap.name}</span>`).join('') || '<small>本轮未下发工具</small>'}</div>` : '<small>本轮未下发工具</small>')
+  const steps = t ? [
+    ['收到问题', `「${escapeHtml(t.question)}」 · ${t.time}`],
+    ['匹配 Q&A', t.qa ? `命中「${escapeHtml(t.qa)}」，直接使用固定答案` : '没有命中固定答案'],
+    ['检索知识库', t.answered ? `找到 ${t.refs} 条可用资料` : '没有找到可用资料，已记入未答队列'],
+    ['生成回答', t.answered ? '已按资料回答' : '回复兜底话术']
+  ] : []
+  const traceCard = debugCard('trace', 'clipboard', '调用轨迹', '', steps.length ? `<ol class="debug-steps">${steps.map(([title, text]) => `<li><strong>${title}</strong><small>${text}</small></li>`).join('')}</ol>` : '<small>发送问题后，这里显示本轮工具调用与交接情况。</small>')
+  return `${route}${toolCard}${traceCard}`
+}
+
+function refreshDebugTrace() {
+  const root = document.querySelector('[data-debug-trace]')
+  if (root) root.innerHTML = renderDebugTraceTab()
+}
+
 function renderAgentOverview() {
-  const enabled = CAPABILITIES.filter(cap => isCapEnabled(cap.id)).length
-  return `<div class="overview-hero"><div class="overview-profile"><div class="avatar agent">AI</div><div><h2>AI 接待</h2><p>面向官网访客的售前顾问 · 最后编辑于刚刚</p></div></div></div>
-    <div class="card summary-card"><div class="summary-head"><h3>角色与提示词</h3><button class="btn small ghost" data-agent-section="prompt">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><p style="margin:0;color:var(--muted);font-size:11px;line-height:1.7">你是帆软官网的真人接待，像一位专业、热情的售前顾问。优先理解访客的行业和场景，再提供相关方案与案例。</p></div></div>
-    <div class="card summary-card"><div class="summary-head"><h3>能力</h3><button class="btn small ghost" data-agent-section="capabilities">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>${enabled} 项已启用</strong><span>信息收集、人工协作等</span></div>${leadSummaryChip()}<div class="summary-chip"><strong>自动接待</strong><span>全天候运行</span></div></div></div></div>
-    <div class="card summary-card"><div class="summary-head"><h3>知识库</h3><button class="btn small ghost" data-agent-section="knowledge">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>5 个知识源</strong><span>文档、网页和 Q&A</span></div><div class="summary-chip"><strong>54 条知识</strong><span>结构化率 100%</span></div><div class="summary-chip"><strong>83% 命中率</strong><span>最近 7 天</span></div></div></div></div>
-    <div class="card summary-card"><div class="summary-head"><h3>渠道与外观</h3><button class="btn small ghost" data-agent-section="appearance">去编辑 ${icon('arrow')}</button></div><div class="summary-body"><div class="summary-grid"><div class="summary-chip"><strong>2 个网站</strong><span>官网、活动站点</span></div><div class="summary-chip"><strong>品牌色</strong><span>${state.onboarding.color}</span></div><div class="summary-chip"><strong>桌面端入口</strong><span>气泡 + 侧边窗口</span></div></div></div></div>`
+  const tab = state.debugTab === 'trace' ? 'trace' : 'config'
+  return cfgPage('debug-console', `<div class="debug-console">
+    <header class="debug-console-head"><div class="debug-console-title"><h1>调试台</h1><span class="cfg-badge success">当前草稿</span></div><p>在真实访客界面里测试回答，左侧一屏看到全部配置并可直接修改；需要细调时一键跳到对应页面。不计入正式渠道数据。</p></header>
+    <div class="segmented debug-tabs" role="tablist"><button type="button" role="tab" aria-selected="${tab === 'config'}" class="${tab === 'config' ? 'active' : ''}" data-debug-tab="config">配置</button><button type="button" role="tab" aria-selected="${tab === 'trace'}" class="${tab === 'trace' ? 'active' : ''}" data-debug-tab="trace">运行轨迹</button></div>
+    <div class="debug-console-body" ${tab === 'trace' ? 'data-debug-trace' : ''}>${tab === 'trace' ? renderDebugTraceTab() : renderDebugConfigTab()}</div>
+  </div>`)
 }
 
 function renderEditorHeading(title, description, showDebugAction = true) {
@@ -368,14 +431,18 @@ function renderConversationPreview() {
 
 function renderOverviewPreview() {
   const website = previewWebsiteUrl(state.onboarding.website)
-  const assistantName = escapeHtml(state.onboarding.assistantName)
-  const enabled = CAPABILITIES.filter(cap => isCapEnabled(cap.id)).length
-  const modes = `<div class="segmented preview-mode-segment"><button class="${state.previewMode === 'website' ? 'active' : ''}" data-preview-mode="website">官网界面</button><button class="${state.previewMode === 'conversation' ? 'active' : ''}" data-preview-mode="conversation">对话界面</button></div>`
-  const content = state.previewMode === 'website'
-    ? `<div class="website-preview-stage"><div class="website-preview-browser"><div class="website-preview-bar"><span></span><span></span><span></span><div class="website-preview-url">${escapeHtml(website)}</div>${icon('external')}</div><div class="website-preview-frame"><iframe title="用户官网预览" src="${escapeHtml(website)}" sandbox="allow-forms allow-popups allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe><div class="ai-entry-guide"><span>AI 客服入口</span><strong>访客从这里唤起客服</strong></div><button class="ai-entry-trigger" style="--preview-brand:${state.onboarding.color}" data-preview-mode="conversation" aria-label="打开${assistantName}">${icon('chat')}<i></i></button></div></div></div>`
+  const a = cfg.draft.appearance
+  const mode = state.previewMode === 'conversation' ? 'conversation' : 'website'
+  const tabs = [['website', 'globe', '官网页面'], ['conversation', 'chat', '对话窗口']]
+  const content = mode === 'website'
+    ? `<div class="website-preview-stage"><div class="website-preview-browser"><div class="website-preview-bar"><span></span><span></span><span></span><div class="website-preview-url">${escapeHtml(website)}</div>${icon('external')}</div><div class="website-preview-frame"><iframe title="用户官网预览" src="${escapeHtml(website)}" sandbox="allow-forms allow-popups allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe><div class="ai-entry-guide"><span>AI 客服入口</span><strong>访客从这里唤起客服</strong></div><button class="ai-entry-trigger" style="--preview-brand:${escapeHtml(a.accent || a.primary)}" data-preview-mode="conversation" aria-label="打开对话窗口"><i></i>${icon('chat')}</button></div></div></div>`
     : `<div class="overview-conversation-debug"><div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></div>`
-  const reset = state.previewMode === 'conversation' ? `<button type="button" class="cfg-btn sm outline" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>新会话</span></button>` : ''
-  return `<div class="embedded-debug overview-preview">${renderCfgDebugToolbar({ description: `全局调试 · 综合 ${enabled} 项已启用能力`, center: modes, actions: reset })}<div class="overview-preview-body">${content}</div></div>`
+  const status = mode === 'website' ? `${escapeHtml(entryLabel(a.entry))} · 外观在「外观」页修改` : '实时预览'
+  return `<div class="embedded-debug overview-preview debug-preview">
+    <div class="debug-preview-bar"><div class="debug-preview-tabs" role="tablist">${tabs.map(([key, iconName, label]) => `<button type="button" role="tab" aria-selected="${mode === key}" class="${mode === key ? 'active' : ''}" data-preview-mode="${key}">${icon(iconName, 'xs')}<span>${label}</span></button>`).join('')}</div>
+      <span class="debug-preview-status"><i></i>${status}</span>
+      <button type="button" class="cfg-btn sm primary debug-new-session" data-action="cfg-chat-reset">${icon('chat-plus', 'xs')}<span>新会话</span></button></div>
+    <div class="overview-preview-body">${content}</div></div>`
 }
 
 function renderPreview(closeable = false, overview = false) {
@@ -497,6 +564,21 @@ document.addEventListener('click', event => {
       state.debugOpen = false
       state.previewMode = 'website'
     } else state.debugOpen = state.agentSection !== 'channels' && !isAgentOperationSection()
+    return renderApp()
+  }
+
+  const debugTab = event.target.closest('[data-debug-tab]')
+  if (debugTab) { state.debugTab = debugTab.dataset.debugTab; return renderApp() }
+
+  const debugJump = event.target.closest('[data-debug-jump]')
+  if (debugJump) { document.getElementById(`debug-card-${debugJump.dataset.debugJump}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
+
+  const debugCap = event.target.closest('[data-debug-cap]')
+  if (debugCap) {
+    state.agentSection = 'capabilities'
+    state.debugOpen = false
+    cfg.capDetail = debugCap.dataset.debugCap
+    loadCapabilityDebugSession(cfg.capDetail)
     return renderApp()
   }
 

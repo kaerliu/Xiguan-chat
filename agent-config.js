@@ -336,12 +336,16 @@ function cfgAsk(text) {
     cfg.chat.push({ from: 'assistant', text: answer || widgetFallback })
     if (!answer) cfg.unanswered.unshift({ id: Date.now(), question, reason: 'no_kb', time: nowStamp() })
     cfg.typing = false
+    // 调试台「运行轨迹」展示本轮命中情况
+    cfg.debugTrace = { question, time: nowClock(), qa: qa?.name || '', answered: Boolean(answer), refs: answer ? 1 : 0 }
+    if (typeof refreshDebugTrace === 'function') refreshDebugTrace()
     refreshWidget(true)
   }, 650)
 }
 
 function resetWidgetChat() {
   cfg.chat = []
+  cfg.debugTrace = null
   cfg.typing = false
   cfg.chatStartedAt = nowClock()
 }
@@ -695,6 +699,7 @@ function readBoundValue(el) {
 
 function refreshCfgLive(target) {
   if (target === 'preview') refreshAppearancePreview()
+  if (target === 'widget') refreshWidget()
 }
 
 function updatePromptCounters() {
@@ -912,6 +917,7 @@ function handleConfigClick(event) {
   } else if (name === 'cfg-chat-reset') {
     resetWidgetChat()
     refreshWidget()
+    if (typeof refreshDebugTrace === 'function') refreshDebugTrace()
     return true
   } else if (name === 'cfg-widget-send') {
     const input = $('#cfg-widget-input')

@@ -2230,3 +2230,63 @@ button { color: inherit; }
 .mcp-test-result.is-error, .mcp-error { color: #a3261f; }
 .mcp-confirm { margin: 8px 0 0; }
 .rec-debug .console-checkbox { font-size: 12px; }
+
+/* ==========================================================================
+   调试台（原「概览」）：左侧配置 / 运行轨迹，右侧官网页面 / 对话窗口
+   ========================================================================== */
+.agent-layout.overview-section { grid-template-columns: var(--agent-nav-width) minmax(340px, 400px) minmax(0, 1fr); }
+@media (max-width: 1300px) { .agent-layout.overview-section { grid-template-columns: var(--agent-nav-width) minmax(320px, 360px) minmax(0, 1fr); } }
+.agent-layout.overview-section > .agent-editor { overflow: hidden; border-right: 1px solid var(--line); }
+.agent-layout.overview-section > .agent-editor > .editor-body { height: 100%; max-width: none; padding: 0; }
+.agent-layout.overview-section > .preview-pane { border-left: 0; }
+.debug-console { display: flex; flex-direction: column; gap: 12px; min-height: 100%; padding: 18px 16px 24px; }
+.debug-console-head { display: grid; gap: 6px; }
+.debug-console-title { display: flex; align-items: center; gap: 8px; }
+.debug-console-title h1 { color: var(--c-strong); font-size: 20px; font-weight: 650; line-height: 28px; }
+.debug-console-head p { color: var(--c-muted); font-size: 12px; line-height: 1.55; }
+.debug-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 4px; background: #eceeed; border-radius: 10px; }
+.debug-tabs button { height: 32px; font-size: 13px; }
+.debug-console-body { display: grid; gap: 12px; align-content: start; }
+.debug-jump { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.debug-jump button { display: grid; justify-items: center; gap: 4px; padding: 9px 4px; color: var(--c-text); font-size: 12px; background: #fff; border: 1px solid var(--c-border-soft); border-radius: 8px; cursor: pointer; }
+.debug-jump button:hover { color: var(--c-brand); border-color: var(--c-brand-border); }
+.debug-card { scroll-margin-top: 12px; background: #fff; border: 1px solid var(--c-border-soft); border-radius: 10px; }
+.debug-card-head { display: flex; align-items: center; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--c-border-soft); }
+.debug-card-head strong { color: var(--c-strong); font-size: 13px; }
+.debug-card-link { margin-left: auto; }
+.debug-link { display: inline-flex; align-items: center; gap: 3px; padding: 0; color: var(--c-brand); font-size: 12px; font-weight: 600; background: none; border: 0; cursor: pointer; }
+.debug-link:hover { text-decoration: underline; }
+.debug-card-body { display: grid; gap: 10px; padding: 12px 14px 14px; }
+.debug-card-body > small { color: var(--c-subtle); font-size: 12px; }
+.debug-card-body .cfg-field textarea { min-height: 0; font-size: 12px; }
+.debug-row, .debug-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 26px; color: var(--c-muted); font-size: 12px; }
+.debug-row strong { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--c-strong); font-weight: 600; text-align: right; }
+.debug-row em { color: var(--c-muted); font-style: normal; font-weight: 400; }
+.debug-line select { height: 28px; padding: 0 8px; color: var(--c-strong); font-size: 12px; background: #fff; border: 1px solid var(--c-border); border-radius: 6px; }
+.debug-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.debug-stats > div { display: grid; gap: 2px; padding: 10px; background: var(--c-page); border-radius: 8px; }
+.debug-stats strong { color: var(--c-strong); font-size: 18px; line-height: 1.2; }
+.debug-stats span { color: var(--c-muted); font-size: 11px; }
+.debug-swatch { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.debug-cap-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.debug-cap-list li { display: flex; align-items: center; gap: 10px; min-height: 36px; color: var(--c-strong); font-size: 13px; }
+.debug-cap-list li.is-off > span:not(.cfg-badge) { color: var(--c-subtle); }
+.debug-cap-list .cfg-switch { width: 34px; height: 20px; }
+.debug-cap-list .cfg-switch::after { width: 14px; height: 14px; }
+.debug-cap-list .cfg-switch.on { background: var(--c-brand); }
+.debug-cap-list .cfg-switch.on::after { transform: translateX(14px); }
+.debug-cap-list .debug-link { margin-left: auto; }
+.debug-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.debug-steps { display: grid; gap: 10px; margin: 0; padding: 0 0 0 18px; }
+.debug-steps li { display: grid; gap: 2px; color: var(--c-strong); font-size: 12px; }
+.debug-steps small { color: var(--c-muted); font-size: 11px; line-height: 1.5; }
+.debug-preview { background: #f3f5f4; }
+.debug-preview-bar { display: flex; align-items: center; gap: 12px; height: 52px; flex: 0 0 auto; padding: 0 16px; background: #fff; border-bottom: 1px solid var(--line); }
+.debug-preview-tabs { display: flex; gap: 4px; }
+.debug-preview-tabs button { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 12px; color: var(--muted); font-size: 12px; background: transparent; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+.debug-preview-tabs button.active { color: var(--ink); font-weight: 600; background: #f3f5f4; border-color: var(--line); }
+.debug-preview-tabs .icon { width: 14px; height: 14px; }
+.debug-preview-status { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted); font-size: 11px; }
+.debug-preview-status i { width: 6px; height: 6px; border-radius: 50%; background: #2fa66b; }
+.debug-new-session { --c-primary: #005bc1; --c-primary-hover: #004b9f; }
+.debug-new-session .icon { width: 14px; height: 14px; }
