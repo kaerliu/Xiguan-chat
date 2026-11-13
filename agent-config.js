@@ -126,6 +126,10 @@ function mergeConfigDraft(stored) {
     flag('follow_up', on => { mergedCaps.idle_follow_up.enabled = on })
   }
   mergedCaps.actions.lead_capture = normalizeLeadCapture(mergedCaps.actions.lead_capture)
+  mergedCaps.mcp = normalizeMcp(stored.mcp || mergedCaps.mcp)
+  mergedCaps.recommendations = normalizeRecommendations(stored.recommendations || mergedCaps.recommendations)
+  // 沉默跟进：话术最多 3 条；主动弹窗：旧版没有「访客回应后怎么接」
+  mergedCaps.idle_follow_up.steps = (mergedCaps.idle_follow_up.steps || []).slice(0, IDLE_MAX_PER_SESSION)
   const { capabilities: _legacyCapabilities, capabilityWhen: _legacyWhen, ...rest } = stored
   return {
     ...base,
@@ -332,12 +336,16 @@ function cfgAsk(text) {
     cfg.chat.push({ from: 'assistant', text: answer || widgetFallback })
     if (!answer) cfg.unanswered.unshift({ id: Date.now(), question, reason: 'no_kb', time: nowStamp() })
     cfg.typing = false
+    // 调试台「运行轨迹」展示本轮命中情况
+    cfg.debugTrace = { question, time: nowClock(), qa: qa?.name || '', answered: Boolean(answer), refs: answer ? 1 : 0 }
+    if (typeof refreshDebugTrace === 'function') refreshDebugTrace()
     refreshWidget(true)
   }, 650)
 }
 
 function resetWidgetChat() {
   cfg.chat = []
+  cfg.debugTrace = null
   cfg.typing = false
   cfg.chatStartedAt = nowClock()
 }
@@ -691,6 +699,7 @@ function readBoundValue(el) {
 
 function refreshCfgLive(target) {
   if (target === 'preview') refreshAppearancePreview()
+  if (target === 'widget') refreshWidget()
 }
 
 function updatePromptCounters() {
@@ -908,6 +917,7 @@ function handleConfigClick(event) {
   } else if (name === 'cfg-chat-reset') {
     resetWidgetChat()
     refreshWidget()
+    if (typeof refreshDebugTrace === 'function') refreshDebugTrace()
     return true
   } else if (name === 'cfg-widget-send') {
     const input = $('#cfg-widget-input')

@@ -20,6 +20,9 @@ const LEAD_FIELD_META = Object.fromEntries(LEAD_SYSTEM_FIELDS.map(item => [item.
 const CONTACT_FIELDS = ['phone', 'wechat', 'email']
 const LEAD_DEFAULT_MESSAGES = { success: '已收到，顾问会带着这次的聊天记录联系你。', failure: '提交没有成功，请稍后再试。' }
 const LEAD_FORM_FIELD_WARN = 4
+const HANDOFF_DEFAULT_MESSAGES = { online: '已为你提交转人工，前面还有 {排队人数} 位，预计等待 {分钟} 分钟。', offline: '现在人工不在线，留个联系方式，我们会尽快联系你。' }
+const PROACTIVE_MESSAGE_MAX = 60
+const IDLE_MAX_PER_SESSION = 3
 
 function defaultLeadFields() {
   const on = { name: true, company: true, phone: true, wechat: true }
@@ -63,8 +66,22 @@ function fieldLabel(key, lead = C().actions.lead_capture) {
 }
 const leadMessage = (lead, kind) => String(lead?.[`${kind}_message`] || '').trim() || LEAD_DEFAULT_MESSAGES[kind]
 
+/** 某个能力开启时有哪些不能发布的问题（能力页直接标出，发布时拦住）。 */
+function capIssues(id, d = C()) {
+  const issues = []
+  if (id === 'proactive' && d.proactive.enabled && !String(d.proactive.message || '').trim()) issues.push('主动弹窗：主动消息开启时，默认文案不能为空')
+  if (id === 'idle_follow_up' && d.idle_follow_up.enabled) {
+    if (!d.idle_follow_up.steps.length) issues.push('沉默跟进：开启时至少要有一条跟进话术')
+    else if (d.idle_follow_up.steps.some(step => !String(step.message || '').trim())) issues.push('沉默跟进：开启时话术不能为空')
+  }
+  if (id === 'mcp' && d.mcp.enabled && d.mcp.servers.some(server => !/^https:\/\//i.test(String(server.url || '').trim()))) issues.push('MCP 调用：服务地址只接受 HTTPS')
+  return issues
+}
+
 /** 发布前的硬性校验；有问题返回提示文字。 */
 function capPublishError() {
+  const issue = ['proactive', 'idle_follow_up', 'mcp'].flatMap(id => capIssues(id))[0]
+  if (issue) return `${issue}，否则不能发布`
   if (!leadHasContactField(C().actions.lead_capture)) return '留资表单的手机号、微信号、邮箱至少启用一项，否则不能发布'
   return ''
 }
@@ -74,20 +91,22 @@ const TRIGGER_ICONS = { ai: 'bot', entry: 'message', page: 'monitor' }
 
 const ASSESSMENT_SUMMARY = '用几道选择题给访客做个小测评，自动出一份匹配的方案；想看完整方案先留联系方式。比直接要电话更自然，线索还自带需求画像。'
 const LEAD_POPUP_SUMMARY = '不同页面弹出不同营销资料，如白皮书、案例集、测算表；访客留下联系方式后领取，线索带着“对什么感兴趣”。'
-const RECOMMENDATIONS_SUMMARY = '每次回答后，在下方给出 2–3 个可点选的追问；访客不用想下一句问什么，点一下就能继续聊，对话更深、更容易走到留资。'
-const MCP_SUMMARY = '接入你的业务系统（MCP 服务或 API），访客问订单、发票、试用开通时，助手直接查询或办理，不用转人工。'
+const RECOMMENDATIONS_SUMMARY = 'AI 在回答之后给出几个可以点的下一步问题，访客点一下就当作发了这句话。'
+const MCP_SUMMARY = '在对话时实时调用企业接入的 MCP 服务，查库存、实时价格、订单状态、可预约时段这类会变的数据。'
 
+/* testing: 一期不做的能力，原型里保留并标「测试」 */
 const CAPABILITIES = [
   { id: 'lead_capture', name: '留资表单', icon: 'user-check', trigger: 'ai', summary: '收集访客的联系方式和需求，存成一条线索。AI 判断什么时候邀请，按你选的收集方式弹表单或在对话里问。', interaction: { kind: 'widget', label: '联系表单' } },
-  { id: 'assessment', name: '测评式营销', icon: 'circle-check', trigger: 'entry', summary: ASSESSMENT_SUMMARY, interaction: { kind: 'widget', label: '测评卡片' }, isNew: true },
-  { id: 'human_handoff', name: '转人工', icon: 'headset', trigger: 'ai', summary: '按你配置的条件把对话转给人工，请求进入「人工」列表；外部通知通道为可选配置。', interaction: { kind: 'text', label: '纯文字' } },
-  { id: 'asset_delivery', name: '资料交付', icon: 'file', trigger: 'ai', summary: '把知识库中带链接的资料以卡片形式发给访客；与引用溯源是两条独立通道。', interaction: { kind: 'widget', label: '资料卡片' } },
-  { id: 'recommendations', name: '推荐消息', icon: 'messages', trigger: 'ai', summary: RECOMMENDATIONS_SUMMARY, interaction: { kind: 'widget', label: '推荐问题' }, isNew: true },
-  { id: 'mcp', name: 'MCP（API）调用', icon: 'plug', trigger: 'ai', summary: MCP_SUMMARY, interaction: { kind: 'widget', label: '调用过程卡片' }, isNew: true },
-  { id: 'lead_popup', name: '留资弹窗', icon: 'book', trigger: 'page', summary: LEAD_POPUP_SUMMARY, interaction: { kind: 'widget', label: '资料弹窗' }, isNew: true },
-  { id: 'proactive', name: '主动弹窗', icon: 'spark', trigger: 'page', summary: '按页面设置弹出时机，访客不用点击就能打开对话框，或先看到一条主动消息。', interaction: { kind: 'text', label: '打开对话窗 / 主动消息' } },
-  { id: 'idle_follow_up', name: '沉默跟进', icon: 'clock', trigger: 'page', summary: '访客已开口、助手回复后对方迟迟不回时，按顺序补发跟进话术，争取二次触达。', interaction: { kind: 'text', label: '纯文字' } }
+  { id: 'assessment', name: '测评式营销', icon: 'circle-check', trigger: 'entry', summary: ASSESSMENT_SUMMARY, interaction: { kind: 'widget', label: '测评卡片' }, testing: true },
+  { id: 'human_handoff', name: '转人工', icon: 'headset', trigger: 'ai', summary: '把对话加入控制台的人工列表，由销售或客服接管。', interaction: { kind: 'text', label: '纯文字' } },
+  { id: 'asset_delivery', name: '资料交付', icon: 'file', trigger: 'ai', summary: '把知识库中带链接的资料以卡片形式发给访客；与引用溯源是两条独立通道。', interaction: { kind: 'widget', label: '资料卡片' }, testing: true },
+  { id: 'recommendations', name: '推荐消息', icon: 'messages', trigger: 'ai', summary: RECOMMENDATIONS_SUMMARY, interaction: { kind: 'widget', label: '回答下方的一排按钮' } },
+  { id: 'mcp', name: 'MCP 调用', icon: 'plug', trigger: 'ai', summary: MCP_SUMMARY, interaction: { kind: 'text', label: '纯文字' } },
+  { id: 'lead_popup', name: '留资弹窗', icon: 'book', trigger: 'page', summary: LEAD_POPUP_SUMMARY, interaction: { kind: 'widget', label: '资料弹窗' }, testing: true },
+  { id: 'proactive', name: '主动弹窗', icon: 'spark', trigger: 'page', summary: '访客还没开口时，按页面自动打开对话窗，或者先在入口旁边弹一句主动消息。', interaction: { kind: 'text', label: '自动打开对话窗 / 主动消息气泡' } },
+  { id: 'idle_follow_up', name: '沉默跟进', icon: 'clock', trigger: 'page', summary: '访客开口、助手回复后访客迟迟不回，按顺序补发运营写好的跟进话术。', interaction: { kind: 'text', label: '纯文字' } }
 ]
+const testingBadge = cap => cap.testing ? '<span class="cfg-badge warning" title="一期不做，原型里保留供测试">测试</span>' : ''
 
 const DEFAULT_ASSESSMENT = {
   enabled: true,
@@ -140,42 +159,77 @@ const DEFAULT_LEAD_POPUP = {
   ]
 }
 
-const RECOMMENDATION_MODES = [
-  { value: 'mixed', label: '预设优先，AI 补充', description: '先按场景给出你写好的问题，数量不够时由 AI 根据当前回答补齐。', recommended: true },
-  { value: 'preset', label: '只用预设问题', description: '完全按你配置的场景出推荐，措辞可控，适合合规要求高的行业。' },
-  { value: 'ai', label: '全部由 AI 生成', description: 'AI 根据当前对话生成追问，覆盖面最广，但措辞不可逐条审核。' }
+/* 推荐消息：一期只做 AI 生成；固定的推荐问题用外观里的快捷按钮 */
+const REC_MAX_CHARS = 20
+const REC_SHOW_MODES = [
+  { value: 'ai', title: '由 AI 判断', sees: 'AI 觉得这一轮有值得接着问的，才在回答下方给出', fit: '大多数官网，不打扰访客' },
+  { value: 'always', title: '每轮都给', sees: '每次回答下方都有几条可以点的问题', fit: '想尽量拉长对话、引导留资' }
 ]
 const DEFAULT_RECOMMENDATIONS = {
-  enabled: true, mode: 'mixed', max_items: 3, title: '你可能还想问',
-  instructions: '只推荐与当前回答直接相关、知识库里能答上的问题；每条不超过 16 个字；不要重复访客已经问过的问题。',
-  scenes: [
-    { id: 'scene_feature', name: '产品功能', keywords: ['功能', '能做', '能力', '客服', '线索'], questions: ['能接入企业微信吗？', '支持上传哪些格式的资料？', '线索评级是怎么判断的？'] },
-    { id: 'scene_price', name: '价格与版本', keywords: ['价格', '收费', '多少钱', '版本', '专业版', '试用'], questions: ['专业版和企业版有什么区别？', '可以免费试用吗？', '支持按年付费吗？'] },
-    { id: 'scene_deploy', name: '接入与部署', keywords: ['接入', '部署', '安装', '脚本', '私有化', '官网'], questions: ['需要技术人员配合吗？', '支持私有化部署吗？', 'Widget 会影响加载速度吗？'] },
-    { id: 'scene_security', name: '数据安全', keywords: ['安全', '数据', '隐私', '加密', '权限'], questions: ['访客联系方式谁能看到？', '数据存在哪里？', '支持单点登录吗？'] }
-  ],
-  fallback: ['有同行业的客户案例吗？', '怎么联系销售顾问？']
+  enabled: true, show: 'ai', max_items: 3,
+  instructions: '访客问完功能后，推荐他问价格或同行案例；不推荐和当前话题无关的问题。'
 }
-const DEMO_AI_SUGGESTIONS = {
-  scene_feature: ['夜间也能自动回复吗？', '能识别访客的购买意向吗？'],
-  scene_price: ['老客户续费有优惠吗？', '超出会话量怎么计费？'],
-  scene_deploy: ['上线大概需要多久？', '能放在小程序里吗？'],
-  scene_security: ['可以导出全部聊天记录吗？', '有等保认证吗？'],
-  none: ['能先看看产品演示吗？', '和传统在线客服有什么区别？']
-}
+/* 演示用：模拟 AI 按当前话题生成的追问（原型里没有真模型） */
+const DEMO_REC_TOPICS = [
+  { keywords: ['功能', '能做', '能力', '客服', '线索'], items: ['能接入企业微信吗？', '线索评级是怎么判断的？', '夜间也能自动回复吗？', '支持上传哪些格式的资料？'] },
+  { keywords: ['价格', '收费', '多少钱', '版本', '专业版', '试用'], items: ['专业版和企业版有什么区别？', '有没有和我们同行业的客户案例可以参考一下呢？', '可以免费试用吗？', '超出会话量怎么计费？'] },
+  { keywords: ['接入', '部署', '安装', '脚本', '私有化', '官网'], items: ['需要技术人员配合吗？', '支持私有化部署吗？', '上线大概需要多久？'] },
+  { keywords: ['安全', '数据', '隐私', '加密', '权限'], items: ['访客联系方式谁能看到？', '数据存在哪里？', '支持单点登录吗？'] }
+]
+const DEMO_REC_FALLBACK = ['有同行业的客户案例吗？', '和传统在线客服有什么区别？']
 
-const MCP_AUTH = [['api_key', 'API Key'], ['oauth', 'OAuth 2.0'], ['none', '无需鉴权']]
+/* MCP：一期只开放查询类工具；最多 3 个服务；只接受 HTTPS */
+const MCP_MAX_SERVERS = 3
+const MCP_TIMEOUT_SECONDS = 10
+const MCP_MAX_RESULT_KB = 20
+const MCP_AUTH = [['none', '无'], ['header', '请求头里的密钥']]
 const DEFAULT_MCP = {
-  enabled: true, timeout_seconds: 8, show_trace_to_visitor: true,
+  enabled: true,
+  instructions: '访客问到订单、发票进度或想预约演示时去查；参数不全先问访客，不猜。',
   servers: [{
-    id: 'srv_business', name: '吸管业务系统（演示）', url: 'https://api.example.com/mcp', auth: 'api_key', status: 'connected',
+    id: 'srv_business', name: '吸管业务系统（演示）', url: 'https://api.example.com/mcp', auth: 'header', key_saved: true, status: 'connected', failures_24h: 0,
     tools: [
-      { id: 'tool_order', name: 'query_order', label: '查询订单与发票', enabled: true, kind: 'read', confirm: false, description: '访客询问订单、付款或发票进度时调用；需要订单号（XG 开头）。没有订单号时先向访客要。', params: [{ name: 'order_id', label: '订单号', required: true, example: 'XG20261108001' }], sample_result: { order_id: 'XG20261108001', plan: '专业版（年付）', amount: 35760, paid_at: '2026-11-08', invoice_status: '已开具', invoice_no: 'INV-2026-11-0832', invoice_sent_to: 'f***@yunfan.example' } },
-      { id: 'tool_trial', name: 'create_trial', label: '开通试用账号', enabled: true, kind: 'write', confirm: true, description: '访客明确想要试用时调用；需要公司名称和手机号，开通 14 天专业版试用。', params: [{ name: 'company', label: '公司名称', required: true, example: '云帆数据科技' }, { name: 'phone', label: '手机号', required: true, example: '13800001111' }], sample_result: { trial_id: 'TRL-7F3A21', plan: '专业版试用', days: 14, login_url: 'https://app.example.com/login', sms_sent: true } },
-      { id: 'tool_status', name: 'service_status', label: '查询服务状态', enabled: true, kind: 'read', confirm: false, description: '访客反馈打不开、很慢或问系统是否正常时调用，不需要参数。', params: [], sample_result: { status: 'operational', components: [{ name: '对话服务', status: '正常' }, { name: '知识库检索', status: '正常' }, { name: '企业微信推送', status: '轻微延迟' }] } },
-      { id: 'tool_ticket', name: 'query_ticket', label: '查询工单进度', enabled: false, kind: 'read', confirm: false, description: '访客询问之前提交的问题处理到哪一步时调用；需要工单号（TKT 开头）。', params: [{ name: 'ticket_id', label: '工单号', required: true, example: 'TKT-000002' }], sample_result: { ticket_id: 'TKT-000002', status: '等待客户', assignee: '小周', updated_at: '2026-11-10 10:20' } }
+      { id: 'tool_order', name: 'query_order', label: '查询订单与发票', enabled: true, read_only: true, description: '访客询问订单、付款或发票进度时调用；需要订单号（XG 开头）。没有订单号时先向访客要。', params: [{ name: 'order_id', label: '订单号', required: true, example: 'XG20261108001' }], sample_result: { order_id: 'XG20261108001', plan: '专业版（年付）', amount: 35760, paid_at: '2026-11-08', invoice_status: '已开具', invoice_no: 'INV-2026-11-0832', invoice_sent_to: 'f***@yunfan.example' } },
+      { id: 'tool_slots', name: 'query_demo_slots', label: '查询可预约的演示时段', enabled: true, read_only: true, description: '访客想预约产品演示、问什么时候有空时调用；需要城市（线下）或“线上”。', params: [{ name: 'city', label: '城市或“线上”', required: true, example: '上海' }], sample_result: { city: '上海', slots: ['11-14 周五 14:00', '11-17 周一 10:00', '11-18 周二 15:30'] } },
+      { id: 'tool_status', name: 'service_status', label: '查询服务状态', enabled: true, read_only: true, description: '访客反馈打不开、很慢或问系统是否正常时调用，不需要参数。', params: [], sample_result: { status: 'operational', components: [{ name: '对话服务', status: '正常' }, { name: '知识库检索', status: '正常' }, { name: '企业微信推送', status: '轻微延迟' }] } },
+      { id: 'tool_ticket', name: 'query_ticket', label: '查询工单进度', enabled: false, read_only: null, description: '访客询问之前提交的问题处理到哪一步时调用；需要工单号（TKT 开头）。', params: [{ name: 'ticket_id', label: '工单号', required: true, example: 'TKT-000002' }], sample_result: { ticket_id: 'TKT-000002', status: '等待客户', assignee: '小周', updated_at: '2026-11-10 10:20' } },
+      { id: 'tool_booking', name: 'update_booking', label: '修改预约', enabled: false, read_only: false, description: '修改访客已有的演示预约时间。', params: [{ name: 'booking_id', label: '预约号', required: true, example: 'BK-1029' }, { name: 'slot', label: '新时段', required: true, example: '11-17 周一 10:00' }], sample_result: { booking_id: 'BK-1029', slot: '11-17 周一 10:00' } },
+      { id: 'tool_stock', name: 'query_stock_v1', label: '查询库存（旧版）', enabled: true, read_only: true, offline: true, description: '访客问具体型号有没有货时调用。', params: [{ name: 'sku', label: '型号', required: true, example: 'XG-PRO' }], sample_result: {} }
     ]
   }]
+}
+
+/** 旧草稿里的 MCP 配置迁移：写入类工具一期不开放，OAuth 改为请求头密钥，去掉不再使用的过程卡片设置。 */
+function normalizeMcp(mcp) {
+  const base = JSON.parse(JSON.stringify(DEFAULT_MCP))
+  if (!mcp || typeof mcp !== 'object') return base
+  const servers = Array.isArray(mcp.servers) && mcp.servers.length ? mcp.servers.slice(0, MCP_MAX_SERVERS) : base.servers
+  return {
+    enabled: mcp.enabled !== false,
+    instructions: typeof mcp.instructions === 'string' ? mcp.instructions : base.instructions,
+    servers: servers.map(server => ({
+      ...server,
+      auth: server.auth === 'none' ? 'none' : 'header',
+      key_saved: server.key_saved ?? server.auth !== 'none',
+      failures_24h: Number(server.failures_24h) || 0,
+      tools: (server.tools || []).map(tool => {
+        const readOnly = 'read_only' in tool ? tool.read_only : tool.kind === 'write' ? false : tool.kind === 'read' ? true : null
+        return { ...tool, read_only: readOnly, enabled: readOnly === false ? false : Boolean(tool.enabled) }
+      })
+    }))
+  }
+}
+
+/** 旧草稿里的推荐消息：预设场景、兜底问题、推荐区标题都不再使用。 */
+function normalizeRecommendations(rec) {
+  const base = { ...DEFAULT_RECOMMENDATIONS }
+  if (!rec || typeof rec !== 'object') return base
+  return {
+    enabled: rec.enabled !== false,
+    show: rec.show === 'always' ? 'always' : 'ai',
+    max_items: Math.min(4, Math.max(1, Number(rec.max_items) || 3)),
+    instructions: typeof rec.instructions === 'string' ? rec.instructions : base.instructions
+  }
 }
 
 /** 智能体配置里与能力有关的部分（录制配置 + 原型演示数据）。 */
@@ -183,12 +237,12 @@ function capabilityDefaults() {
   return {
     actions: {
       lead_capture: { enabled: true, interaction: 'widget', form_size: 'medium', fields: defaultLeadFields(), max_invites: 2, success_message: LEAD_DEFAULT_MESSAGES.success, failure_message: LEAD_DEFAULT_MESSAGES.failure, instructions: '访客问到报价、试用、演示时邀请留手机号；先把他的问题答完再邀请。访客拒绝后不再追问，继续正常回答。' },
-      human_handoff: { enabled: true, instructions: '访客明确要求人工、询问合同或定制报价、或对回答表示不满时转人工；转交前告诉访客顾问会尽快联系。', help_url: 'https://help.xiguan.cn' },
+      human_handoff: { enabled: true, instructions: '访客明确要求人工、连续两次答不上、或者表达不满时转人工；转之前告诉访客要等一会。', online_message: HANDOFF_DEFAULT_MESSAGES.online, offline_message: HANDOFF_DEFAULT_MESSAGES.offline, help_url: 'https://help.xiguan.cn' },
       asset_delivery: { enabled: false, mode: 'immediate', max_items: 3, instructions: '访客明确索要白皮书、案例、产品手册或下载链接时，发送知识库里带链接的资料卡片。' }
     },
-    auto_open: { enabled: false, delay_seconds: 8, page_rules: [{ pattern: '/pricing*', enabled: true, delay_seconds: 15 }, { pattern: '/enterprise*', enabled: true, delay_seconds: 10 }] },
-    proactive: { enabled: false, idle_seconds: 30, message: '看了一会儿了，需要我帮你对比一下各个版本吗？', page_rules: [{ pattern: '/docs/*', enabled: true, idle_seconds: 45, message: '接入遇到问题了吗？可以直接问我。' }, { pattern: '/cases*', enabled: true, idle_seconds: 30, message: '想看和你们同行业的案例吗？告诉我你们是做什么的。' }] },
-    idle_follow_up: { enabled: false, steps: [{ idle_seconds: 60, message: '还在吗？如果方便，可以告诉我你们现在最想解决的问题，我帮你看看适合哪个方案。' }, { idle_seconds: 300, message: '先不打扰了。想了解价格、部署或数据安全的话随时问我；也可以留个联系方式，顾问会把资料发给你。' }] },
+    auto_open: { enabled: false, delay_seconds: 5, page_rules: [{ pattern: '/pricing*', enabled: true, delay_seconds: 15 }, { pattern: '/enterprise*', enabled: true, delay_seconds: 10 }] },
+    proactive: { enabled: false, instructions: '访客回复主动消息时，先按他正在看的页面介绍对应产品。', idle_seconds: 30, message: '看了一会儿了，需要我帮你对比一下各个版本吗？', page_rules: [{ pattern: '/docs/*', enabled: true, idle_seconds: 45, message: '接入遇到问题了吗？可以直接问我。' }, { pattern: '/cases*', enabled: true, idle_seconds: 30, message: '想看和你们同行业的案例吗？告诉我你们是做什么的。' }] },
+    idle_follow_up: { enabled: false, instructions: '访客回复跟进时，先帮他把上一个问题问清楚。', steps: [{ idle_seconds: 60, message: '还在吗？如果方便，可以告诉我你们现在最想解决的问题，我帮你看看适合哪个方案。' }, { idle_seconds: 300, message: '先不打扰了。想了解价格、部署或数据安全的话随时问我；也可以留个联系方式，顾问会把资料发给你。' }] },
     assessment: JSON.parse(JSON.stringify(DEFAULT_ASSESSMENT)),
     lead_popup: JSON.parse(JSON.stringify(DEFAULT_LEAD_POPUP)),
     recommendations: JSON.parse(JSON.stringify(DEFAULT_RECOMMENDATIONS)),
@@ -232,6 +286,7 @@ const DEMO_ANSWERS = [
 
 const INTENT_WORDS = ['价格', '收费', '多少钱', '报价', '试用', '采购', '购买', '演示', '方案', '合作', '开通', '私有化']
 const HANDOFF_WORDS = ['人工', '真人', '客服', '转接', '投诉']
+const TECH_WORDS = ['安装', '报错', '错误', '失败', '打不开', '接入不了']
 const MATERIAL_WORDS = ['资料', '手册', '白皮书', '案例', '下载', '文档', '报价单']
 const DEMO_MATERIALS = [
   { title: '吸管 Chat 产品手册', url: 'https://www.example.com/files/product-manual.pdf', kind: 'PDF', keywords: ['手册', '产品', '资料'] },
@@ -256,7 +311,7 @@ const REFUSE_WORDS = ['不用了', '不需要', '不方便', '不想留', '不�
 const SELF_LEAD_WORDS = ['联系我', '留个电话', '留个联系方式', '留联系方式', '留下联系方式', '怎么联系', '加个微信', '加微信', '给我回电', '打给我', '让顾问联系']
 
 const hasContactIn = values => CONTACT_FIELDS.some(key => String(values?.[key] || '').trim())
-const newLeadSession = () => ({ human: false, captured: false, leadId: '', values: {}, invites: 0, refused: false, asking: null, queue: [], lastInvited: false, followUpAsked: false, failSave: false })
+const newLeadSession = () => ({ handoffOnline: true, handoffQueue: 2, handoffRequested: false, human: false, captured: false, leadId: '', values: {}, invites: 0, refused: false, asking: null, queue: [], lastInvited: false, followUpAsked: false, failSave: false })
 const debugLead = () => normalizeLeadCapture(C().actions.lead_capture)
 
 /** 只取访客明确说出的值；关掉的字段不收集。 */
@@ -322,11 +377,13 @@ function playgroundTurn(message, session, scope) {
   const lead = normalizeLeadCapture(actions.lead_capture)
   const handoff = scope === 'human_handoff' ? actions.human_handoff || {} : {}
   const asset = scope === 'asset_delivery' ? actions.asset_delivery || {} : {}
-  const capturesLead = scope === 'lead_capture' || scope === 'asset_delivery'
+  const capturesLead = ['lead_capture', 'asset_delivery', 'human_handoff'].includes(scope)
   const has = words => words.some(word => message.includes(word))
   const textMode = lead.interaction === 'text'
-  const base = baseAnswer(message)
-  const canInvite = leadHasContactField(lead) && (scope === 'lead_capture' ? lead.enabled : scope === 'asset_delivery' && asset.enabled && lead.enabled)
+  const plain = baseAnswer(message)
+  const base = handoff.enabled && String(handoff.help_url || '').trim() && has(TECH_WORDS) ? `${plain}\n\n安装、报错这类问题也可以先看帮助中心：${handoff.help_url.trim()}` : plain
+  // 转人工不在线时也会接着邀请留资，所以转人工调试同样按留资草稿收集
+  const canInvite = leadHasContactField(lead) && lead.enabled && (scope === 'lead_capture' || scope === 'human_handoff' || (scope === 'asset_delivery' && asset.enabled))
   const wasInvited = session.lastInvited
   const asking = session.asking
   session.lastInvited = false
@@ -366,7 +423,26 @@ function playgroundTurn(message, session, scope) {
   if (ignored) Object.assign(session, { asking: null, queue: [] })
   if (ignored) meta.note = '访客没有回答这一项，AI 先回答问题，这一轮不再追问。'
 
-  if (handoff.enabled && has(HANDOFF_WORDS)) return { text: `好的，已为你转接人工客服，请稍等。${handoff.help_url ? `\n等待期间也可以先看看帮助中心：${handoff.help_url}` : ''}`, meta: { ...meta, handoffRequested: true } }
+  // 转人工：一次会话只发起一次；有人在线发排队消息，没人在线时留资表单开着就接着邀请（不占邀请次数）
+  if (handoff.enabled && has(HANDOFF_WORDS)) {
+    const queue = session.handoffQueue
+    if (session.handoffRequested) {
+      const text = session.handoffOnline ? `已经帮你提交过转人工了，前面还有 ${queue} 位，预计等待 ${handoffMinutes(queue)} 分钟。人工接入前我先继续帮你。` : '人工现在还不在线，有新进展会第一时间联系你。还有什么我可以先帮你的？'
+      return { text, meta: { ...meta, handoffRepeat: true } }
+    }
+    session.handoffRequested = true
+    if (session.handoffOnline) return { text: handoffText(handoffMessage(handoff, 'online'), queue), meta: { ...meta, handoffRequested: true } }
+    meta.handoffOffline = true
+    if (!canInvite || session.captured) return { text: '现在人工不在线，暂时转不了。还有什么我可以先帮你的？', meta }
+    const offline = handoffMessage(handoff, 'offline')
+    session.lastInvited = true
+    Object.assign(meta, { invited: true, handoffInvite: true })
+    if (!textMode) return { text: offline, meta: { ...meta, suggestLeadForm: true } }
+    const queueFields = textAskQueue(lead, session.values)
+    const first = queueFields.shift()
+    session.queue = queueFields
+    return { text: askNext(`${offline}\n\n`, first), meta: { ...meta, asked: first } }
+  }
   if (asset.enabled && has(MATERIAL_WORDS)) {
     if (asset.mode === 'immediate' || session.captured) return { text: '好的，这是相关资料，点开即可查看：', meta: { ...meta, materials: pickMaterials(message, Number(asset.max_items) || 1) } }
     if (asset.mode === 'contact_required') {
@@ -439,8 +515,8 @@ function setCapEnabled(id, enabled) {
     d.auto_open.enabled = enabled ? (d.auto_open.enabled || !d.proactive.enabled) : false
     d.proactive.enabled = enabled ? d.proactive.enabled : false
   } else if (id === 'idle_follow_up') {
+    // 不再自动补空话术：开启时话术为空会在能力页标出、不能发布；关闭时允许留着空话术
     d.idle_follow_up.enabled = enabled
-    if (enabled && !d.idle_follow_up.steps.length) d.idle_follow_up.steps = [{ idle_seconds: 60, message: '' }]
   } else d[id].enabled = enabled
 }
 
@@ -471,26 +547,28 @@ function capHeader(cap, enabled, extraBadge = '') {
   const unsaved = cfgSnapshot() !== cfg.saved
   return `<header class="capability-detail-head">
     <button type="button" class="cfg-btn sm ghost" data-action="cfg-cap-back">${icon('arrow-left', 'xs')}<span>能力</span></button>
-    <span class="capability-detail-title"><span class="capability-card-icon">${icon(cap.icon, 'sm')}</span><h1>${cap.name}</h1>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}${extraBadge}</span>
+    <span class="capability-detail-title"><span class="capability-card-icon">${icon(cap.icon, 'sm')}</span><h1>${cap.name}</h1>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}${testingBadge(cap)}${extraBadge}</span>
     <span class="cfg-capdetail-spacer"></span>
     <label class="cfg-capdetail-switch"><span>${enabled ? '已开启' : '未开启'}</span><button type="button" class="cfg-switch ${enabled ? 'on' : ''}" role="switch" aria-checked="${enabled}" aria-label="启用${cap.name}" data-cap-toggle="${cap.id}"></button></label>
     <button type="button" class="cfg-btn sm primary capability-detail-save" data-action="cfg-save" data-capability-save ${unsaved ? '' : 'disabled'}>${icon('save', 'xs')}<span>保存</span></button>
   </header>`
 }
 
+/** 能力详情页：左侧配置分区，右侧演示面板（跟随页面滚动、吸顶），布局同控制台原型。 */
 function renderCapabilityWorkbench(key, cap, enabled, main, preview, notices = '') {
-  return cfgPage(key, `<div class="capability-workbench">
-    <main class="capability-workbench-main">
-      ${capHeader(cap, enabled)}
-      <div class="capability-workbench-scroll"><section class="cfg-body">${notices}${main}</section></div>
-    </main>
-    <aside class="capability-workbench-debug">${preview}</aside>
-  </div>`)
+  return cfgPage(key, `${capHeader(cap, enabled)}
+    <section class="cfg-body">${notices}
+      <div class="agent-config-layout capability-demo-layout">
+        <div class="agent-config-main">${main}</div>
+        <aside class="agent-config-side capability-demo-side">${preview}</aside>
+      </div>
+    </section>`)
 }
 
-function renderCapabilityDebugPanel(cap, description, body) {
-  const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-cap-debug-reset">${icon('rotate', 'xs')}<span>新会话</span></button>`
-  return `<section class="cfg-panel cfg-debug-panel capability-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="capability-debug-canvas">${body}</div></section>`
+/** 右侧演示面板：标题默认「演示」，带「重新开始」（清空本能力的调试会话）。 */
+function renderCapabilityDebugPanel(cap, description, body, { title = '演示', restart = true } = {}) {
+  const actions = restart ? `<button type="button" class="cfg-btn sm ghost" data-action="cfg-cap-debug-reset">${icon('refresh', 'xs')}<span>重新开始</span></button>` : ''
+  return cfgPanel(title, description, body, { cls: 'widget-preview-frame', actions })
 }
 
 function saveCapabilityDebugSession(id) {
@@ -539,7 +617,7 @@ function renderCapabilityListCards() {
     const on = isCapEnabled(item.id)
     return `<article class="cfg-cap-card ${item.isNew ? 'is-new' : ''}" aria-label="${item.name}">
       <div class="cfg-cap-top"><span class="cfg-cap-icon">${icon(item.icon)}</span><button type="button" class="cfg-switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" aria-label="启用${item.name}" data-cap-toggle="${item.id}"></button></div>
-      <h2 class="cfg-cap-name">${item.name}${item.isNew ? badge('info', '新') : ''}</h2>
+      <h2 class="cfg-cap-name">${item.name}${item.isNew ? badge('info', '新') : ''}${testingBadge(item)}${on && capIssues(item.id).length ? badge('warning', '待完善') : ''}</h2>
       <p class="cfg-cap-trigger">${icon(TRIGGER_ICONS[item.trigger], 'xs')}${TRIGGER_LABELS[item.trigger]}</p>
       <p class="cfg-cap-summary">${item.summary}</p>
       <div class="cfg-cap-foot"><span class="cfg-cap-state ${on ? 'is-on' : ''}">${on ? '已开启' : '未开启'}</span><button type="button" class="cfg-btn sm outline" data-cap-config="${item.id}">配置</button></div>
@@ -555,6 +633,9 @@ function renderCapabilitiesConfig() {
     if (cap.id === 'lead_popup') return renderLeadPopupDetail(cap)
     if (cap.id === 'recommendations') return renderRecommendationsDetail(cap)
     if (cap.id === 'mcp') return renderMcpDetail(cap)
+    if (cap.id === 'human_handoff') return renderHandoffDetail(cap)
+    if (cap.id === 'proactive') return renderProactiveDetail(cap)
+    if (cap.id === 'idle_follow_up') return renderIdleDetail(cap)
     return renderCapabilityDetail(cap)
   }
   return cfgPage('capabilities', `${renderCfgHeader({ title: '能力', desc: '按需打开智能体能做的事。关闭后，对应提示、工具、回执和会话状态都不会进入运行时。' })}
@@ -565,7 +646,7 @@ function renderCapabilitiesConfig() {
     </section>`)
 }
 
-/* ---------- 通用能力详情（转人工 / 资料交付 / 主动弹窗 / 沉默跟进） ---------- */
+/* ---------- 通用能力详情（目前只有资料交付在用） ---------- */
 
 function renderCapabilityDetail(cap) {
   const d = C()
@@ -600,8 +681,6 @@ function renderCapabilityDetail(cap) {
   let more = ''
   if (id === 'human_handoff') more = capSection(sec('more'), '更多设置', true, false, `<div class="cfg-form-grid">${field('帮助中心地址（可选）', capInput('actions.human_handoff.help_url', 'type="url" placeholder="https://help.example.com"'))}</div>`)
   if (id === 'asset_delivery') more = capSection(sec('more'), '更多设置', true, false, `<div class="cfg-form-grid">${field('交付条件', capSelect('actions.asset_delivery.mode', [['immediate', '立即交付'], ['contact_required', '收集联系方式后交付'], ['human_only', '仅由人工交付']], 'data-rerender="1"'), { help: '“立即交付”会明确告诉模型：相关链接应在当前回复直接给出，不能拿资料交换联系方式。' })}</div>`)
-  if (id === 'proactive') more = capSection(sec('rules'), '触发规则', true, true, renderProactiveRules())
-  if (id === 'idle_follow_up') more = capSection(sec('rules'), '触发规则', d.idle_follow_up.steps.every(step => step.message.trim()), true, renderIdleSteps())
 
   return renderCapabilityWorkbench(`cap-${id}`, cap, enabled,
     `<div class="capability-sections">${general}${interaction}${widget}${fields}${more}</div>`,
@@ -681,63 +760,142 @@ function renderLeadCaptureDetail(cap) {
     capNotices('lead_capture'))
 }
 
-function renderProactiveRules() {
-  const d = C()
-  const autoRules = d.auto_open.page_rules.length ? `<div class="notification-config">${d.auto_open.page_rules.map((rule, index) => `<div class="notification-block"><div class="cfg-form-grid">
-      ${field('URL 通配模式', capInput(`auto_open.page_rules.${index}.pattern`, 'placeholder="*/pricing*" data-demo-sync="1"'))}
-      ${field('覆盖延迟（秒）', `<input type="number" min="0" max="60" value="${rule.delay_seconds ?? ''}" placeholder="${d.auto_open.delay_seconds}" data-bind="auto_open.page_rules.${index}.delay_seconds" data-type="number-or-null" data-clamp="0,60" data-demo-sync="1" />`)}
-      ${capCheck(`auto_open.page_rules.${index}.enabled`, '此页面启用', 'data-demo-sync="1"')}
-      <button type="button" class="cfg-btn sm ghost" data-rule-remove="auto_open:${index}">${icon('trash', 'xs')}<span>删除规则</span></button>
-    </div></div>`).join('')}</div>` : '<small>未添加规则时使用全站默认设置；规则按从上到下首个匹配项生效。</small>'
-  const proactiveRules = d.proactive.page_rules.length ? `<div class="notification-config">${d.proactive.page_rules.map((rule, index) => `<div class="notification-block"><div class="cfg-form-grid">
-      ${field('URL 通配模式', capInput(`proactive.page_rules.${index}.pattern`, 'placeholder="*/product/*" data-demo-sync="1"'))}
-      ${field('覆盖等待（秒）', `<input type="number" min="10" max="300" value="${rule.idle_seconds ?? ''}" placeholder="${d.proactive.idle_seconds}" data-bind="proactive.page_rules.${index}.idle_seconds" data-type="number-or-null" data-clamp="10,300" data-demo-sync="1" />`)}
-      ${field('覆盖文案（留空沿用默认）', capInput(`proactive.page_rules.${index}.message`, 'maxlength="1000" data-demo-sync="1"'), { full: true })}
-      ${capCheck(`proactive.page_rules.${index}.enabled`, '此页面启用', 'data-demo-sync="1"')}
-      <button type="button" class="cfg-btn sm ghost" data-rule-remove="proactive:${index}">${icon('trash', 'xs')}<span>删除规则</span></button>
-    </div></div>`).join('')}</div>` : '<small>未添加规则时使用默认话术；访客已开口、已留资或手动关闭后不会再触发。</small>'
-  return `<div class="cfg-form-grid">
-    <small class="full">自动弹窗与主动消息同时命中时，自动弹窗优先。</small>
-    <div class="full">${capCheck('auto_open.enabled', '进入页面后自动打开对话窗', 'data-rerender="1"')}</div>
-    ${field('默认延迟（秒）', capNumber('auto_open.delay_seconds', 0, 60, 'data-demo-sync="1"'))}
-    ${field('频控', '', { help: '每个 30 分钟访问会话最多自动打开一次；访客手动关闭后本会话不再触发。' })}
-    <div class="cfg-field full"><div class="notification-title"><strong>自动弹窗页面规则</strong><button type="button" class="cfg-btn sm outline" data-rule-add="auto_open" ${d.auto_open.page_rules.length >= 50 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加规则</span></button></div>${autoRules}</div>
-    <div class="full">${capCheck('proactive.enabled', '访客停留但尚未开口时显示主动消息', 'data-rerender="1"')}</div>
-    ${field('默认等待（秒）', capNumber('proactive.idle_seconds', 10, 300, 'data-demo-sync="1"'))}
-    ${field('默认主动消息', capTextarea('proactive.message', 2, 'maxlength="1000" placeholder="填写租户自己的主动触达文案" data-demo-sync="1"'))}
-    <div class="cfg-field full"><div class="notification-title"><strong>主动消息页面规则</strong><button type="button" class="cfg-btn sm outline" data-rule-add="proactive" ${d.proactive.page_rules.length >= 50 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加规则</span></button></div>${proactiveRules}</div>
-  </div>`
+/* ---------- 详情页公共分区：通用（做什么 + 什么时候用）、固定的交互形式 ---------- */
+
+function capGeneral(cap, path, { label = '什么时候用', placeholder = '', help = '' } = {}) {
+  const value = String(getCfgValue(path) || '')
+  return capSection(`${cap.id}:general`, '通用', Boolean(value.trim()), true, `<div class="cfg-form-grid">
+      ${field('做什么', `<p class="capability-readonly">${cap.summary}</p>`, { full: true })}
+      ${field(label, capTextarea(path, 4, `maxlength="4000" placeholder="${esc(placeholder)}"`), { full: true, help: `${help}最多 4000 字，只在能力开启时进入 AI 的上下文。` })}
+    </div>`)
 }
 
-function renderIdleSteps() {
-  const steps = C().idle_follow_up.steps
-  const list = steps.length ? `<div class="notification-config">${steps.map((step, index) => `<div class="notification-block"><div class="cfg-form-grid">
-      ${field(index === 0 ? '助手回复后沉默（秒）' : '上一条跟进后沉默（秒）', capNumber(`idle_follow_up.steps.${index}.idle_seconds`, 15, 3600))}
-      ${field(`第 ${index + 1} 条话术`, capTextarea(`idle_follow_up.steps.${index}.message`, 2, 'maxlength="1000" placeholder="填写你自己的跟进文案，例如追问需求或提供下一步选项"'), { full: true })}
+const capFixedInteraction = (cap, text) => capSection(`${cap.id}:interaction`, '交互形式', true, false, `<p class="capability-readonly"><strong>${cap.interaction.label}</strong>（固定）。${text}</p>`)
+const capRules = (cap, items, open = false) => capSection(`${cap.id}:rules`, '规则', true, open, `<ul class="lead-rules">${items.map(item => `<li>${item}</li>`).join('')}</ul>`)
+const capIssueNotices = id => capIssues(id).map(text => capNotice(`<strong>${text}。</strong>改好之前不能发布。`)).join('')
+
+/** 按 PRD 重做的能力页：左侧配置分区，右侧是能力调试台（框架同其他能力页）。 */
+function capDetailPage(cap, enabled, sections, side) {
+  return renderCapabilityWorkbench(`cap-${cap.id}`, cap, enabled,
+    `<div class="capability-sections">${sections.join('')}</div>`,
+    side,
+    `${capNotices(cap.id)}${enabled ? capIssueNotices(cap.id) : ''}`)
+}
+
+/* ---------- 转人工 ---------- */
+
+const handoffMinutes = queue => Math.min(60, queue * 5)
+const handoffText = (template, queue) => String(template).replace(/\{排队人数\}/g, queue).replace(/\{分钟\}/g, handoffMinutes(queue))
+const handoffMessage = (h, kind) => String(h?.[`${kind}_message`] || '').trim() || HANDOFF_DEFAULT_MESSAGES[kind]
+
+function renderHandoffDetail(cap) {
+  const lead = C().actions.lead_capture
+  const enabled = isCapEnabled('human_handoff')
+  const general = capGeneral(cap, 'actions.human_handoff.instructions', { placeholder: '比如：访客明确要求人工、连续两次答不上、或者表达不满时转人工；转之前告诉访客要等一会。', help: '写给 AI 的转人工时机。写得收紧一些，免得 AI 把自己能答的问题也转出去。' })
+  const interaction = capFixedInteraction(cap, '发起转人工后，访客看到下面的在线或不在线消息。')
+  const messages = capSection('human_handoff:messages', '消息', true, true, `<div class="cfg-form-grid">
+      ${field('有人在线时的消息', capTextarea('actions.human_handoff.online_message', 2, `maxlength="200" placeholder="${HANDOFF_DEFAULT_MESSAGES.online}" data-demo-sync="1"`), { full: true, help: '可以插入 {排队人数} 和 {分钟}。排队人数是前面还在等人工的会话数，预计等待按每位 5 分钟算，最多显示 60 分钟。留空用默认文案。' })}
+      ${field('没人在线时的消息', capTextarea('actions.human_handoff.offline_message', 2, `maxlength="200" placeholder="${HANDOFF_DEFAULT_MESSAGES.offline}" data-demo-sync="1"`), { full: true, help: lead.enabled ? '留资表单开着：发完这句接着邀请留资，不占留资表单的邀请次数。' : '留资表单没开：只告知访客暂时没人在线，不邀请留资。' })}
+    </div><small class="capability-hint">“有人在线”指工作区有成员开着控制台。</small>`)
+  const more = capSection('human_handoff:more', '帮助中心与通知', true, false, `<div class="cfg-form-grid">
+      ${field('帮助中心地址（可选）', capInput('actions.human_handoff.help_url', 'type="url" placeholder="https://help.example.com"'), { full: true, help: '访客问安装、报错这类技术问题时，AI 可以给出这个地址。' })}
+      ${field('外部通知', '<p class="capability-readonly">在「通知与业务系统」里配企业微信；不配也会进人工列表。</p>', { full: true })}
+    </div>`)
+  const rules = capRules(cap, ['一次会话只发起一次转人工。访客再次要求时，告诉他当前的排队情况，不重复通知。', '发起后到人工点接管之前，AI 继续回答；接管后 AI 不再回复；人工交还后 AI 接着聊。', 'AI 只能说“已提交转人工”，不能说“已经接通”。', '人工一直没接时 AI 继续回答；一期不做等待超时提醒和重发通知。', '能力关闭时，访客要人工，AI 按指令和知识库正常回复，但不能说已经转了。'])
+  return capDetailPage(cap, enabled, [general, interaction, messages, more, rules], renderDemoPanel('human_handoff', enabled))
+}
+
+/* ---------- 主动弹窗 ---------- */
+
+function proactiveOverlaps(d = C()) {
+  if (!d.auto_open.enabled || !d.proactive.enabled) return []
+  const autoPatterns = new Set(d.auto_open.page_rules.filter(rule => rule.enabled !== false).map(rule => rule.pattern.trim()))
+  const both = d.proactive.page_rules.filter(rule => rule.enabled !== false && autoPatterns.has(rule.pattern.trim())).map(rule => rule.pattern.trim())
+  return both.length ? both : ['全站默认']
+}
+
+function renderProactiveDetail(cap) {
+  const d = C()
+  const enabled = isCapEnabled('proactive')
+  const general = capGeneral(cap, 'proactive.instructions', { label: '访客回应后怎么接', placeholder: '比如：访客回复主动消息时，先按他正在看的页面介绍对应产品。', help: '弹不弹、什么时候弹由下面的规则决定，不经过 AI 判断；这里写访客回应之后 AI 怎么接。' })
+  const overlaps = proactiveOverlaps(d)
+  const interaction = capSection('proactive:interaction', '交互形式', d.auto_open.enabled || d.proactive.enabled, true, `<div class="cfg-form-grid">
+      <div class="full">${capCheck('auto_open.enabled', '自动打开对话窗', 'data-rerender="1"')}</div>
+      <div class="full">${capCheck('proactive.enabled', '主动消息气泡：先在入口旁边弹一句', 'data-rerender="1"')}</div>
+    </div>
+    <small class="capability-hint">两种可以都开。一次访问（30 分钟）里自动打开、主动消息最多出现一个；同一页面都命中时只取自动打开。</small>
+    ${overlaps.length ? `<div class="cfg-notice info" role="status"><span class="cfg-notice-icon">${icon('alert', 'sm')}</span><div>${overlaps[0] === '全站默认' ? '两种都开着：没有单独停用的页面两种都会命中，' : `规则重叠：${overlaps.map(esc).join('、')} 两种都会命中，`}这些页面只会自动打开对话窗，不弹主动消息。</div></div>` : ''}`)
+
+  const autoRules = d.auto_open.page_rules.map((rule, index) => `<div class="notification-block"><div class="cfg-form-grid">
+      ${field('页面（URL 通配）', capInput(`auto_open.page_rules.${index}.pattern`, 'placeholder="/pricing*" data-demo-sync="1" data-rerender="1"'))}
+      ${field('覆盖延迟（秒）', `<input type="number" min="0" max="60" value="${rule.delay_seconds ?? ''}" placeholder="${d.auto_open.delay_seconds}" data-bind="auto_open.page_rules.${index}.delay_seconds" data-type="number-or-null" data-clamp="0,60" data-demo-sync="1" />`)}
+      ${capCheck(`auto_open.page_rules.${index}.enabled`, '这个页面启用（取消即单页停用）', 'data-demo-sync="1" data-rerender="1"')}
+      <button type="button" class="cfg-btn sm ghost" data-rule-remove="auto_open:${index}">${icon('trash', 'xs')}<span>删除规则</span></button>
+    </div></div>`).join('')
+  const auto = capSection('proactive:auto', '自动打开对话窗', true, d.auto_open.enabled, `${!d.auto_open.enabled ? '<p class="capability-readonly">没开「自动打开对话窗」，下面的设置先不生效。</p>' : ''}<div class="cfg-form-grid">
+      ${field('默认时机：进入页面后（秒）', capNumber('auto_open.delay_seconds', 0, 60, 'data-demo-sync="1"'), { help: '0–60 秒，默认 5 秒。' })}
+      ${field('不再触发', '', { help: '每次访问最多自动打开一次；访客手动关闭后本次不再触发。' })}
+      <div class="cfg-field full"><div class="notification-title"><strong>页面规则（${d.auto_open.page_rules.length} / 50）</strong><button type="button" class="cfg-btn sm outline" data-rule-add="auto_open" ${d.auto_open.page_rules.length >= 50 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加规则</span></button></div>${autoRules ? `<div class="notification-config">${autoRules}</div>` : ''}<small>从上到下第一条匹配的生效；没有规则时用全站默认。</small></div>
+    </div>`)
+
+  const tooLong = [d.proactive.message, ...d.proactive.page_rules.map(rule => rule.message)].filter(text => Array.from(String(text || '')).length > PROACTIVE_MESSAGE_MAX).length
+  const msgRules = d.proactive.page_rules.map((rule, index) => `<div class="notification-block"><div class="cfg-form-grid">
+      ${field('页面（URL 通配）', capInput(`proactive.page_rules.${index}.pattern`, 'placeholder="/docs/*" data-demo-sync="1" data-rerender="1"'))}
+      ${field('覆盖等待（秒）', `<input type="number" min="10" max="300" value="${rule.idle_seconds ?? ''}" placeholder="${d.proactive.idle_seconds}" data-bind="proactive.page_rules.${index}.idle_seconds" data-type="number-or-null" data-clamp="10,300" data-demo-sync="1" />`)}
+      ${field('覆盖文案（留空沿用默认）', capInput(`proactive.page_rules.${index}.message`, `maxlength="${PROACTIVE_MESSAGE_MAX}" data-demo-sync="1" data-rerender="1"`), { full: true, help: `最多 ${PROACTIVE_MESSAGE_MAX} 字。` })}
+      ${capCheck(`proactive.page_rules.${index}.enabled`, '这个页面启用（取消即单页停用）', 'data-demo-sync="1" data-rerender="1"')}
+      <button type="button" class="cfg-btn sm ghost" data-rule-remove="proactive:${index}">${icon('trash', 'xs')}<span>删除规则</span></button>
+    </div></div>`).join('')
+  const emptyMessage = d.proactive.enabled && !String(d.proactive.message || '').trim()
+  const message = capSection('proactive:message', '主动消息', !emptyMessage && !tooLong, d.proactive.enabled, `${!d.proactive.enabled ? '<p class="capability-readonly">没开「主动消息气泡」，下面的设置先不生效。</p>' : ''}
+    ${tooLong ? capNotice(`有 ${tooLong} 条主动消息超过 ${PROACTIVE_MESSAGE_MAX} 字，气泡里放不下，请改短。`) : ''}
+    <div class="cfg-form-grid">
+      ${field('默认时机：停留未开口（秒）', capNumber('proactive.idle_seconds', 10, 300, 'data-demo-sync="1"'), { help: '10–300 秒，默认 30 秒。' })}
+      ${field('不再触发', '', { help: '访客已开口、已留资或手动关闭后不再触发。' })}
+      ${field(`默认主动消息${d.proactive.enabled ? ' *' : ''}`, capTextarea('proactive.message', 2, `maxlength="${PROACTIVE_MESSAGE_MAX}" placeholder="比如：看了一会儿了，需要我帮你对比一下各个版本吗？" data-demo-sync="1" data-rerender="1"`), { full: true, help: `最多 ${PROACTIVE_MESSAGE_MAX} 字；主动消息开启时必填。入口是数字人形象时，主动消息暂时替代形象上方的招呼语。` })}
+      <div class="cfg-field full"><div class="notification-title"><strong>页面规则（${d.proactive.page_rules.length} / 50）</strong><button type="button" class="cfg-btn sm outline" data-rule-add="proactive" ${d.proactive.page_rules.length >= 50 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加规则</span></button></div>${msgRules ? `<div class="notification-config">${msgRules}</div>` : ''}<small>从上到下第一条匹配的生效，可以覆盖等待时间和文案。</small></div>
+    </div>`)
+  const rules = capRules(cap, ['访客在主动消息出现后开口，这条主动消息作为助手的第一条消息记入对话，AI 知道访客回的是哪句。', '一期只有网页渠道；以后接企业微信这类渠道时，规则触发类不生效。'])
+  return capDetailPage(cap, enabled, [general, interaction, auto, message, rules], renderDemoPanel('proactive', enabled))
+}
+
+/* ---------- 沉默跟进 ---------- */
+
+function renderIdleDetail(cap) {
+  const d = C()
+  const enabled = isCapEnabled('idle_follow_up')
+  const steps = d.idle_follow_up.steps
+  const general = capGeneral(cap, 'idle_follow_up.instructions', { label: '访客回应后怎么接', placeholder: '比如：访客回复跟进时，先帮他把上一个问题问清楚。', help: '什么时候发由下面的话术和等待时间决定；这里写访客回复跟进话术后 AI 怎么接。' })
+  const interaction = capFixedInteraction(cap, '窗口开着时是一条助手消息，窗口收起时以气泡出现在入口旁边。')
+  const list = steps.map((step, index) => `<div class="notification-block"><div class="cfg-form-grid">
+      ${field(index === 0 ? '助手回复后等待（秒）' : '上一条跟进后等待（秒）', capNumber(`idle_follow_up.steps.${index}.idle_seconds`, 15, 3600))}
+      ${field(`第 ${index + 1} 条话术${enabled ? ' *' : ''}`, capTextarea(`idle_follow_up.steps.${index}.message`, 2, 'maxlength="1000" placeholder="填写固定的跟进文案，例如追问需求或给出下一步选项" data-rerender="1"'), { full: true })}
       <button type="button" class="cfg-btn sm ghost" data-idle-remove="${index}">${icon('trash', 'xs')}<span>删除</span></button>
-    </div></div>`).join('')}</div>` : '<small>尚未配置话术。最多 3 条，每条等待 15～3600 秒。</small>'
-  return `<div class="cfg-form-grid"><div class="cfg-field full">
-    <div class="notification-title"><strong>跟进话术</strong><button type="button" class="cfg-btn sm outline" data-action="cfg-idle-add" ${steps.length >= 3 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加一条</span></button></div>
-    ${list}
-    <small>仅在访客页面仍打开时发送；访客离开后超过等待时长较久（至少 5 分钟）才回来，不会补发过期话术。窗口收起时，话术会以气泡形式出现在入口旁。</small>
-    <small>访客回复后计时重置、从第一条重新开始；转人工、等待人工或正在生成回复时不会发送。</small>
-  </div></div>`
+    </div></div>`).join('')
+  const ready = !enabled || (steps.length && steps.every(step => step.message.trim()))
+  const stepsSec = capSection('idle_follow_up:steps', '跟进话术', ready, true, `<div class="cfg-form-grid"><div class="cfg-field full">
+      <div class="notification-title"><strong>话术（${steps.length} / 3）</strong><button type="button" class="cfg-btn sm outline" data-action="cfg-idle-add" ${steps.length >= 3 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加一条</span></button></div>
+      ${list ? `<div class="notification-config">${list}</div>` : '<small>还没有话术。开启时至少要有一条，空着不能发布。</small>'}
+      <small>最多 3 条，按顺序发，每条最多 1000 字；第一条从助手回复后算，之后每条从上一条跟进后算，15–3600 秒。话术是固定文案，一期不做 AI 生成。</small>
+    </div></div>`)
+  const rules = capRules(cap, ['只在访客页面还开着时发。访客离开后过了等待时长很久（至少 5 分钟）才回来，不补发过期的话术。', '访客回复后计时重置，从第一条重新开始；但一次会话里跟进话术加起来最多发 3 条，重置计时不重置总数。', '转人工、等待人工、正在生成回复时不发。', '关闭时允许留着空话术；开启时话术不能为空。'], true)
+  return capDetailPage(cap, enabled, [general, interaction, stepsSec, rules], renderDemoPanel('idle_follow_up', enabled))
 }
 
 /* ---------- 演示：访客对话窗口 ---------- */
 
 const DEMO_SUBTITLES = {
   lead_capture: '在窗口里直接对话。AI 判断合适时会邀请留资，提交后生成一条调试线索。',
-  human_handoff: '访客要求人工后，在下方「客服工作台」接管并回复，体验两端的完整过程。',
+  human_handoff: '访客要求人工后，在下方「客服工作台」接管并回复。可以切换有人在线 / 没人在线，看访客收到哪条消息。',
   asset_delivery: '向助手索要资料，按「交付条件」演示交付方式；知识库里带链接的资料才会以卡片发送。',
-  proactive: '切换页面，看对话窗口何时自动打开、主动消息何时出现。时间按 5 倍速演示。',
-  idle_follow_up: '先问一个问题，然后不回复，看助手按顺序补发跟进话术。时间按 10 倍速演示。'
+  proactive: '切换页面，看对话窗何时自动打开、主动消息何时出现；点开主动消息后回一句，看 AI 怎么接。时间按 5 倍速演示。',
+  idle_follow_up: '先问一个问题，然后不回复，看助手按顺序补发跟进话术；一次会话最多 3 条。时间按 10 倍速演示。'
 }
 
 let demoSeq = 1
 
 function newDemo(id) {
-  return { id, epoch: Date.now(), messages: [], busy: false, session: newLeadSession(), decision: '', leadId: '', error: '', mode: 'ai', requestedAt: 0, lastVisitor: '', log: '', calls: [], pending: null, confirm: null, pattern: null, elapsed: 0, started: Date.now(), state: 'browsing', openedBy: '', stepIndex: 0, idleFrom: null, offset: 0, sending: false, forms: {}, tools: {} }
+  return { id, epoch: Date.now(), messages: [], busy: false, session: newLeadSession(), decision: '', leadId: '', error: '', mode: 'ai', requestedAt: 0, lastVisitor: '', log: '', calls: [], pending: null, confirm: null, pattern: null, elapsed: 0, started: Date.now(), state: 'browsing', openedBy: '', stepIndex: 0, idleFrom: null, offset: 0, sending: false, idleSent: 0, forms: {}, tools: {} }
 }
 
 function demoFor(id) {
@@ -849,7 +1007,6 @@ function renderDemoMessage(demo, message, brand) {
     const open = demo.tools[message.id]
     return `<div class="demo-tool is-${trace.status}"><button type="button" data-demo-tool="${message.id}"><span class="demo-tool-icon">${icon('plug', 'xs')}</span><span class="demo-tool-name">${trace.status === 'running' ? `正在${trace.label}…` : `已${trace.label}`}</span>${trace.durationMs != null ? `<small>${trace.durationMs} ms</small>` : ''}${icon('chevron-down', 'xs')}</button>${open ? `<pre>${esc(JSON.stringify({ tool: trace.name, arguments: trace.args, ...(trace.result ? { result: trace.result } : {}) }, null, 2))}</pre>` : ''}</div>`
   }
-  if (message.kind === 'confirm') return `<div class="demo-confirm"><p>${esc(message.text)}</p>${message.state === 'pending' ? `<div><button type="button" class="demo-confirm-ok" data-demo-confirm="${message.id}:1">${esc(message.confirmLabel)}</button><button type="button" data-demo-confirm="${message.id}:0">暂不需要</button></div>` : `<small>${message.state === 'confirmed' ? '✓ 已确认' : '已取消'}</small>`}</div>`
   return ''
 }
 
@@ -920,8 +1077,9 @@ function renderDemoBody(id) {
     const tone = demo.mode === 'ai' ? '' : demo.mode === 'waiting' ? 'warning' : 'success'
     return `${renderDemoWidget(demo, { statusText: demo.mode === 'human' ? '人工客服在线' : '在线', notice: demo.mode === 'waiting' ? '正在为你转接人工客服…' : demo.mode === 'human' ? '人工客服正在为你服务' : '' })}
       <div class="demo-panel"><div class="demo-panel-head">${icon('headset', 'xs')}<strong>客服工作台</strong>${badge(tone, demo.mode === 'ai' ? 'AI 接待中' : demo.mode === 'waiting' ? '待接管' : '人工接待中')}</div>
-        ${demo.mode === 'ai' ? `<p>访客还在和 AI 对话。AI 按左侧条件判断需要人工时，会提交转人工请求。</p>${demoHints(demo, ['我想找人工客服', '可以帮我转人工吗？'])}` : ''}
-        ${demo.mode === 'waiting' ? `<p><strong>新的转人工请求</strong> · 已等待 <span data-demo-waited>${waited}</span> 秒</p><small>这条调试会话也会出现在左侧导航的「人工」里（需勾选含调试会话）。</small><button type="button" class="cfg-btn sm primary" data-action="cfg-demo-takeover">${icon('headset', 'xs')}<span>接管对话</span></button>` : ''}
+        <div class="demo-handoff-sim"><label class="console-checkbox"><input type="checkbox" data-demo-offline ${demo.session.handoffOnline ? '' : 'checked'} ${demo.session.handoffRequested ? 'disabled' : ''} /><span>模拟没人在线</span></label>${demo.session.handoffOnline ? `<small>前面排队 ${demo.session.handoffQueue} 位，预计 ${handoffMinutes(demo.session.handoffQueue)} 分钟</small>` : `<small>${debugLead().enabled ? '留资表单开着：发完不在线消息接着邀请留资' : '留资表单没开：只告知暂时没人在线'}</small>`}</div>
+        ${demo.mode === 'ai' ? `<p>${demo.decision || '访客还在和 AI 对话。AI 按左侧「什么时候用」判断需要人工时，会提交转人工。'}</p>${demoHints(demo, ['我想找人工客服', '安装的时候报错了怎么办？', '你们怎么收费？'])}` : ''}
+        ${demo.mode === 'waiting' ? `<p><strong>新的转人工请求</strong> · 已等待 <span data-demo-waited>${waited}</span> 秒</p><small>人工接管之前 AI 继续回答；访客再要人工只告诉他排队情况，不重复通知。这条调试会话也会出现在「人工」列表里（需勾选含调试会话）。</small>${demoHints(demo, ['再帮我转一下人工', '你们怎么收费？'])}<button type="button" class="cfg-btn sm primary" data-action="cfg-demo-takeover">${icon('headset', 'xs')}<span>接管对话</span></button>` : ''}
         ${demo.mode === 'human' ? `${demo.lastVisitor ? `<small>访客最近说：${esc(demo.lastVisitor)}</small>` : ''}<div class="demo-reply"><input class="console-input" placeholder="以人工身份回复访客，回车发送" data-demo-reply /><button type="button" class="cfg-btn sm primary" data-action="cfg-demo-reply">发送</button></div><button type="button" class="cfg-btn sm ghost" data-action="cfg-demo-release">${icon('bot', 'xs')}<span>交还 AI</span></button>` : ''}
         ${demo.error ? `<small class="demo-error">${esc(demo.error)}</small>` : ''}</div>`
   }
@@ -960,6 +1118,12 @@ function selectWidgetTrigger(autoOpen, proactive, url) {
   }
   return null
 }
+const PROACTIVE_PAGE_INTROS = [
+  { key: 'pricing', text: '价格页上的三个版本主要差在会话额度和人工协作，我可以按你们的访客量帮你挑一个。' },
+  { key: 'enterprise', text: '企业版支持私有化部署、单点登录和专属顾问，适合对数据安全要求高的团队。' },
+  { key: 'docs', text: '接入只要在官网加一行脚本，几分钟就能上线；遇到哪一步卡住了可以直接告诉我。' },
+  { key: 'cases', text: '我们有制造、教育、企业服务等行业的案例，告诉我你们做什么，我挑同行的给你看。' }
+]
 const examplePath = pattern => pattern.trim().replace(/\/\*/g, '/getting-started').replace(/\*/g, '') || '/'
 
 function proactiveTrigger(demo) {
@@ -975,17 +1139,17 @@ function renderProactiveDemo(demo) {
   const brand = C().appearance.name.trim() || 'AI 助手'
   const { patterns, path, trigger } = proactiveTrigger(demo)
   const signature = JSON.stringify([path, trigger])
-  if (demo.signature !== signature) { Object.assign(demo, { signature, elapsed: 0, started: Date.now(), state: 'browsing', openedBy: '', messages: [], epoch: Date.now(), session: newLeadSession() }) }
+  if (demo.signature !== signature) { Object.assign(demo, { signature, elapsed: 0, started: Date.now(), state: 'browsing', openedBy: '', messages: [], epoch: Date.now(), session: newLeadSession(), closedManually: false, proactiveMsg: '', decision: '' }) }
   const ruleText = !trigger ? '这个页面不会主动打扰访客' : trigger.kind === 'auto_open' ? `停留 ${trigger.delayMs / 1000} 秒后自动打开对话` : `停留 ${trigger.delayMs / 1000} 秒后显示主动消息「${esc(trigger.message)}」`
   return `<div class="site-demo" style="--site-demo-primary:${C().appearance.primary}">
       <div class="site-demo-tabs" role="tablist" aria-label="选择页面">${patterns.map(item => `<button type="button" role="tab" aria-selected="${item === demo.pattern}" class="${item === demo.pattern ? 'is-current' : ''}" data-demo-pattern="${esc(item)}">${item === '/' ? '首页' : esc(item)}</button>`).join('')}</div>
       <div class="site-demo-browser"><div class="site-demo-chrome" aria-hidden="true"><i></i><i></i><i></i><span>www.example.com${esc(path)}</span></div>
         <div class="site-demo-page"><div class="site-demo-nav"><b></b><span></span><span></span><span></span><em></em></div><div class="site-demo-hero"><strong>${path === '/' ? '首页' : esc(path)}</strong><span></span><span></span></div><div class="site-demo-cards"><span></span><span></span><span></span></div><div class="site-demo-lines"><span></span><span></span><span></span><span></span></div>
-          ${demo.state === 'browsing' ? `<div class="site-demo-hint">${icon('clock', 'xs')}访客停留 <span data-demo-elapsed>${demo.elapsed}</span> 秒 · ${ruleText}</div>` : ''}
+          ${demo.state === 'browsing' ? `<div class="site-demo-hint">${icon('clock', 'xs')}${demo.closedManually ? '访客手动关闭了对话窗，本次访问不再触发' : `访客停留 <span data-demo-elapsed>${demo.elapsed}</span> 秒 · ${ruleText}`}</div>` : ''}
           ${demo.state === 'bubble' && trigger?.kind === 'proactive' ? `<button type="button" class="demo-proactive-bubble" data-action="cfg-demo-open-bubble"><strong>${esc(brand)}</strong>${esc(trigger.message)}</button>` : ''}
           ${demo.state === 'open' ? `<div class="demo-site-chat">${renderDemoWidget(demo, { quick: [], closeable: true, compact: true })}</div>` : `<button type="button" class="demo-launcher" aria-label="打开对话" data-action="cfg-demo-launch">${esc(Array.from(brand)[0])}</button>`}
         </div></div></div>
-    <div class="demo-panel"><div class="demo-panel-head">${icon('spark', 'xs')}<strong>这个页面的规则</strong></div><p>${ruleText}。${demo.openedBy ? `<br />本次：${demo.openedBy}。` : ''}</p><small>页面规则优先；没有命中规则时用通用设置。自动打开和主动消息同时满足时，以自动打开为准。改左侧「触发规则」后会从头演示。</small></div>`
+    <div class="demo-panel"><div class="demo-panel-head">${icon('spark', 'xs')}<strong>这个页面的规则</strong></div><p>${ruleText}。${demo.openedBy ? `<br />本次：${demo.openedBy}。` : ''}${demo.decision ? `<br />${esc(demo.decision)}` : ''}</p><small>页面规则从上到下第一条匹配的生效，没有命中时用全站默认。自动打开和主动消息同时命中时只取自动打开；一次访问最多出现一个。改左侧设置后会从头演示。</small></div>`
 }
 
 /* 沉默跟进演示：10 倍速 */
@@ -997,10 +1161,11 @@ function renderIdleDemo(demo) {
   const seconds = idleSeconds(demo)
   let status
   if (!steps.length) status = '<p>左侧还没有跟进话术，先添加一步。</p>'
+  else if (demo.idleSent >= IDLE_MAX_PER_SESSION) status = `<p>本次会话已经发满 ${IDLE_MAX_PER_SESSION} 条跟进话术，之后访客再沉默也不再发；访客回复不会重置这个总数。</p>`
   else if (demo.idleFrom == null) status = '<p>访客发出一条消息、助手回复后开始计时。先问一个问题，然后别回复。</p>'
   else if (step) status = `<p>访客已沉默 <span data-demo-idle>${seconds}</span> 秒 · 第 ${demo.stepIndex + 1}/${steps.length} 条跟进将在 ${step.idle_seconds} 秒时发出</p><div class="demo-progress"><i data-demo-progress style="width:${Math.min(100, (seconds / step.idle_seconds) * 100)}%"></i></div><button type="button" class="cfg-btn sm ghost" data-action="cfg-demo-forward">${icon('arrow', 'xs')}<span>快进到这一条</span></button>`
   else status = `<p>${steps.length} 条跟进话术都已发出。访客再次发言后会重新计时。</p>`
-  return `${renderDemoWidget(demo)}<div class="demo-panel"><div class="demo-panel-head">${icon('clock', 'xs')}<strong>沉默计时</strong>${badge('', '10 倍速')}</div>${status}${demoHints(demo, quickLabels())}<small>访客一回复就停止跟进，下一轮回答后重新计时。</small></div>`
+  return `${renderDemoWidget(demo)}<div class="demo-panel"><div class="demo-panel-head">${icon('clock', 'xs')}<strong>沉默计时</strong>${badge('', '10 倍速')}${badge(demo.idleSent >= IDLE_MAX_PER_SESSION ? 'warning' : '', `本次会话已发 ${demo.idleSent} / ${IDLE_MAX_PER_SESSION} 条`)}</div>${status}${demoHints(demo, quickLabels())}<small>访客一回复就停止跟进，下一轮回答后从第一条重新计时；一次会话加起来最多 ${IDLE_MAX_PER_SESSION} 条。</small></div>`
 }
 
 /** 留资相关的系统消息与决策说明（留资表单、资料交付两个演示共用）。 */
@@ -1013,7 +1178,8 @@ function applyLeadMeta(demo, meta) {
   else if (meta.leadMerged) notes.push(`访客补充了${names(meta.got)}，合并进同一条线索。`)
   else if (meta.got.length && !meta.leadSaveFailed) notes.push(`记下了${names(meta.got)}；还没有联系方式，暂不生成线索，拿到后合并进同一条。`)
   if (meta.refused) notes.push('访客明确拒绝了，本次会话不再邀请。')
-  if (meta.invited) notes.push(meta.selfRequest ? '访客自己说要留联系方式，不受邀请次数限制。' : `AI 判断这一轮适合邀请（第 ${demo.session.invites} / ${lead.max_invites} 次）。`)
+  if (meta.handoffInvite) notes.push('转人工时没人在线，留资表单开着，接着邀请留资；不占留资表单的邀请次数。')
+  else if (meta.invited) notes.push(meta.selfRequest ? '访客自己说要留联系方式，不受邀请次数限制。' : `AI 判断这一轮适合邀请（第 ${demo.session.invites} / ${lead.max_invites} 次）。`)
   if (meta.asked) { const hint = leadFieldsOf(lead).find(item => item.key === meta.asked)?.ai_hint?.trim(); notes.push(`在对话里问「${fieldLabel(meta.asked, lead)}」${hint ? `，按「给 AI 的说明」：${hint}` : ''}。`) }
   if (meta.note) notes.push(meta.note)
   return notes
@@ -1028,6 +1194,16 @@ function demoSend(text) {
   if (id === 'mcp') return mcpSend(demo, value)
   if (id === 'human_handoff') demo.lastVisitor = value
   if (id === 'idle_follow_up') { demo.idleFrom = null; demo.stepIndex = 0; demo.offset = 0 }
+  if (id === 'proactive' && demo.proactiveMsg && !demo.messages.some(item => item.kind === 'user')) {
+    return demoRun(demo, async () => {
+      demoPush(demo, { kind: 'user', text: value })
+      const { path } = proactiveTrigger(demo)
+      const affirm = /^(好|好的|嗯|可以|需要|要|行|是的?|对)[!！。.~～]*$/.test(value)
+      const intro = PROACTIVE_PAGE_INTROS.find(item => path.includes(item.key))?.text || '吸管 Chat 可以 7×24 小时接待官网访客，回答产品问题、识别意向并留下线索。'
+      await demoSay(demo, affirm ? `好的。你正在看「${path}」，先简单介绍一下：${intro}` : baseAnswer(value))
+      demo.decision = `访客回的是主动消息「${demo.proactiveMsg}」，AI 知道上下文，按「访客回应后怎么接」：${String(C().proactive.instructions || '').trim() || '（未填写）'}`
+    })
+  }
   demoRun(demo, async () => {
     demoPush(demo, { kind: 'user', text: value })
     const { meta } = await demoAnswer(demo, value)
@@ -1037,10 +1213,17 @@ function demoSend(text) {
       if (meta.suggestLeadForm) { demoPush(demo, { kind: 'lead_form', title: '留下联系方式', description: '方便的话留个联系方式，我们会尽快联系你。', submitLabel: '提交', size: formSize }); notes.push('弹出了联系表单。') }
       demo.decision = notes.join(' ') || 'AI 判断这一轮还不适合邀请。'
     }
-    if (id === 'human_handoff' && demo.mode === 'ai' && meta.handoffRequested) {
-      demoPush(demo, { kind: 'status', text: '已提交人工接管请求' })
-      demo.mode = 'waiting'
-      demo.requestedAt = Date.now()
+    if (id === 'human_handoff') {
+      const notes = applyLeadMeta(demo, meta)
+      if (meta.handoffRequested) {
+        demoPush(demo, { kind: 'status', text: '已提交转人工' })
+        demo.mode = 'waiting'
+        demo.requestedAt = Date.now()
+      }
+      if (meta.handoffOffline) notes.unshift('没人在线：对话没有进入待接管，发了没人在线时的消息。')
+      if (meta.handoffRepeat) notes.unshift('访客再次要求人工：只告诉他当前排队情况，不重复通知。')
+      if (meta.suggestLeadForm) demoPush(demo, { kind: 'lead_form', title: '留下联系方式', description: '人工上线后会尽快联系你。', submitLabel: '提交', size: formSize })
+      demo.decision = notes.join(' ')
     }
     if (id === 'asset_delivery') {
       applyLeadMeta(demo, meta)
@@ -1111,7 +1294,7 @@ function renderDemoRoot() {
 setInterval(() => {
   const demo = cfg.demo
   if (!demo || !document.querySelector('[data-demo-root]')) return
-  if (demo.id === 'proactive' && demo.state === 'browsing') {
+  if (demo.id === 'proactive' && demo.state === 'browsing' && !demo.closedManually) {
     demo.elapsed = Math.floor(((Date.now() - demo.started) / 1000) * 5)
     const { trigger } = proactiveTrigger(demo)
     if (trigger && demo.elapsed * 1000 >= trigger.delayMs) {
@@ -1123,8 +1306,9 @@ setInterval(() => {
     const steps = C().idle_follow_up.steps.filter(step => step.message.trim())
     const step = steps[demo.stepIndex]
     const seconds = idleSeconds(demo)
-    if (step && !demo.sending && seconds >= step.idle_seconds) {
+    if (step && !demo.sending && demo.idleSent < IDLE_MAX_PER_SESSION && seconds >= step.idle_seconds) {
       demo.sending = true
+      demo.idleSent += 1
       demoSay(demo, step.message, { label: '沉默跟进' }).then(() => { demo.sending = false; demo.stepIndex += 1; demo.idleFrom = Date.now(); demo.offset = 0; refreshDemo() })
     } else if (step) {
       const node = document.querySelector('[data-demo-idle]'); if (node) node.textContent = seconds
@@ -1222,7 +1406,7 @@ function renderAssessmentDetail(cap) {
 
   return renderCapabilityWorkbench('cap-assessment', cap, s.enabled,
     `${banner}<div class="capability-sections">${entry}${questions}${results}${gate}</div>`,
-    renderCapabilityDebugPanel(cap, '可以直接点选作答，体验访客从测评到留资的完整过程。', `<div data-assess-root>${renderAssessPreview()}</div>`),
+    renderCapabilityDebugPanel(cap, '可以直接点选作答，体验访客从测评到留资的完整过程；显示当前草稿。', `<div data-assess-root>${renderAssessPreview()}</div>`, { title: '访客体验预览', restart: false }),
     `${capNotices('assessment')}${needsLead ? capNotice('<strong>留资表单未开启。</strong>测评会直接给出完整方案，不会收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}`)
 }
 
@@ -1341,7 +1525,7 @@ function renderLeadPopupDetail(cap) {
   </div>`)
   return renderCapabilityWorkbench('cap-lead_popup', cap, p.enabled,
     `${valueBanner('proto', '用一份好资料，换一个联系方式', '访客在价格页、博客、案例页停留时，最关心的东西不一样。按页面送上对口的资料，比统一弹“留个电话”更自然；领了什么资料，也说明了对方在意什么。', '适合内容型获客：有白皮书、案例集、报价单、测算工具等可下载资料的 B2B 业务。', [['globe', '按页面匹配', '不同页面配置不同资料'], ['clock', '合适时机弹出', '停留、滚动或准备离开时'], ['download', '留资领取', '提交后下载 / 发邮箱 / 顾问发送']])}<div class="capability-sections">${rules}${freq}</div>`,
-    renderCapabilityDebugPanel(cap, '切换页面看不同资料；可以直接填写提交，体验访客领取的完整过程。', `<div data-popup-root>${renderPopupPreview()}</div>`),
+    renderCapabilityDebugPanel(cap, '切换页面看不同资料；可以直接填写提交，体验访客领取的完整过程。', `<div data-popup-root>${renderPopupPreview()}</div>`, { title: '官网效果预览', restart: false }),
     `${capNotices('lead_popup')}${!d.actions.lead_capture.enabled ? capNotice('<strong>留资表单未开启。</strong>弹窗的表单字段沿用「留资表单」的设置，开启后才能收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}`)
 }
 
@@ -1399,60 +1583,45 @@ function refreshPopup() {
 
 /* ---------- 推荐消息 ---------- */
 
-function recommend(config, question, answer, asked) {
-  const text = `${question}\n${answer}`
-  let scene
-  let keyword
-  for (const candidate of config.scenes) {
-    const hit = candidate.keywords.find(word => word.trim() && text.includes(word.trim()))
-    if (hit) { scene = candidate; keyword = hit; break }
-  }
+/** 演示：模拟 AI 按当前对话生成推荐。超长的单条丢掉、不截断；访客问过的不再推荐。 */
+function recommend(config, question, answer, asked, { fail = false } = {}) {
+  if (fail) return { items: [], dropped: [], reason: '生成失败：这一轮不显示推荐，不影响回答。' }
+  // 演示里按访客这句话判断话题（真实环境由 AI 按当前对话和这一轮用到的资料生成）
+  const topic = DEMO_REC_TOPICS.find(item => item.keywords.some(word => question.includes(word)))
+  if (!topic && config.show !== 'always') return { items: [], dropped: [], reason: 'AI 判断这一轮没有值得接着问的，不给推荐。' }
+  const max = Math.min(4, Math.max(1, Number(config.max_items) || 3))
   const seen = new Set(asked.map(item => item.trim()))
   const items = []
-  const push = (texts, source) => {
-    for (const value of texts) {
-      if (items.length >= config.max_items) return
-      const trimmed = value.trim()
-      if (!trimmed || seen.has(trimmed) || items.some(item => item.text === trimmed)) continue
-      items.push({ text: trimmed, source })
-    }
+  const dropped = []
+  for (const value of topic ? topic.items : DEMO_REC_FALLBACK) {
+    if (items.length >= max) break
+    if (seen.has(value) || items.includes(value)) continue
+    if (Array.from(value).length > REC_MAX_CHARS) { dropped.push(value); continue }
+    items.push(value)
   }
-  if (config.mode !== 'ai' && scene) push(scene.questions, { kind: 'scene', scene: scene.name })
-  if (config.mode !== 'preset') push(DEMO_AI_SUGGESTIONS[scene?.id ?? 'none'] ?? DEMO_AI_SUGGESTIONS.none, { kind: 'ai' })
-  if (config.mode !== 'ai') push(config.fallback, { kind: 'fallback' })
-  return { items, scene, keyword }
+  // 可以推荐引向已开启能力的说法，比如留资表单开着时推“我想预约演示”
+  const leadItem = '我想预约演示'
+  if (C().actions.lead_capture.enabled && topic && !seen.has(leadItem)) { if (items.length >= max) items.pop(); items.push(leadItem) }
+  return { items, dropped, reason: topic ? `AI 按当前话题（${topic.keywords[0]}）生成了 ${items.length} 条。` : '没有明确话题，按「每轮都给」给了通用的下一步问题。' }
 }
 
 function renderRecommendationsDetail(cap) {
   const r = C().recommendations
-  if (!r.scenes.some(scene => scene.id === cfg.recScene)) cfg.recScene = r.scenes[0]?.id || ''
-  const scenesReady = r.mode === 'ai' || (r.scenes.length > 0 && r.scenes.every(scene => scene.name.trim() && scene.keywords.length && scene.questions.some(q => q.trim())))
-  const mode = capSection('recommendations:mode', '推荐方式', true, true, `<div class="proto-cards" role="radiogroup" aria-label="推荐方式">${RECOMMENDATION_MODES.map(item => `<button type="button" role="radio" aria-checked="${r.mode === item.value}" class="${r.mode === item.value ? 'is-current' : ''}" data-rec-mode="${item.value}"><strong>${item.label}${item.recommended ? badge('success', '推荐') : ''}</strong><small>${item.description}</small></button>`).join('')}</div>
+  const enabled = isCapEnabled('recommendations')
+  const general = capGeneral(cap, 'recommendations.instructions', { placeholder: '比如：访客问完功能后，推荐他问价格或同行案例；不推荐和当前话题无关的问题。', help: '写给 AI 的推荐要求，只约束推荐问题怎么生成，不影响回答本身。' })
+  const interaction = capFixedInteraction(cap, '访客点一下就当作发了这句话，也可以不点、直接打字。固定的推荐问题用外观里的快捷按钮做，这里不提供手工填写。')
+  const settings = capSection('recommendations:settings', '推荐设置', true, true, `<div class="lead-modes" role="radiogroup" aria-label="什么时候出现">${REC_SHOW_MODES.map(item => `<button type="button" class="lead-mode ${r.show === item.value ? 'is-current' : ''}" role="radio" aria-checked="${r.show === item.value}" data-rec-show="${item.value}"><strong>${item.title}${item.value === 'ai' ? badge('', '默认') : ''}</strong><span><em>访客看到</em>${item.sees}</span><span><em>适合</em>${item.fit}</span></button>`).join('')}</div>
     <div class="cfg-form-grid">
-      ${field('每轮最多推荐', capSelect('recommendations.max_items', [1, 2, 3, 4].map(n => [n, `${n} 条`]), 'data-type="number" data-live="rec"'), { help: '手机上 3 条以内体验最好。' })}
-      ${field('推荐区标题', capInput('recommendations.title', 'maxlength="12" data-live="rec"'))}
-      ${r.mode !== 'preset' ? field('给 AI 的生成要求', capTextarea('recommendations.instructions', 2, 'maxlength="600"'), { full: true, help: '只约束推荐问题怎么生成，不影响回答本身。' }) : ''}
+      ${field('每轮最多几条', capSelect('recommendations.max_items', [1, 2, 3, 4].map(n => [n, `${n} 条${n === 3 ? '（默认）' : ''}`]), 'data-type="number" data-live="rec"'))}
+      ${field('每条最多字数', `<p class="capability-readonly">平台固定 ${REC_MAX_CHARS} 字</p>`, { help: '超长的单条直接丢掉，不截断。' })}
     </div>`)
-  const scenes = capSection('recommendations:scenes', `场景与预设问题（${r.scenes.length} 个场景）`, scenesReady, true, `${r.mode === 'ai' ? '<p class="capability-readonly">当前为「全部由 AI 生成」，场景配置不会生效；切换到其他方式后启用。</p>' : ''}
-    <div class="proto-cards">${r.scenes.map((scene, index) => {
-      const active = scene.id === cfg.recScene
-      return `<div class="proto-item ${active ? 'is-active' : ''}" data-rec-focus="${scene.id}"><div class="proto-item-head"><strong>${esc(scene.name || '未命名场景')}</strong><span class="rec-scene-keywords">关键词：${esc(scene.keywords.join('、') || '未设置')}</span><span class="cfg-capdetail-spacer"></span>${badge('', `${scene.questions.filter(q => q.trim()).length} 个问题`)}<button type="button" class="cfg-icon-btn" aria-label="删除场景" data-rec-remove="${index}" ${r.scenes.length <= 1 ? 'disabled' : ''}>${icon('trash', 'sm')}</button></div>
-        ${active ? `<div class="cfg-form-grid">
-          ${field('场景名称', capInput(`recommendations.scenes.${index}.name`, 'data-live="rec"'))}
-          ${field('触发关键词（逗号分隔）', `<input value="${esc(scene.keywords.join('，'))}" data-rec-keywords="${index}" />`, { help: '访客问题或助手回答里出现任一关键词即命中；按列表顺序取第一个命中的场景。' })}
-          ${field('预设问题（每行一个）', capLines(`recommendations.scenes.${index}.questions`, 3, 'data-live="rec"'), { full: true, help: '建议写知识库里能答上的问题；访客已经问过的不会再推荐。' })}
-        </div>` : ''}</div>`
-    }).join('')}</div>
-    <div class="proto-editor-foot"><button type="button" class="cfg-btn sm outline" data-action="cfg-rec-add" ${r.scenes.length >= 10 ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加场景</span></button></div>
-    ${field('兜底推荐（每行一个）', capLines('recommendations.fallback', 2, 'data-live="rec"'), { help: '没命中任何场景、或推荐数量不够时补上。' })}`)
-  return renderCapabilityWorkbench('cap-recommendations', cap, r.enabled,
-    `${valueBanner('proto', '帮访客想好下一个问题', '很多访客问完第一句就走了，不是没兴趣，而是不知道接着问什么。每次回答后推荐几个相关追问，点一下就能继续，对话轮数和留资率都会上来。', '和「快捷问题」的区别：快捷问题是欢迎语下方的固定入口；推荐消息跟着对话走，每轮都按当前话题更新。', [['message', '访客提问', '助手正常回答'], ['spark', '按话题推荐', '命中场景给预设问题，不够由 AI 补'], ['arrow', '点一下继续', '推荐随新回答更新']])}<div class="capability-sections">${mode}${scenes}</div>`,
-    renderCapabilityDebugPanel(cap, '可以直接提问或点推荐继续聊；改左侧配置，已有回答的推荐会立即重算。', `<div data-rec-root>${renderRecPreview()}</div>`),
-    capNotices('recommendations'))
+  const rules = capRules(cap, ['只根据当前对话和这一轮用到的资料生成，不推荐知识库里没有的内容；可以推荐引向已开启能力的说法，比如留资表单开着时推“我想预约演示”。', '和快捷按钮同时存在：有推荐消息的那一轮，快捷按钮收起；没有推荐消息时，快捷按钮按外观里「首轮对话后继续显示」的设置。', '生成失败、结果为空、超长或格式不对时，这一轮不显示，不影响回答。', '不让访客多等：推荐消息和回答一起出来，或者在回答显示完之后补上。', '访客点了推荐消息，这句话按普通访客消息处理，走 Q&A 匹配和知识检索。', '人工接管中不生成推荐消息。'])
+  const side = renderCapabilityDebugPanel(cap, '直接提问或点推荐继续聊；改左侧设置后，最近一轮的推荐会按新设置重算。', `<div class="demo-preview">${enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>'}<div data-rec-root>${renderRecPreview()}</div></div>`, { title: '访客体验预览', restart: false })
+  return capDetailPage(cap, enabled, [general, interaction, settings, rules], side)
 }
 
 function recState() {
-  if (!cfg.rec) cfg.rec = { turns: [], busy: false }
+  if (!cfg.rec) cfg.rec = { turns: [], busy: false, fail: false }
   return cfg.rec
 }
 
@@ -1461,18 +1630,21 @@ function renderRecPreview() {
   const r = d.recommendations
   const st = recState()
   const brand = d.appearance.name.trim() || 'AI 助手'
-  // 配置变了：已有回答的推荐按新配置重算
-  st.turns.forEach((turn, index) => { if (turn.done) Object.assign(turn, recommend(r, turn.question, turn.answer, st.turns.slice(0, index + 1).map(t => t.question))) })
   const last = st.turns.at(-1)
-  const modeLabel = r.mode === 'mixed' ? '预设优先，AI 补充' : r.mode === 'preset' ? '只用预设问题' : '全部由 AI 生成'
-  const turns = st.turns.map(turn => `<div class="xg-widget-message xg-widget-message--user">${esc(turn.question)}</div>${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${turn.answer ? demoMarkdown(turn.answer) : '<span class="rec-typing"><i></i><i></i><i></i></span>'}</div>${turn.done && turn === last && turn.items.length ? `<div class="rec-chips" aria-label="${esc(r.title)}"><span>${esc(r.title)}</span>${turn.items.map(item => `<button type="button" ${st.busy ? 'disabled' : ''} data-rec-ask="${esc(item.text)}">${icon('arrow', 'xs')}${esc(item.text)}</button>`).join('')}</div>` : ''}`).join('')
+  // 配置变了：最近一轮的推荐按新配置重算（生成失败的那一轮保持失败）
+  if (last?.done && !last.failed) Object.assign(last, recommend(r, last.question, last.answer, st.turns.map(t => t.question)))
+  const quick = d.appearance.quickButtons.filter(item => item.text.trim())
+  const lastHasRec = Boolean(last?.done && last.items.length)
+  const showQuick = quick.length && !st.busy && (!st.turns.length || (!lastHasRec && d.appearance.keepQuick))
+  const turns = st.turns.map(turn => `<div class="xg-widget-message xg-widget-message--user">${esc(turn.question)}</div>${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${turn.answer ? demoMarkdown(turn.answer) : '<span class="rec-typing"><i></i><i></i><i></i></span>'}</div>${turn.done && turn === last && turn.items.length ? `<div class="rec-chips">${turn.items.map(item => `<button type="button" ${st.busy ? 'disabled' : ''} data-rec-ask="${esc(item)}">${icon('arrow', 'xs')}${esc(item)}</button>`).join('')}</div>` : ''}`).join('')
   return `<div class="rec-preview"><div class="rec-preview-frame"><div class="xg-widget-shell" style="${widgetStyle()}">
     <header class="xg-widget-header"><div class="xg-widget-identity"><span class="xg-widget-avatar">${esc(Array.from(brand)[0])}</span><div class="xg-widget-identity-copy"><strong>${esc(brand)}</strong><small class="xg-widget-status">在线</small></div></div><button type="button" class="xg-widget-header-action" aria-label="清空对话" title="清空对话" data-action="cfg-rec-clear">×</button></header>
-    <section class="xg-widget-messages"><div class="xg-widget-message-list" data-demo-list>${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${demoMarkdown(d.appearance.welcome)}</div>${!st.turns.length ? `<div class="xg-widget-quick-actions rec-quick">${d.appearance.quickButtons.filter(item => item.text.trim()).map(item => `<button type="button" data-rec-ask="${esc(item.text)}">${esc(item.text)}</button>`).join('')}</div>` : ''}${turns}</div></section>
+    <section class="xg-widget-messages"><div class="xg-widget-message-list" data-demo-list>${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${demoMarkdown(d.appearance.welcome)}</div>${turns}${showQuick ? `<div class="xg-widget-quick-actions rec-quick">${quick.map(item => `<button type="button" data-rec-ask="${esc(item.text)}">${esc(item.text)}</button>`).join('')}</div>` : ''}</div></section>
     <footer class="xg-widget-composer"><div class="xg-widget-input-row"><textarea rows="1" placeholder="输入你的问题…" data-demo-input="rec"></textarea><button type="button" class="xg-widget-send" aria-label="发送" data-demo-submit="rec">↗</button></div>${d.appearance.attribution ? '<div class="xg-powered-slot"><span class="xg-powered"><span class="xg-powered__mark" aria-hidden="true"></span><span class="xg-powered__text">吸管 提供技术支持</span></span></div>' : ''}</footer>
   </div></div>
-  <div class="rec-debug"><div class="rec-debug-head">${icon('filter', 'xs')}<strong>本轮推荐是怎么来的</strong>${badge('', '仅控制台可见')}</div>
-    ${last?.done ? `<p>${last.scene ? `命中场景「${esc(last.scene.name)}」（关键词「${esc(last.keyword)}」）` : '没有命中任何场景'}；方式：${modeLabel}；最多 ${r.max_items} 条。</p><ul>${last.items.map(item => `<li><span>${esc(item.text)}</span>${badge(item.source.kind === 'scene' ? 'info' : item.source.kind === 'ai' ? 'success' : '', item.source.kind === 'scene' ? `预设 · ${esc(item.source.scene)}` : item.source.kind === 'ai' ? 'AI 生成' : '兜底推荐')}</li>`).join('')}</ul>${last.items.length ? '' : '<small>按当前配置没有可推荐的问题。</small>'}` : `<small>${st.busy ? '正在生成回答…' : '先问一个问题，或者点上面的快捷问题，这里会解释推荐来源。'}</small>`}
+  <div class="rec-debug"><div class="rec-debug-head">${icon('filter', 'xs')}<strong>这一轮的推荐</strong>${badge('', r.show === 'always' ? '每轮都给' : '由 AI 判断')}${badge('', `最多 ${r.max_items} 条`)}</div>
+    ${last?.done ? `<p>${esc(last.reason || '')}</p>${last.dropped?.length ? `<p>丢掉了超过 ${REC_MAX_CHARS} 字的：${last.dropped.map(item => `「${esc(item)}」`).join('')}（不截断）。</p>` : ''}<small>${lastHasRec ? '这一轮有推荐，快捷按钮收起。' : d.appearance.keepQuick ? '这一轮没有推荐，快捷按钮按外观设置继续显示。' : '这一轮没有推荐；外观里没开「首轮对话后继续显示」，快捷按钮不显示。'}</small>` : `<small>${st.busy ? '正在生成回答…' : '先问一个问题，或者点上面的快捷按钮。'}</small>`}
+    <label class="console-checkbox"><input type="checkbox" data-demo-recfail ${st.fail ? 'checked' : ''} /><span>模拟下一轮生成失败</span></label>
     <button type="button" class="cfg-btn sm ghost" data-action="cfg-rec-clear" ${st.busy || !st.turns.length ? 'disabled' : ''}>${icon('refresh', 'xs')}<span>清空对话</span></button></div></div>`
 }
 
@@ -1493,7 +1665,6 @@ async function recAsk(question) {
   const text = String(question || '').trim()
   const st = recState()
   if (!text || st.busy) return
-  const r = C().recommendations
   const asked = [...st.turns.map(turn => turn.question), text]
   const turn = { id: Date.now(), question: text, answer: '', done: false, items: [] }
   st.turns.push(turn)
@@ -1509,97 +1680,119 @@ async function recAsk(question) {
     refreshRec()
     await sleep(30)
   }
-  Object.assign(turn, { answer, done: true }, recommend(C().recommendations, text, answer, asked))
+  // 推荐在回答显示完之后补上
+  const failed = st.fail
+  st.fail = false
+  Object.assign(turn, { answer, done: true, failed }, recommend(C().recommendations, text, answer, asked, { fail: failed }))
   st.busy = false
   refreshRec()
 }
 
-/* ---------- MCP（API）调用 ---------- */
+/* ---------- MCP 调用 ---------- */
+
+const mcpToolKind = tool => tool.offline ? 'offline' : tool.read_only === false ? 'write' : tool.read_only === true ? 'read' : 'unknown'
+const MCP_KIND_BADGE = { read: ['', '只读'], unknown: ['warning', '未声明只读'], write: ['danger', '会改数据 · 一期不开放'], offline: ['warning', '工具已下线'] }
 
 function renderMcpDetail(cap) {
   const m = C().mcp
-  const toolCount = m.servers.reduce((sum, server) => sum + server.tools.filter(tool => tool.enabled).length, 0)
-  const servers = m.servers.map((server, si) => capSection(`mcp:server:${server.id}`, `服务：${esc(server.name)}`, server.status === 'connected', true, `<div class="cfg-form-grid">
-      ${field('服务名称', capInput(`mcp.servers.${si}.name`))}
-      ${field('鉴权方式', capSelect(`mcp.servers.${si}.auth`, MCP_AUTH))}
-      ${field('服务地址', capInput(`mcp.servers.${si}.url`), { full: true, help: '支持 MCP 服务（Streamable HTTP），也可以填普通 HTTP API 由平台转成工具。' })}
-    </div>
-    <div class="mcp-server-status">${badge(server.status === 'connected' ? 'success' : 'warning', server.status === 'connected' ? '已连接' : '连接失败')}<small>发现 ${server.tools.length} 个工具，已启用 ${server.tools.filter(tool => tool.enabled).length} 个</small><button type="button" class="cfg-btn sm ghost" data-mcp-test="${si}">${icon('refresh', 'xs')}<span>测试连接</span></button></div>
-    <div class="proto-cards">${server.tools.map((tool, ti) => {
+  const enabled = isCapEnabled('mcp')
+  if (!cfg.mcpTest) cfg.mcpTest = {}
+  const general = capGeneral(cap, 'mcp.instructions', { placeholder: '比如：访客问到具体型号有没有货、什么时候到货时去查；参数不全先问访客。', help: '整个能力一段；每个工具另有自己的说明，见下面的工具列表。' })
+  const interaction = capFixedInteraction(cap, 'AI 用返回的数据组织回答，访客看不到调用过程。返回结果配小组件一期不做。')
+  const servers = m.servers.map((server, si) => {
+    const https = /^https:\/\//i.test(String(server.url || '').trim())
+    const enabledTools = server.tools.filter(tool => tool.enabled && !tool.offline).length
+    const keyField = server.auth === 'none' ? '' : field('密钥', server.key_saved
+      ? `<div class="mcp-key-saved">${badge('success', '已保存')}<small>保存后不再明文显示，也不进草稿</small><button type="button" class="cfg-btn sm ghost" data-mcp-key-reset="${si}">更换</button></div>`
+      : `<div class="mcp-key-saved"><input type="password" placeholder="粘贴请求头里的密钥" data-mcp-key="${si}" autocomplete="off" /><button type="button" class="cfg-btn sm outline" data-mcp-key-save="${si}">保存</button></div>`, { help: '密钥单独保存到服务端，不随草稿发布。' })
+    const tools = server.tools.map((tool, ti) => {
+      const kind = mcpToolKind(tool)
       const active = cfg.mcpTool === tool.id
-      return `<div class="proto-item ${active ? 'is-active' : ''} ${tool.enabled ? '' : 'is-off'}" data-mcp-focus="${tool.id}"><div class="proto-item-head"><button type="button" class="cfg-switch ${tool.enabled ? 'on' : ''}" role="switch" aria-checked="${tool.enabled}" aria-label="启用${esc(tool.label)}" data-mcp-toggle="${si}:${ti}"></button><strong>${esc(tool.label)}</strong><code>${esc(tool.name)}</code>${badge(tool.kind === 'write' ? 'warning' : '', tool.kind === 'write' ? '写入' : '查询')}${tool.kind === 'write' && tool.confirm ? badge('info', '需访客确认') : ''}</div>
+      const [tone, label] = MCP_KIND_BADGE[kind]
+      const confirming = cfg.mcpConfirm === tool.id
+      const test = cfg.mcpTest[tool.id]
+      const switchOn = tool.enabled && kind !== 'write'
+      return `<div class="proto-item ${active ? 'is-active' : ''} ${switchOn && kind !== 'offline' ? '' : 'is-off'}" data-mcp-focus="${tool.id}"><div class="proto-item-head"><button type="button" class="cfg-switch ${switchOn ? 'on' : ''}" role="switch" aria-checked="${switchOn}" aria-label="启用${esc(tool.label)}" data-mcp-toggle="${si}:${ti}" ${kind === 'write' ? 'disabled title="会改数据的工具一期不开放"' : ''}></button><strong>${esc(tool.label)}</strong><code>${esc(tool.name)}</code>${badge(tone, label)}${tool.discovered ? badge('info', '新发现') : ''}</div>
+        ${confirming ? `<div class="cfg-notice warning mcp-confirm" role="alertdialog"><span class="cfg-notice-icon">${icon('alert', 'sm')}</span><div>这个工具没有声明只读。确认<strong>这个工具只查数据、不改数据</strong>后才能勾选。</div><div class="cfg-notice-actions"><button type="button" class="cfg-btn sm primary" data-mcp-confirm="${si}:${ti}">确认只查数据</button><button type="button" class="cfg-btn sm ghost" data-mcp-confirm-cancel>取消</button></div></div>` : ''}
         ${active ? `<div class="cfg-form-grid">
-          ${field('调用说明（写给 AI）', capTextarea(`mcp.servers.${si}.tools.${ti}.description`, 2), { full: true, help: '写清什么时候调用、缺参数时怎么向访客要。' })}
-          <div class="cfg-field full"><label>参数</label>${tool.params.length ? `<table class="console-table mcp-params"><thead><tr><th>参数</th><th>说明</th><th>必填</th><th>示例</th></tr></thead><tbody>${tool.params.map(param => `<tr><td><code>${esc(param.name)}</code></td><td>${esc(param.label)}</td><td>${param.required ? '是' : '否'}</td><td>${esc(param.example)}</td></tr>`).join('')}</tbody></table>` : '<p class="capability-readonly">不需要参数。</p>'}<small>参数由服务自动提供，不能在这里修改。</small></div>
-          ${tool.kind === 'write' ? `<div class="cfg-field full">${capCheck(`mcp.servers.${si}.tools.${ti}.confirm`, '调用前先让访客确认（推荐）', 'data-rerender="1"')}</div>` : ''}
+          ${kind === 'offline' ? `<div class="cfg-field full">${capNotice('<strong>工具已下线：</strong>服务里已经没有这个工具，不再给 AI 用。可以关掉或删掉这项勾选。')}</div>` : ''}
+          ${kind === 'write' ? '<div class="cfg-field full"><p class="capability-readonly">下单、改预约这类会改数据的工具一期不开放：官网访客没有身份验证，写数据风险大。</p></div>' : ''}
+          ${field('工具说明（写给 AI）', capTextarea(`mcp.servers.${si}.tools.${ti}.description`, 2, 'maxlength="1000"'), { full: true, help: '默认带出工具自己的描述，可以改成业务说法，告诉 AI 什么问题该用它。' })}
+          <div class="cfg-field full"><label>参数</label>${tool.params.length ? `<table class="console-table mcp-params"><thead><tr><th>参数</th><th>说明</th><th>必填</th><th>示例</th></tr></thead><tbody>${tool.params.map(param => `<tr><td><code>${esc(param.name)}</code></td><td>${esc(param.label)}</td><td>${param.required ? '是' : '否'}</td><td>${esc(param.example)}</td></tr>`).join('')}</tbody></table>` : '<p class="capability-readonly">不需要参数。</p>'}<small>参数由服务提供；服务里参数变了按新参数用。AI 只用访客明确说出的值，缺的先问，不猜。</small></div>
+          ${kind === 'read' || kind === 'unknown' ? `<div class="cfg-field full"><label>测试调用</label><div class="mcp-test">${tool.params.map(param => `<input placeholder="${esc(param.label)}（如 ${esc(param.example)}）" data-mcp-arg="${tool.id}:${esc(param.name)}" value="${esc(test?.args?.[param.name] || '')}" />`).join('')}<button type="button" class="cfg-btn sm outline" data-mcp-run="${si}:${ti}">${icon('plug', 'xs')}<span>测试调用</span></button></div><small>直接调用工具看返回结果，不经过 AI。</small>${test ? `<pre class="mcp-test-result ${test.error ? 'is-error' : ''}">${esc(test.error || JSON.stringify(test.result, null, 2))}</pre>` : ''}</div>` : ''}
         </div>` : ''}</div>`
-    }).join('')}</div>`)).join('')
-  const settings = capSection('mcp:settings', '调用设置', true, false, `<div class="cfg-form-grid">
-    <div class="cfg-field"><label>单次调用超时</label><span class="proto-inline"><input class="console-input" type="number" min="2" max="30" value="${m.timeout_seconds}" data-bind="mcp.timeout_seconds" data-type="number" data-clamp="2,30" /> 秒</span><small>超时后助手会告诉访客暂时查不到，并建议转人工。</small></div>
-    <div class="cfg-field full">${capCheck('mcp.show_trace_to_visitor', '在对话里向访客显示「正在查询…」的过程卡片', 'data-mcp-trace="1"')}</div>
-  </div>`)
+    }).join('')
+    return capSection(`mcp:server:${server.id}`, `服务：${esc(server.name || '未命名服务')}`, https && server.status === 'connected', true, `<div class="cfg-form-grid">
+        ${field('服务名称', capInput(`mcp.servers.${si}.name`, 'maxlength="40"'))}
+        ${field('鉴权方式', capSelect(`mcp.servers.${si}.auth`, MCP_AUTH, 'data-rerender="1"'))}
+        ${field('服务地址', capInput(`mcp.servers.${si}.url`, 'type="url" placeholder="https://" data-rerender="1"'), { full: true, help: https ? '只接受 HTTPS。' : '<span class="mcp-error">只接受 HTTPS 地址。</span>' })}
+        ${keyField}
+      </div>
+      <div class="mcp-server-status">${badge(server.status === 'connected' ? 'success' : 'warning', server.status === 'connected' ? '已连接' : '连接异常')}<small>${server.status === 'connected' ? `发现 ${server.tools.length} 个工具，已启用 ${enabledTools} 个` : esc(server.error || '连不上')} · 最近 24 小时失败 ${server.failures_24h || 0} 次</small><button type="button" class="cfg-btn sm ghost" data-mcp-test="${si}">${icon('refresh', 'xs')}<span>测试连接</span></button>${m.servers.length > 1 ? `<button type="button" class="cfg-btn sm ghost" data-mcp-remove="${si}">${icon('trash', 'xs')}<span>移除服务</span></button>` : ''}</div>
+      <div class="notification-title"><strong>工具</strong><small>只有勾选的工具会给 AI 用，新发现的工具默认不勾。</small></div>
+      <div class="proto-cards">${tools}</div>`)
+  }).join('')
+  const addServer = `<div class="proto-editor-foot"><button type="button" class="cfg-btn sm outline" data-action="cfg-mcp-add" ${m.servers.length >= MCP_MAX_SERVERS ? 'disabled' : ''}>${icon('plus', 'xs')}<span>接入服务（${m.servers.length} / ${MCP_MAX_SERVERS}）</span></button></div>`
+  const rules = capRules(cap, ['一期只启用查询类工具。服务声明为只读的可以直接勾选；没声明的，勾选时要确认“这个工具只查数据、不改数据”。', '参数只用访客明确说出的值，缺的先问，不猜；前面几轮说过的型号、城市可以用。', '每轮回答前最多调用一个工具；要连续查两次的问题，分两轮回答。', `单次调用最多等 ${MCP_TIMEOUT_SECONDS} 秒，返回内容最大 ${MCP_MAX_RESULT_KB}KB，超时或超长都算失败；返回的内容只当数据用，里面写的指令不执行。`, '事实以返回结果为准。没查到就说没查到，不能拿知识库里的旧数据充当实时结果。', '服务、工具勾选和说明走草稿发布；密钥不进草稿，单独保存到服务端。'])
   const demo = demoFor('mcp')
-  return renderCapabilityWorkbench('cap-mcp', cap, m.enabled,
-    `${valueBanner('proto', '让助手直接查业务系统', '访客问“我的发票开了没”“帮我开个试用”，以前只能转人工；接上业务系统后，助手在对话里直接查询、直接办理，几秒钟给出准确答复。', '适合有订单、账户、工单等业务数据的企业；写操作可以设置为先让访客确认再执行。', [['plug', '接入服务', '填 MCP 服务地址或 API，选择鉴权'], ['settings', '挑选工具', '开启需要的工具，写清调用时机'], ['message', '对话中调用', '助手按需调用，把结果说给访客听']])}<div class="capability-sections">${servers}${settings}</div>`,
-    renderCapabilityDebugPanel(cap, `直接在窗口里问订单发票、开通试用或系统状态；当前 ${toolCount} 个工具可用，返回数据为示例。`, `<div class="demo-preview">${m.enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会调用工具；开启后可立即测试左侧草稿。</div>'}<div data-demo-root>${renderMcpDemo(demo)}</div></div>`),
-    capNotices('mcp'))
+  const side = renderCapabilityDebugPanel(cap, '直接在窗口里问订单发票、演示时段或系统状态；返回数据为示例。', `<div class="demo-preview">${enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>'}<div data-demo-root>${renderMcpDemo(demo)}</div></div>`)
+  return capDetailPage(cap, enabled, [general, interaction, servers, addServer, rules], side)
 }
 
 const mcpTools = () => C().mcp.servers.flatMap(server => server.tools)
-const mcpTool = name => mcpTools().find(item => item.name === name)
-const maskPhone = phone => phone.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2')
+const mcpUsable = name => mcpTools().find(item => item.name === name && item.enabled && !item.offline && item.read_only !== false)
 const firstHit = (text, words) => words.find(word => text.includes(word))
 
 function renderMcpDemo(demo) {
-  const enabled = mcpTools().filter(item => item.enabled)
-  return `${renderDemoWidget(demo, { quick: ['帮我查一下订单 XG20261108001 的发票开了没', '我想开通试用', '你们系统现在正常吗？'] })}
-    <div class="demo-panel"><div class="demo-panel-head">${icon('plug', 'xs')}<strong>调用记录</strong>${badge('', `${enabled.length} 个工具可用`)}</div>
-      ${demo.calls.length ? `<ul class="mcp-calls">${demo.calls.map(item => `<li><span><strong>${esc(item.label)}</strong><code>${esc(item.name)}(${esc(Object.entries(item.args).map(([k, v]) => `${k}: ${v}`).join(', '))})</code></span><small>${item.ms} ms</small>${badge('success', '成功')}</li>`).join('')}</ul>` : '<p>还没有调用。试试问订单发票、开通试用或系统状态。</p>'}
-      <small>演示里的返回数据是各工具的示例返回；真实环境调用你接入的接口。${C().mcp.show_trace_to_visitor ? '' : '当前设置为不向访客显示调用过程，只在这里记录。'}</small></div>`
+  const usable = mcpTools().filter(item => item.enabled && !item.offline && item.read_only !== false)
+  return `${renderDemoWidget(demo, { quick: ['帮我查一下订单 XG20261108001 的发票开了没', '想约个产品演示，上海这周有空吗？', '你们系统现在正常吗？'] })}
+    <div class="demo-panel"><div class="demo-panel-head">${icon('plug', 'xs')}<strong>调用记录</strong>${badge('', `${usable.length} 个工具可用`)}${badge('', '仅控制台可见')}</div>
+      ${demo.calls.length ? `<ul class="mcp-calls">${demo.calls.map(item => `<li><span><strong>${esc(item.label)}</strong><code>${esc(item.name)}(${esc(Object.entries(item.args).map(([k, v]) => `${k}: ${v}`).join(', '))})</code></span><small>${item.ms} ms</small>${badge(item.ok ? 'success' : 'danger', item.ok ? '成功' : '超时')}</li>`).join('')}</ul>` : '<p>还没有调用。</p>'}
+      <label class="console-checkbox"><input type="checkbox" data-demo-mcpfail ${demo.mcpFail ? 'checked' : ''} /><span>模拟服务超时（${MCP_TIMEOUT_SECONDS} 秒没返回）</span></label>
+      <small>访客只看到 AI 用返回数据组织的文字回答。每轮最多调用一个工具。</small></div>`
 }
 
-async function mcpCall(demo, name, args, result) {
-  const def = mcpTool(name)
-  const ms = 300 + Math.round(Math.random() * 600)
-  const traceId = C().mcp.show_trace_to_visitor ? demoPush(demo, { kind: 'tool', trace: { name, label: def.label, args, status: 'running' } }) : null
+async function mcpCall(demo, name, args) {
+  const def = mcpUsable(name)
+  const ok = !demo.mcpFail
+  const ms = ok ? 300 + Math.round(Math.random() * 600) : MCP_TIMEOUT_SECONDS * 1000
+  await sleep(ok ? ms : 900)
+  demo.calls.unshift({ label: def.label, name, args, ms, ok })
   refreshDemo()
-  await sleep(ms)
-  if (traceId != null) demoUpdate(demo, traceId, { trace: { name, label: def.label, args, result, status: 'done', durationMs: ms } })
-  demo.calls.unshift({ label: def.label, name, args, ms })
-  refreshDemo()
+  return ok
+}
+
+async function mcpFailReply(demo) {
+  const online = JSON.parse(cfg.published).actions || capabilityDefaults().actions
+  const alt = online.human_handoff?.enabled ? '需要的话我可以帮你转人工确认。' : online.lead_capture?.enabled ? '可以留个联系方式，查到后顾问联系你。' : ''
+  await demoSay(demo, `抱歉，系统暂时查不到，稍后再试一次。${alt}`)
 }
 
 function mcpSend(demo, text) {
   demoRun(demo, async () => {
     demoPush(demo, { kind: 'user', text })
     const orderId = text.match(/XG\d{6,}/i)?.[0]?.toUpperCase()
-    const phone = text.match(/1\d{10}/)?.[0]
-    if (demo.pending?.tool === 'create_trial') {
-      const company = text.replace(/1\d{10}/, '').replace(/(公司名称|公司|名称|手机号码|手机号|手机)[是:：]?/g, '').replace(/[，,。；;\s]/g, '').trim() || demo.pending.company
-      const next = { tool: 'create_trial', company: company || undefined, phone: phone ?? demo.pending.phone }
-      if (!next.company || !next.phone) { demo.pending = next; await demoSay(demo, !next.phone ? '还需要一个手机号，用来接收登录链接。' : '还需要公司名称。'); return }
-      demo.pending = null
-      await mcpStartTrial(demo, next.company, next.phone)
-      return
-    }
-    const order = mcpTool('query_order')
-    if (order?.enabled && (orderId || firstHit(text, ['订单', '发票', '付款']) || demo.pending?.tool === 'query_order')) {
+    const order = mcpUsable('query_order')
+    if (order && (orderId || firstHit(text, ['订单', '发票', '付款']) || demo.pending?.tool === 'query_order')) {
       if (!orderId) { demo.pending = { tool: 'query_order' }; await demoSay(demo, '可以帮你查。请告诉我订单号，在付款成功的邮件里，以 XG 开头。'); return }
       demo.pending = null
+      if (!(await mcpCall(demo, 'query_order', { order_id: orderId }))) return mcpFailReply(demo)
       const result = { ...order.sample_result, order_id: orderId }
-      await mcpCall(demo, 'query_order', { order_id: orderId }, result)
       await demoSay(demo, `查到了：订单 ${orderId} 是**${result.plan}**，金额 ${Number(result.amount).toLocaleString()} 元，${result.paid_at} 已付款。\n发票${result.invoice_status}（${result.invoice_no}），已发送到 ${result.invoice_sent_to}。`)
       return
     }
-    const trial = mcpTool('create_trial')
-    if (trial?.enabled && firstHit(text, ['试用', '开通', '体验账号'])) {
-      demo.pending = { tool: 'create_trial', phone }
-      await demoSay(demo, '可以直接帮你开通 14 天专业版试用。请告诉我公司名称和手机号，例如：云帆数据科技 13800001111')
+    const slots = mcpUsable('query_demo_slots')
+    const city = firstHit(text, ['线上', '上海', '北京', '深圳', '杭州', '广州', '南京', '无锡']) || (demo.pending?.tool === 'query_demo_slots' ? text.replace(/[，。,.\s]/g, '').slice(0, 6) : '')
+    if (slots && (firstHit(text, ['演示', '预约', '有空', '时段']) || demo.pending?.tool === 'query_demo_slots')) {
+      if (!city) { demo.pending = { tool: 'query_demo_slots' }; await demoSay(demo, '可以帮你查可预约的时段。想约线上，还是哪个城市线下？'); return }
+      demo.pending = null
+      if (!(await mcpCall(demo, 'query_demo_slots', { city }))) return mcpFailReply(demo)
+      await demoSay(demo, `查了一下，${city}最近可以约的演示时段有：${slots.sample_result.slots.join('、')}。你看哪个合适？`)
       return
     }
-    const status = mcpTool('service_status')
-    if (status?.enabled && firstHit(text, ['正常', '故障', '宕机', '打不开', '很慢', '状态', '异常'])) {
-      await mcpCall(demo, 'service_status', {}, status.sample_result)
+    const status = mcpUsable('service_status')
+    if (status && firstHit(text, ['正常', '故障', '宕机', '打不开', '很慢', '状态', '异常'])) {
+      if (!(await mcpCall(demo, 'service_status', {}))) return mcpFailReply(demo)
       await demoSay(demo, '刚查了一下：系统整体运行**正常**，对话服务和知识库检索都没问题；企业微信推送有轻微延迟（约 1–2 分钟），不影响对话。')
       return
     }
@@ -1607,19 +1800,20 @@ function mcpSend(demo, text) {
   })
 }
 
-async function mcpStartTrial(demo, company, phone) {
-  if (mcpTool('create_trial').confirm) {
-    const id = demoPush(demo, { kind: 'confirm', text: `将为「${company}」开通 14 天专业版试用，登录链接发送到 ${maskPhone(phone)}。确认开通吗？`, confirmLabel: '确认开通', state: 'pending' })
-    demo.confirm = { id, company, phone }
-    refreshDemo()
-    return
-  }
-  await mcpDoTrial(demo, company, phone)
-}
-
-async function mcpDoTrial(demo, company, phone) {
-  await mcpCall(demo, 'create_trial', { company, phone }, mcpTool('create_trial').sample_result)
-  await demoSay(demo, `已为「${company}」开通好了 🎉 14 天专业版试用，登录链接已经发到 ${maskPhone(phone)}。上手过程中有问题随时问我。`)
+/** 测试连接：模拟三种失败原因；连上后列出工具，新发现的默认不勾。 */
+function mcpTestConnection(si) {
+  const server = C().mcp.servers[si]
+  const url = String(server.url || '').trim()
+  let error = ''
+  if (!/^https:\/\//i.test(url)) error = '地址不通：只接受 HTTPS 地址'
+  else if (server.auth === 'header' && !server.key_saved) error = '鉴权失败：还没保存密钥'
+  else if (/fail|error/i.test(url)) error = '地址不通：连接超时'
+  else if (!/\/mcp\/?$/i.test(url)) error = '不是 MCP 服务：这个地址没有返回工具列表'
+  if (error) { Object.assign(server, { status: 'error', error }); renderApp(); toast(error, 'info'); return }
+  Object.assign(server, { status: 'connected', error: '' })
+  if (!server.tools.some(tool => tool.name === 'query_price')) server.tools.push({ id: newProtoId('tool'), name: 'query_price', label: '查询实时价格', enabled: false, read_only: true, discovered: true, description: '访客问具体版本、席位数的实时价格时调用。', params: [{ name: 'plan', label: '版本', required: true, example: '专业版' }], sample_result: { plan: '专业版', price_per_year: 35760, currency: 'CNY' } })
+  renderApp()
+  toast(`连接正常，发现 ${server.tools.filter(tool => !tool.offline).length} 个工具`)
 }
 
 /* ---------- 事件 ---------- */
@@ -1649,9 +1843,10 @@ function capHandleChange(event) {
     if (String(value) !== target.value) { target.value = value; setCfgValue(target.dataset.bind, value); refreshCfgChrome() }
   }
   if (target.matches('[data-assess-multiple]')) { C().assessment.questions[Number(target.dataset.assessMultiple)].multiple = target.value === 'multiple'; renderApp(); return true }
-  if (target.matches('[data-rec-keywords]')) { C().recommendations.scenes[Number(target.dataset.recKeywords)].keywords = target.value.split(/[,，、\s]+/).filter(Boolean); renderApp(); return true }
   if (target.matches('[data-demo-failsave]')) { if (cfg.demo) cfg.demo.session.failSave = target.checked; return true }
-  if (target.matches('[data-mcp-trace]')) { cfg.demo = newDemo('mcp'); renderApp(); return true }
+  if (target.matches('[data-demo-offline]')) { if (cfg.demo) cfg.demo.session.handoffOnline = !target.checked; refreshDemo(); return true }
+  if (target.matches('[data-demo-recfail]')) { recState().fail = target.checked; return true }
+  if (target.matches('[data-demo-mcpfail]')) { if (cfg.demo) cfg.demo.mcpFail = target.checked; return true }
   return false
 }
 
@@ -1735,7 +1930,7 @@ function capAction(name, el) {
   if (name === 'cfg-demo-launch' && demo) { demo.state = 'open'; demo.openedBy = '访客自己点开'; refreshDemo(); return true }
   if (name === 'cfg-demo-open-bubble' && demo) {
     const { trigger } = proactiveTrigger(demo)
-    if (trigger?.kind === 'proactive') { demo.state = 'open'; demo.openedBy = '访客点击了主动消息'; demoPush(demo, { kind: 'assistant', text: trigger.message, label: '主动消息' }); refreshDemo() }
+    if (trigger?.kind === 'proactive') { demo.state = 'open'; demo.openedBy = '访客点击了主动消息'; demo.proactiveMsg = trigger.message; demoPush(demo, { kind: 'assistant', text: trigger.message, label: '主动消息' }); demo.decision = '主动消息已作为助手的第一条消息记入对话。回一句试试，比如「好的」。'; refreshDemo() }
     return true
   }
   if (name === 'cfg-demo-forward' && demo) {
@@ -1772,8 +1967,13 @@ function capAction(name, el) {
   }
   if (name === 'cfg-popup-close') { cfg.popup.phase = 'closed'; refreshPopup(); return true }
   if (name === 'cfg-popup-replay') { cfg.popup = null; refreshPopup(); return true }
-  if (name === 'cfg-rec-add') { const scene = { id: newProtoId('scene'), name: '新场景', keywords: [], questions: [''] }; d.recommendations.scenes.push(scene); cfg.recScene = scene.id; renderApp(); return true }
   if (name === 'cfg-rec-clear') { cfg.rec = null; refreshRec(); return true }
+  if (name === 'cfg-mcp-add') {
+    if (d.mcp.servers.length >= MCP_MAX_SERVERS) return true
+    d.mcp.servers.push({ id: newProtoId('srv'), name: '新服务', url: 'https://', auth: 'header', key_saved: false, status: 'error', error: '还没测试连接', failures_24h: 0, tools: [] })
+    renderApp()
+    return true
+  }
   return false
 }
 
@@ -1800,17 +2000,8 @@ function capHandleClick(event) {
   }
   if ((el = pick('[data-demo-expand]'))) { const form = cfg.demo?.forms[Number(el.dataset.demoExpand)]; if (form) { form.expanded = true; refreshDemo() } return true }
   if ((el = pick('[data-demo-tool]'))) { const id = Number(el.dataset.demoTool); cfg.demo.tools[id] = !cfg.demo.tools[id]; refreshDemo(); return true }
-  if ((el = pick('[data-demo-confirm]'))) {
-    const [id, ok] = el.dataset.demoConfirm.split(':').map(Number)
-    const demo = cfg.demo
-    const pending = demo?.confirm
-    if (!pending || pending.id !== id) return true
-    demo.confirm = null
-    demoUpdate(demo, id, { state: ok ? 'confirmed' : 'cancelled' })
-    demoRun(demo, async () => { if (ok) await mcpDoTrial(demo, pending.company, pending.phone); else await demoSay(demo, '好的，先不开通。需要的时候随时告诉我。') })
-    return true
-  }
-  if ((el = pick('[data-demo-close]'))) { cfg.demo.state = 'browsing'; cfg.demo.started = Date.now() - cfg.demo.elapsed * 200; refreshDemo(); return true }
+
+  if ((el = pick('[data-demo-close]'))) { Object.assign(cfg.demo, { state: 'browsing', closedManually: true }); refreshDemo(); return true }
   if ((el = pick('[data-demo-pattern]'))) { cfg.demo.pattern = el.dataset.demoPattern; refreshDemo(); return true }
   if ((el = pick('[data-lead-interaction]'))) { C().actions.lead_capture.interaction = el.dataset.leadInteraction; renderApp(); return true }
   if ((el = pick('[data-lead-move]'))) { const [index, step] = el.dataset.leadMove.split(':').map(Number); moveLeadField(index, index + step); return true }
@@ -1845,12 +2036,40 @@ function capHandleClick(event) {
   if ((el = pick('[data-popup-remove]'))) { event.stopPropagation(); C().lead_popup.rules.splice(Number(el.dataset.popupRemove), 1); renderApp(); return true }
   if ((el = pick('[data-popup-tab]'))) { cfg.popupActive = el.dataset.popupTab; renderApp(); return true }
   if ((el = pick('[data-popup-focus]')) && el.dataset.popupFocus !== cfg.popupActive && !event.target.closest('input, textarea, select')) { cfg.popupActive = el.dataset.popupFocus; renderApp(); return true }
-  if ((el = pick('[data-rec-mode]'))) { C().recommendations.mode = el.dataset.recMode; renderApp(); return true }
-  if ((el = pick('[data-rec-remove]'))) { event.stopPropagation(); C().recommendations.scenes.splice(Number(el.dataset.recRemove), 1); renderApp(); return true }
+  if ((el = pick('[data-rec-show]'))) { C().recommendations.show = el.dataset.recShow; renderApp(); return true }
   if ((el = pick('[data-rec-ask]'))) { recAsk(el.dataset.recAsk); return true }
-  if ((el = pick('[data-rec-focus]')) && el.dataset.recFocus !== cfg.recScene && !event.target.closest('input, textarea, select, button')) { cfg.recScene = el.dataset.recFocus; renderApp(); return true }
-  if ((el = pick('[data-mcp-toggle]'))) { const [si, ti] = el.dataset.mcpToggle.split(':').map(Number); const tool = C().mcp.servers[si].tools[ti]; tool.enabled = !tool.enabled; renderApp(); return true }
-  if ((el = pick('[data-mcp-test]'))) { const server = C().mcp.servers[Number(el.dataset.mcpTest)]; toast(`连接正常，发现 ${server.tools.length} 个工具`); return true }
+  if ((el = pick('[data-mcp-toggle]'))) {
+    const [si, ti] = el.dataset.mcpToggle.split(':').map(Number)
+    const tool = C().mcp.servers[si].tools[ti]
+    if (tool.read_only === false) return true
+    if (!tool.enabled && tool.read_only == null) { cfg.mcpConfirm = tool.id; cfg.mcpTool = tool.id; renderApp(); return true }
+    tool.enabled = !tool.enabled
+    renderApp()
+    return true
+  }
+  if ((el = pick('[data-mcp-confirm]'))) { const [si, ti] = el.dataset.mcpConfirm.split(':').map(Number); Object.assign(C().mcp.servers[si].tools[ti], { read_only: true, enabled: true }); cfg.mcpConfirm = ''; renderApp(); return true }
+  if ((el = pick('[data-mcp-confirm-cancel]'))) { cfg.mcpConfirm = ''; renderApp(); return true }
+  if ((el = pick('[data-mcp-test]'))) { mcpTestConnection(Number(el.dataset.mcpTest)); return true }
+  if ((el = pick('[data-mcp-remove]'))) { C().mcp.servers.splice(Number(el.dataset.mcpRemove), 1); renderApp(); return true }
+  if ((el = pick('[data-mcp-key-reset]'))) { C().mcp.servers[Number(el.dataset.mcpKeyReset)].key_saved = false; renderApp(); return true }
+  if ((el = pick('[data-mcp-key-save]'))) {
+    const si = Number(el.dataset.mcpKeySave)
+    const input = document.querySelector(`[data-mcp-key="${si}"]`)
+    if (!input?.value.trim()) { toast('先填密钥', 'info'); return true }
+    C().mcp.servers[si].key_saved = true
+    renderApp()
+    toast('密钥已单独保存到服务端，不再明文显示')
+    return true
+  }
+  if ((el = pick('[data-mcp-run]'))) {
+    const [si, ti] = el.dataset.mcpRun.split(':').map(Number)
+    const tool = C().mcp.servers[si].tools[ti]
+    const args = Object.fromEntries(tool.params.map(param => [param.name, document.querySelector(`[data-mcp-arg="${tool.id}:${param.name}"]`)?.value.trim() || '']))
+    const missing = tool.params.filter(param => param.required && !args[param.name]).map(param => param.label)
+    cfg.mcpTest[tool.id] = missing.length ? { args, error: `缺少必填参数：${missing.join('、')}` } : { args, result: { ...tool.sample_result, ...Object.fromEntries(Object.entries(args).filter(([, v]) => v)) } }
+    renderApp()
+    return true
+  }
   if ((el = pick('[data-mcp-focus]')) && el.dataset.mcpFocus !== cfg.mcpTool && !event.target.closest('input, textarea, select, button')) { cfg.mcpTool = el.dataset.mcpFocus; renderApp(); return true }
   return false
 }
