@@ -106,6 +106,8 @@ const CAPABILITIES = [
   { id: 'proactive', name: '主动弹窗', icon: 'spark', trigger: 'page', summary: '访客还没开口时，按页面自动打开对话窗，或者先在入口旁边弹一句主动消息。', interaction: { kind: 'text', label: '自动打开对话窗 / 主动消息气泡' } },
   { id: 'idle_follow_up', name: '沉默跟进', icon: 'clock', trigger: 'page', summary: '访客开口、助手回复后访客迟迟不回，按顺序补发运营写好的跟进话术。', interaction: { kind: 'text', label: '纯文字' } }
 ]
+const DEDICATED_DEMO_CAPABILITIES = new Set(['lead_popup', 'proactive', 'idle_follow_up'])
+const usesUnifiedDebug = id => Boolean(id) && !DEDICATED_DEMO_CAPABILITIES.has(id)
 const testingBadge = cap => cap.testing ? '<span class="cfg-badge warning" title="一期不做，原型里保留供测试">测试</span>' : ''
 
 const DEFAULT_ASSESSMENT = {
@@ -554,21 +556,33 @@ function capHeader(cap, enabled, extraBadge = '') {
   </header>`
 }
 
-/** 能力详情页：左侧配置分区，右侧演示面板（跟随页面滚动、吸顶），布局同控制台原型。 */
+/** 能力详情页：左侧固定内部导航与独立配置滚动区，右侧演示占满整列。 */
 function renderCapabilityWorkbench(key, cap, enabled, main, preview, notices = '') {
-  return cfgPage(key, `${capHeader(cap, enabled)}
-    <section class="cfg-body">${notices}
-      <div class="agent-config-layout capability-demo-layout">
-        <div class="agent-config-main">${main}</div>
-        <aside class="agent-config-side capability-demo-side">${preview}</aside>
+  return cfgPage(key, `<div class="capability-workbench">
+    <section class="capability-workbench-main">
+      ${capHeader(cap, enabled)}
+      <div class="capability-workbench-scroll" data-keep-scroll="cfg-${key}-scroll">
+        <section class="cfg-body">${notices}${main}</section>
       </div>
-    </section>`)
+    </section>
+    <aside class="capability-workbench-debug" aria-label="${cap.name}演示">${preview}</aside>
+  </div>`)
 }
 
 /** 右侧演示面板：标题默认「演示」，带「重新开始」（清空本能力的调试会话）。 */
 function renderCapabilityDebugPanel(cap, description, body, { title = '演示', restart = true } = {}) {
+  if (usesUnifiedDebug(cap.id)) {
+    const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-cap-debug-reset">${icon('refresh', 'xs')}<span>新会话</span></button>`
+    return `<section class="capability-debug-panel capability-unified-debug">
+      ${renderCfgDebugToolbar({ description: '可调试当前草稿中所有已开启的能力。', actions })}
+      <div class="capability-debug-canvas">${body}</div>
+    </section>`
+  }
   const actions = restart ? `<button type="button" class="cfg-btn sm ghost" data-action="cfg-cap-debug-reset">${icon('refresh', 'xs')}<span>重新开始</span></button>` : ''
-  return cfgPanel(title, description, body, { cls: 'widget-preview-frame', actions })
+  return `<section class="widget-preview-frame capability-debug-panel">
+    ${renderCfgDebugToolbar({ title, description, actions })}
+    <div class="capability-debug-canvas">${body}</div>
+  </section>`
 }
 
 function saveCapabilityDebugSession(id) {

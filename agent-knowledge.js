@@ -1,5 +1,5 @@
 /* ==========================================================================
-   知识库：数据源列表 / 添加知识 / 知识源详情 / Q&A / 未答队列 / 检索设置 / 回答时的匹配
+   知识库：数据源列表 / 添加知识 / 知识源详情 / Q&A / 未答列表 / 检索设置 / 回答时的匹配
    界面参照控制台原型（吸管控制台-单文件复刻.html），规则以知识库评审 PRD 及 11/5 决议清单为准。
    依赖：agent-config.js（cfg、esc、cfgPanel、cfgPage…）、agent-capabilities.js（badge）、app.js（icon、toast、renderApp）
    ========================================================================== */
@@ -121,9 +121,10 @@ const KB_ROUTE_LABEL = { button: '快捷按钮绑定，直接命中', exact: '�
 function kbFiltered() {
   const keyword = cfg.kbSearch.trim().toLowerCase()
   const list = cfg.sources.filter(item => {
+    if (item.type === 'qa') return false
     if (cfg.kbType !== 'all' && item.type !== cfg.kbType) return false
     if (!keyword) return true
-    const text = item.type === 'qa' ? `${item.name}${item.questions.join('')}${item.answer}` : `${item.name}${(item.tags || []).join('')}`
+    const text = `${item.name}${(item.tags || []).join('')}`
     return text.toLowerCase().includes(keyword)
   })
   return cfg.kbSort === 'new' ? list : [...list].reverse()
@@ -159,7 +160,7 @@ function renderKbList() {
       ${kbStatusChip(item)}<span class="cfg-type-chip">${icon(type.icon, 'xs')}${type.label}</span>
       ${cfg.kbBulk ? '' : `<div class="kb-menu-wrap"><button type="button" class="cfg-icon-btn" data-kb-more="${item.id}" aria-label="${esc(item.name)} 的更多操作" aria-expanded="${cfg.kbMenu === item.id}">${icon('more', 'sm')}</button>${cfg.kbMenu === item.id ? `<div class="kb-menu" role="menu"><button type="button" role="menuitem" data-kb-open="${item.id}">${item.type === 'qa' ? '编辑' : '查看详情'}</button><button type="button" role="menuitem" class="is-danger" data-kb-delete="${item.id}">删除</button></div>` : ''}</div>`}
     </div>`
-  }).join('') : `<div class="cfg-empty">${cfg.sources.length ? '没有匹配的数据源。' : '还没有知识。从上面的入口上传文件、添加网站或新增 Q&A。'}</div>`
+  }).join('') : `<div class="cfg-empty">${cfg.sources.some(item => item.type !== 'qa') ? '没有匹配的数据源。' : '还没有资料。从上面的入口上传文件、添加网站或添加文本片段。'}</div>`
   const first = cfg.kbPage === 1
   const last = cfg.kbPage === pages
   return `<div class="cfg-kb-rows">${body}</div>
@@ -185,14 +186,13 @@ function renderKbSources() {
   const entries = [
     ['upload', 'file-up', '上传文件', 'PDF、Word、Excel、CSV、TXT、Markdown、JSON、HTML'],
     ['site', 'globe', '添加网站', '抓取公开页面，勾选后同步'],
-    ['text', 'text', '添加文本片段', '直接写一段资料'],
-    ['qa', 'message', '新增 Q&A', '需要统一口径的标准答案']
+    ['text', 'text', '添加文本片段', '直接写一段资料']
   ]
   return `<div class="cfg-kb-usage">${icon('database', 'sm')}<span>知识库容量按内容量计算（初始 40 MB）</span><span class="cfg-badge">用量统计即将上线</span></div>
     <section class="cfg-kb-entries" aria-label="添加知识">${entries.map(([key, iconName, title, desc]) => `<button type="button" class="cfg-kb-entry" data-kb-entry="${key}"><span class="cfg-kb-entry-icon">${icon(iconName, 'sm')}</span><strong>${title}</strong><small>${desc}</small></button>`).join('')}
       <button type="button" class="cfg-kb-entry is-planned" disabled title="MCP 归属待定：倾向一期先做成能力调用（见「能力 · MCP 调用」）"><span class="cfg-kb-entry-icon">${icon('server', 'sm')}</span><strong>MCP 知识同步</strong><small>连接企业内容服务自动同步</small><span class="cfg-badge">待定</span></button></section>
-    <div class="cfg-toolbar kb-toolbar"><div class="cfg-search wide">${icon('search', 'sm')}<input id="cfg-kb-search" type="search" placeholder="搜索名称；Q&A 同时搜问法和答案" aria-label="搜索数据源" value="${esc(cfg.kbSearch)}" /></div>
-      <select id="cfg-kb-type" class="cfg-select" aria-label="按类型筛选"><option value="all">全部类型</option>${Object.entries(sourceTypes).map(([key, item]) => `<option value="${key}" ${cfg.kbType === key ? 'selected' : ''}>${item.label}</option>`).join('')}</select>
+    <div class="cfg-toolbar kb-toolbar"><div class="cfg-search wide">${icon('search', 'sm')}<input id="cfg-kb-search" type="search" placeholder="搜索名称或标签" aria-label="搜索数据源" value="${esc(cfg.kbSearch)}" /></div>
+      <select id="cfg-kb-type" class="cfg-select" aria-label="按类型筛选"><option value="all">全部类型</option>${Object.entries(sourceTypes).filter(([key]) => key !== 'qa').map(([key, item]) => `<option value="${key}" ${cfg.kbType === key ? 'selected' : ''}>${item.label}</option>`).join('')}</select>
       <select id="cfg-kb-sort" class="cfg-select" aria-label="排序"><option value="new" ${cfg.kbSort === 'new' ? 'selected' : ''}>最新</option><option value="old" ${cfg.kbSort === 'old' ? 'selected' : ''}>最早</option></select>
       <div class="kb-bulk-bar">${renderKbBulkBar()}</div></div>
     <div id="cfg-kb-list">${renderKbList()}</div>`
@@ -205,23 +205,24 @@ function refreshKbList() {
   if (bar) bar.innerHTML = renderKbBulkBar()
 }
 
-/* ---------- 未答队列 / 检索设置 ---------- */
+/* ---------- 未答列表 / 检索设置 ---------- */
 
-function renderKbUnanswered() {
+function renderKbUnanswered({ showAddQa = false } = {}) {
   const rows = cfg.unanswered.length ? cfg.unanswered.map(item => `<div class="cfg-unanswered-row"><strong>${esc(item.question)}</strong><span>${KB_UNANSWERED_REASON[item.reason] || item.reason} · ${item.time}</span><div class="cfg-unanswered-actions"><button type="button" class="cfg-btn sm outline" data-unanswered-fill="${item.id}">补充答案</button><button type="button" class="cfg-btn sm ghost" data-unanswered-ignore="${item.id}">忽略</button></div></div>`).join('')
     : '<div class="cfg-empty"><strong>当前没有未答问题</strong><br />出现知识缺口后会进入这里等待补充答案。</div>'
-  return cfgPanel('未答队列', '来自真实会话里 AI 依据不足和自动试题失败；模型出错不计入。同一个问题每次被问都单独记一条，只能通过 Q&A 关闭缺口。', `<div class="cfg-unanswered-list">${rows}</div>`, { flush: true, actions: `<span class="cfg-badge warning">${cfg.unanswered.length} 待处理</span>` })
+  const addQa = showAddQa ? `<button type="button" class="cfg-btn primary" data-kb-entry="qa">${icon('plus', 'xs')}<span>新增 Q&A</span></button>` : ''
+  return cfgPanel('未答列表', '来自真实会话里 AI 依据不足和自动试题失败；模型出错不计入。同一个问题每次被问都单独记一条，只能通过 Q&A 关闭缺口。', `<div class="cfg-unanswered-list">${rows}</div>`, { flush: true, actions: `${addQa}<span class="cfg-badge warning">${cfg.unanswered.length} 待处理</span>` })
 }
 
 function renderKbSettings() {
   const num = (label, path, help) => cfgField(label, cfgInput(path, { type: 'number', min: 0 }), { help })
-  return `${renderCfgHint()}${cfgPanel('高级检索设置', '每个智能体单独设置；只影响知识检索，不改变智能体的角色或业务流程。', `<div class="cfg-form-grid cols-3">
+  return cfgPanel('高级检索设置', '每个智能体单独设置；只影响知识检索，不改变智能体的角色或业务流程。', `<div class="cfg-form-grid cols-3">
       ${num('检索参考轮数', 'retrieval.turns', '用最近多少轮访客消息构造检索查询，默认 3。')}
       ${num('单条最大字符', 'retrieval.chunkChars', '每条证据进入模型前的最大长度，默认 600。')}
       ${num('上下文总字符', 'retrieval.contextChars', '所有知识资料证据的总预算，默认 2400。')}
       ${cfgField('分类词表', cfgTextarea('retrieval.taxonomy', { placeholder: '可选；用于统一导入资料中的行业、产品、场景标签' }), { full: true, help: '词表内容完全由工作区定义。' })}
       ${cfgField('术语别名', cfgTextarea('retrieval.aliases', { placeholder: '正式名称=简称、旧称\n另一个术语=别名' }), { full: true, help: '每行是一组真正等价的说法，命中任一词都会扩展整组。不要把上位类目和细分类目放在同一组。' })}
-    </div>`)}`
+    </div>`)
 }
 
 /* ---------- 抽屉：上传文件 ---------- */
@@ -263,6 +264,41 @@ function kbGenerateEntries(name) {
   ]
 }
 
+function kbEntriesToMarkdown(entries) {
+  return (entries || []).map(entry => `## ${entry.title}\n\n${entry.body || ''}`.trim()).join('\n\n')
+}
+
+function kbMarkdownToEntries(markdown, name) {
+  const fallbackTitle = name.replace(/\.[^.]+$/, '') || '文档内容'
+  const entries = []
+  let title = fallbackTitle
+  let body = []
+  let hasHeading = false
+  const push = () => {
+    const text = body.join('\n').trim()
+    if (text || hasHeading) entries.push({ id: kbId(), title, body: text })
+    body = []
+  }
+  String(markdown || '').split(/\r?\n/).forEach(line => {
+    const heading = line.match(/^#{1,6}\s+(.+?)\s*$/)
+    if (!heading) return body.push(line)
+    if (body.some(part => part.trim()) || hasHeading) push()
+    title = heading[1].trim() || fallbackTitle
+    hasHeading = true
+  })
+  push()
+  return entries.length ? entries : [{ id: kbId(), title: fallbackTitle, body: String(markdown || '').trim() }]
+}
+
+function kbSourceMarkdown(source) {
+  if (typeof source.markdown !== 'string') source.markdown = kbEntriesToMarkdown(source.entries)
+  return source.markdown
+}
+
+function kbSyncSourceMarkdown(source) {
+  if (source?.type === 'file' && source.importAs !== 'qa') source.markdown = kbEntriesToMarkdown(source.entries)
+}
+
 function kbSubmitUpload() {
   const d = cfg.kbDrawer
   const files = d.files.filter(file => !file.error)
@@ -296,10 +332,12 @@ function kbFinishProcessing(id) {
     })
     Object.assign(source, { status: 'ready', entries: [], conflicts: skipped, qaCount: rows.length - skipped.length })
   } else {
-    Object.assign(source, { status: 'ready', entries: kbGenerateEntries(source.name), tests: [{ id: kbId(), question: `${source.name.replace(/\.[^.]+$/, '')}适合什么客户？`, pass: true }, { id: kbId(), question: '上线需要多长时间？', pass: false }], removed: [{ id: kbId(), title: '页眉页脚', reason: '模板内容，自动去掉', restorable: false }] })
+    const entries = kbGenerateEntries(source.name)
+    Object.assign(source, { status: 'ready', entries, markdown: kbEntriesToMarkdown(entries), tests: [{ id: kbId(), question: `${source.name.replace(/\.[^.]+$/, '')}适合什么客户？`, pass: true }, { id: kbId(), question: '上线需要多长时间？', pass: false }], removed: [{ id: kbId(), title: '页眉页脚', reason: '模板内容，自动去掉', restorable: false }] })
     const failed = source.tests.filter(test => !test.pass)
     failed.forEach(test => cfg.unanswered.unshift({ id: kbId(), question: test.question, reason: 'self_test_no_kb', time: nowStamp() }))
   }
+  if (cfg.kbDrawer?.kind === 'detail' && cfg.kbDrawer.id === source.id) cfg.kbDrawer.markdown = source.importAs === 'qa' ? null : source.markdown
   kbRefreshAfterAsync()
 }
 
@@ -415,6 +453,17 @@ function renderKbTextDrawer(d) {
     `<button type="button" class="cfg-btn ghost" data-action="kb-drawer-close">取消</button><button type="button" class="cfg-btn primary" data-action="kb-text-save">保存</button>`)
 }
 
+/* ---------- 抽屉：新增试题 ---------- */
+
+function renderKbTestDrawer(d) {
+  const sources = cfg.sources.filter(item => item.type !== 'qa' && item.status === 'ready')
+  const options = sources.map(source => `<option value="${source.id}" ${String(d.sourceId) === String(source.id) ? 'selected' : ''}>${esc(source.name)}（${(source.tests || []).length}/20）</option>`).join('')
+  return kbDrawerShell('新增试题', '添加一道用于检查知识资料能否正确回答的问题；保存后立即运行。', `
+    <div class="cfg-field"><label for="kb-test-source">知识资料</label><select id="kb-test-source" data-kb-test-new-source>${options}</select><small>试题会归属到所选资料，每份资料最多 20 题。</small></div>
+    <div class="cfg-field"><label for="kb-test-question">试题</label><textarea id="kb-test-question" rows="5" maxlength="200" placeholder="例如：企业版是否支持私有化部署？" data-kb-test-new-question>${esc(d.question)}</textarea></div>`,
+    `<button type="button" class="cfg-btn ghost" data-action="kb-drawer-close">取消</button><button type="button" class="cfg-btn primary" data-action="kb-test-save">保存并运行</button>`)
+}
+
 /* ---------- 抽屉：Q&A（新增 / 编辑 / 补充未答问题） ---------- */
 
 function renderKbQaDrawer(d) {
@@ -497,6 +546,19 @@ function kbAppendQuestion() {
 
 /* ---------- 抽屉：知识资料详情 ---------- */
 
+function renderKbMarkdownEditor(source, d, busy) {
+  if (d.markdown == null) d.markdown = kbSourceMarkdown(source)
+  return `<section class="kb-markdown-editor">
+    <header class="kb-markdown-editor-head"><div><h3>Markdown 全文</h3><p>直接编辑转换后的完整文档；保存后会重新拆分内容条目并重建检索索引。</p></div><button type="button" class="cfg-btn primary" data-action="kb-markdown-save" ${busy ? 'disabled' : ''}>${icon('save', 'xs')}<span>保存全文</span></button></header>
+    <textarea data-kb-markdown aria-label="Markdown 全文" spellcheck="false" ${busy ? 'disabled' : ''}>${esc(d.markdown)}</textarea>
+    <footer><span>Markdown</span><span>${d.markdown.length.toLocaleString()} 字</span></footer>
+  </section>`
+}
+
+function renderKbDetailSection(title, count, body, cls = '') {
+  return `<section class="kb-detail-section ${cls}"><header><h3>${title}</h3><span>${count}</span></header><div class="kb-detail-section-body">${body}</div></section>`
+}
+
 function renderKbDetailDrawer(d) {
   const source = kbFind(d.id)
   if (!source) return ''
@@ -518,8 +580,10 @@ function renderKbDetailDrawer(d) {
     source.suggestion && source.importAs === 'doc' ? `<div class="cfg-notice"><span class="cfg-notice-icon">${icon('spark', 'sm')}</span><div><strong>AI 建议：</strong>${esc(source.suggestion)}。当前仍按知识资料导入。</div><div class="cfg-notice-actions"><button type="button" class="cfg-btn sm outline" data-action="kb-switch-import">改为 Q&A 并重新处理</button></div></div>` : '',
     source.conflicts?.length ? `<div class="cfg-notice"><span class="cfg-notice-icon">${icon('alert', 'sm')}</span><div><strong>${source.conflicts.length} 行已跳过：</strong>${source.conflicts.map(row => `「${esc(row.title)}」${esc(row.reason)}`).join('；')}</div></div>` : ''
   ].join('')
-  const tabs = [['entries', '内容条目', (source.entries || []).length], ['tests', '自动试题', (source.tests || []).length], ['removed', '被剔除内容', (source.removed || []).length]]
-  const body = d.tab === 'tests' ? renderKbTests(source) : d.tab === 'removed' ? renderKbRemoved(source) : renderKbEntries(source)
+  const detailContent = source.importAs === 'qa' ? '' : `<div class="kb-detail-stack">
+    ${source.type === 'file' ? renderKbMarkdownEditor(source, d, busy) : ''}
+    ${renderKbDetailSection('内容条目', (source.entries || []).length, renderKbEntries(source), 'kb-detail-entries')}
+    ${renderKbDetailSection('被剔除内容', (source.removed || []).length, renderKbRemoved(source), 'kb-detail-removed')}</div>`
   const actions = [
     source.type === 'file' ? `<button type="button" class="cfg-btn sm outline" data-action="kb-new-version" ${busy || source.updating ? 'disabled' : ''}>${icon('upload', 'xs')}<span>上传新版本</span></button>` : '',
     isSite ? `<button type="button" class="cfg-btn sm outline" data-action="kb-site-adjust" ${busy ? 'disabled title="同步过程中不能修改勾选的页面"' : ''}>${icon('refresh', 'xs')}<span>调整页面并重抓</span></button>` : '',
@@ -530,7 +594,7 @@ function renderKbDetailDrawer(d) {
     <dl class="kb-about">${about.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
     <div class="cfg-field"><label for="kb-tags">知识标签</label><div class="kb-tags"><input id="kb-tags" value="${esc((source.tags || []).join('、'))}" placeholder="例如：售前、产品" data-kb-tags /><button type="button" class="cfg-btn sm outline" data-action="kb-save-tags">保存标签</button></div><small>智能体可按标签圈定知识范围。</small></div>
     <div class="kb-detail-actions">${actions}</div>
-    ${source.importAs === 'qa' ? '' : `<div class="cfg-tabs kb-detail-tabs" role="tablist">${tabs.map(([key, labelText, count]) => `<button type="button" role="tab" aria-selected="${d.tab === key}" class="${d.tab === key ? 'active' : ''}" data-kb-detail-tab="${key}"><span>${labelText}</span><b>${count}</b></button>`).join('')}</div><div class="kb-detail-body">${body}</div>`}`,
+    ${detailContent}`,
     `<button type="button" class="cfg-btn ghost is-danger" data-kb-delete="${source.id}">${icon('trash', 'xs')}<span>删除</span></button><button type="button" class="cfg-btn outline" data-action="kb-drawer-close">关闭</button>`, { wide: true })
 }
 
@@ -543,12 +607,22 @@ function renderKbEntries(source) {
       : `<li><div><strong>${esc(entry.title)}</strong><p>${esc(entry.body)}</p></div><div class="kb-entry-actions"><button type="button" class="cfg-btn sm ghost" data-kb-entry-open="${entry.id}">编辑</button><button type="button" class="cfg-btn sm ghost is-danger" data-kb-entry-delete="${entry.id}">删除</button></div></li>`).join('')}</ol>`
 }
 
-function renderKbTests(source) {
-  const tests = source.tests || []
-  if (!tests.length) return `<div class="cfg-empty"><strong>暂无自动试题</strong><br />资料入库后会自动出题，也可以手动重新运行。</div>`
-  const failed = tests.filter(test => !test.pass).length
-  return `<div class="kb-tests-head"><span>${tests.length} 题 · ${failed} 题未通过</span><small>每个知识源最多 20 题；答不上的题会进入未答队列。</small><button type="button" class="cfg-btn sm outline" data-action="kb-tests-rerun">${icon('refresh', 'xs')}<span>重新运行</span></button></div>
-    <ul class="kb-tests">${tests.map(test => `<li><span class="cfg-badge ${test.pass ? 'success' : 'warning'}">${test.pass ? '通过' : '未通过'}</span><span>${esc(test.question)}</span>${test.pass ? '' : `<button type="button" class="cfg-btn sm outline" data-kb-test-fix="${test.id}">修正这题</button>`}</li>`).join('')}</ul>`
+function kbAllTests() {
+  return cfg.sources.flatMap(source => (source.tests || []).map(test => ({ source, test })))
+}
+
+function renderKbTests() {
+  const rows = kbAllTests()
+  const failed = rows.filter(({ test }) => !test.pass).length
+  const canAdd = cfg.sources.some(item => item.type !== 'qa' && item.status === 'ready')
+  const body = rows.length
+    ? `<ul class="kb-tests kb-tests-all">${rows.map(({ source, test }) => `<li><span class="cfg-badge ${test.pass ? 'success' : 'warning'}">${test.pass ? '通过' : '未通过'}</span><span>${esc(test.question)}</span>${test.pass ? '' : `<button type="button" class="cfg-btn sm outline" data-kb-test-source="${source.id}" data-kb-test-fix="${test.id}">修正这题</button>`}</li>`).join('')}</ul>`
+    : `<div class="cfg-empty kb-tests-empty"><strong>暂无自动试题</strong><br />知识资料入库后会自动出题。</div>`
+  return cfgPanel(`${rows.length} 题 · ${failed} 题未通过`, '当前知识库中全部知识资料的自动试题；每份资料最多 20 题，答不上的题会进入未答队列。', body, {
+    cls: 'kb-tests-panel',
+    flush: Boolean(rows.length),
+    actions: `<button type="button" class="cfg-btn primary" data-action="kb-test-new" ${canAdd ? '' : 'disabled title="请先添加可用的知识资料"'}>${icon('plus', 'xs')}<span>新增试题</span></button><button type="button" class="cfg-btn outline" data-action="kb-tests-rerun" ${rows.length ? '' : 'disabled'}>${icon('refresh', 'xs')}<span>重新运行</span></button>`
+  })
 }
 
 function renderKbRemoved(source) {
@@ -588,7 +662,11 @@ function kbConfirmDelete() {
   const c = cfg.kbConfirm
   if (c.kind === 'entry') {
     const source = kbFind(c.sourceId)
-    if (source) source.entries = source.entries.filter(entry => entry.id !== c.entryId)
+    if (source) {
+      source.entries = source.entries.filter(entry => entry.id !== c.entryId)
+      kbSyncSourceMarkdown(source)
+      if (cfg.kbDrawer?.kind === 'detail' && cfg.kbDrawer.id === source.id) cfg.kbDrawer.markdown = source.markdown
+    }
     cfg.kbConfirm = null
     toast('内容条目已删除，已重建相关检索片段')
     return renderApp()
@@ -620,7 +698,7 @@ function kbDrawerShell(title, desc, body, foot, { wide = false } = {}) {
 
 function renderKbOverlay() {
   const d = cfg.kbDrawer
-  const drawer = !d ? '' : d.kind === 'upload' ? renderKbUploadDrawer(d) : d.kind === 'site' ? renderKbSiteDrawer(d) : d.kind === 'text' ? renderKbTextDrawer(d) : d.kind === 'qa' ? renderKbQaDrawer(d) : renderKbDetailDrawer(d)
+  const drawer = !d ? '' : d.kind === 'upload' ? renderKbUploadDrawer(d) : d.kind === 'site' ? renderKbSiteDrawer(d) : d.kind === 'text' ? renderKbTextDrawer(d) : d.kind === 'test' ? renderKbTestDrawer(d) : d.kind === 'qa' ? renderKbQaDrawer(d) : renderKbDetailDrawer(d)
   return `${drawer}${renderKbConfirm()}`
 }
 
@@ -628,13 +706,12 @@ function renderKbOverlay() {
 
 function renderKnowledgeConfig() {
   const docs = cfg.sources.filter(item => item.type !== 'qa').length
-  const qas = cfg.sources.length - docs
-  const tabs = [['sources', '数据源', ''], ['unanswered', '未答队列', cfg.unanswered.length], ['settings', '检索设置', '']]
-  const panel = cfg.kbTab === 'unanswered' ? renderKbUnanswered() : cfg.kbTab === 'settings' ? renderKbSettings() : renderKbSources()
+  const tabs = [['sources', '数据源', ''], ['tests', '自动试题', ''], ['unanswered', '未答列表', ''], ['settings', '检索设置', '']]
+  const panel = cfg.kbTab === 'unanswered' ? renderKbUnanswered({ showAddQa: true }) : cfg.kbTab === 'settings' ? renderKbSettings() : cfg.kbTab === 'tests' ? renderKbTests() : renderKbSources()
   return cfgPage(`knowledge-${cfg.kbTab}`, `${renderCfgHeader({
       title: '知识库',
-      desc: '智能体答得准不准，取决于它手里有没有企业自己的资料。文件、网站、文本片段与 Q&A 都在这里维护。',
-      extra: `<span class="cfg-badge success">${docs} 份资料 · ${qas} 条 Q&A</span>`,
+      desc: '智能体答得准不准，取决于它手里有没有企业自己的资料。文件、网站与文本片段都在这里维护。',
+      extra: `<span class="cfg-badge success">${docs} 份资料</span>`,
       actions: `<button type="button" class="cfg-btn outline" data-action="cfg-kb-refresh">${icon('refresh', 'sm')}<span>刷新</span></button>`
     })}
     <div class="cfg-tabs-bar"><div class="cfg-tabs" role="tablist" aria-label="知识库标签">${tabs.map(([key, label, count]) => `<button type="button" role="tab" aria-selected="${cfg.kbTab === key}" class="${cfg.kbTab === key ? 'active' : ''}" data-kb-tab="${key}"><span>${label}</span>${count !== '' ? `<b>${count}</b>` : ''}</button>`).join('')}</div></div>
@@ -647,7 +724,7 @@ function renderKnowledgeConfig() {
 function kbOpenSource(item) {
   cfg.kbMenu = null
   if (item.type === 'qa') return kbOpenQa(item)
-  cfg.kbDrawer = { kind: 'detail', id: item.id, tab: 'entries' }
+  cfg.kbDrawer = { kind: 'detail', id: item.id, markdown: item.type === 'file' && item.importAs !== 'qa' ? kbSourceMarkdown(item) : null }
   cfg.kbEntryEdit = null
   renderApp()
 }
@@ -689,14 +766,13 @@ function kbHandleClick(event) {
   if ((el = pick('[data-kb-fill-mode]'))) { cfg.kbDrawer.fillMode = el.dataset.kbFillMode; renderApp(); return true }
   if ((el = pick('[data-kb-qa-mode]'))) { cfg.kbDrawer.mode = el.dataset.kbQaMode; renderApp(); return true }
   if ((el = pick('[data-kb-qa-question-remove]'))) { if (cfg.kbDrawer.questions.length > 1) { cfg.kbDrawer.questions.splice(Number(el.dataset.kbQaQuestionRemove), 1); renderApp() } return true }
-  if ((el = pick('[data-kb-detail-tab]'))) { cfg.kbDrawer.tab = el.dataset.kbDetailTab; cfg.kbEntryEdit = null; renderApp(); return true }
   if ((el = pick('[data-kb-entry-open]'))) { const entry = kbFind(cfg.kbDrawer.id)?.entries.find(item => item.id === Number(el.dataset.kbEntryOpen)); if (entry) { cfg.kbEntryEdit = { ...entry }; renderApp() } return true }
   if ((el = pick('[data-kb-entry-delete]'))) { const entry = kbFind(cfg.kbDrawer.id)?.entries.find(item => item.id === Number(el.dataset.kbEntryDelete)); if (entry) { cfg.kbConfirm = { kind: 'entry', sourceId: cfg.kbDrawer.id, entryId: entry.id, title: entry.title }; renderApp() } return true }
-  if ((el = pick('[data-kb-test-fix]'))) { const test = kbFind(cfg.kbDrawer.id)?.tests.find(item => item.id === Number(el.dataset.kbTestFix)); if (test) { const row = cfg.unanswered.find(item => kbNorm(item.question) === kbNorm(test.question)); kbOpenQa(null, { question: test.question, fromId: row?.id, fillMode: 'new', appendTo: kbQas()[0]?.id || '' }) } return true }
+  if ((el = pick('[data-kb-test-fix]'))) { const test = kbFind(el.dataset.kbTestSource)?.tests.find(item => item.id === Number(el.dataset.kbTestFix)); if (test) { const row = cfg.unanswered.find(item => kbNorm(item.question) === kbNorm(test.question)); kbOpenQa(null, { question: test.question, fromId: row?.id, fillMode: 'new', appendTo: kbQas()[0]?.id || '' }) } return true }
   if ((el = pick('[data-kb-restore]'))) {
     const source = kbFind(cfg.kbDrawer.id)
     const row = source?.removed.find(item => item.id === Number(el.dataset.kbRestore))
-    if (row) { source.removed = source.removed.filter(item => item !== row); source.entries.push({ id: kbId(), title: row.title, body: row.body || row.title }); toast('内容已恢复进库'); renderApp() }
+    if (row) { source.removed = source.removed.filter(item => item !== row); source.entries.push({ id: kbId(), title: row.title, body: row.body || row.title }); kbSyncSourceMarkdown(source); cfg.kbDrawer.markdown = source.markdown; toast('内容已恢复进库'); renderApp() }
     return true
   }
   return false
@@ -718,33 +794,68 @@ function kbAction(name) {
     case 'kb-upload-submit': kbSubmitUpload(); return true
     case 'kb-template': toast('已下载 Q&A 导入模板（原型演示）'); return true
     case 'kb-site-crawl': kbSiteCrawl(); return true
-    case 'kb-site-back': if (d.sourceId) { cfg.kbDrawer = { kind: 'detail', id: d.sourceId, tab: 'entries' } } else Object.assign(d, { step: 'input' }); renderApp(); return true
+    case 'kb-site-back': if (d.sourceId) { cfg.kbDrawer = { kind: 'detail', id: d.sourceId } } else Object.assign(d, { step: 'input' }); renderApp(); return true
     case 'kb-site-sync': kbSiteSync(); return true
     case 'kb-text-save': {
       if (!d.title.trim() || !d.body.trim()) return toast('请填写标题和正文', 'info'), true
       cfg.sources.unshift({ id: kbId(), type: 'text', name: d.title.trim(), created: nowStamp(), status: 'ready', tags: [], entries: [{ id: kbId(), title: d.title.trim(), body: d.body.trim() }], tests: [], removed: [] })
       cfg.kbDrawer = null; toast('文本片段已添加，立即可被检索'); renderApp(); return true
     }
+    case 'kb-test-new': {
+      const first = cfg.sources.find(item => item.type !== 'qa' && item.status === 'ready')
+      if (!first) return toast('请先添加可用的知识资料', 'info'), true
+      cfg.kbDrawer = { kind: 'test', sourceId: first.id, question: '' }
+      renderApp(); requestAnimationFrame(() => document.querySelector('#kb-test-question')?.focus()); return true
+    }
+    case 'kb-test-save': {
+      const testSource = kbFind(d.sourceId)
+      const question = d.question.trim()
+      if (!testSource || testSource.type === 'qa') return toast('请选择知识资料', 'info'), true
+      if (!question) return toast('请填写试题', 'info'), true
+      testSource.tests ||= []
+      if (testSource.tests.length >= 20) return toast('每份资料最多添加 20 道试题', 'info'), true
+      if (kbAllTests().some(({ test }) => kbNorm(test.question) === kbNorm(question))) return toast('这道试题已经存在', 'info'), true
+      const pass = kbAnswer(question).route !== 'none'
+      testSource.tests.push({ id: kbId(), question, pass })
+      if (!pass) cfg.unanswered.unshift({ id: kbId(), question, reason: 'self_test_no_kb', time: nowStamp() })
+      cfg.kbDrawer = null
+      toast(pass ? '试题已添加并通过' : '试题已添加，未通过并进入未答列表', pass ? 'success' : 'info')
+      renderApp(); return true
+    }
     case 'kb-qa-question-add': d.questions.push(''); renderApp(); requestAnimationFrame(() => document.querySelector(`[data-kb-qa-question="${d.questions.length - 1}"]`)?.focus()); return true
     case 'kb-qa-save': kbSaveQa(); return true
     case 'kb-qa-append': kbAppendQuestion(); return true
+    case 'kb-markdown-save': {
+      const markdownSource = d?.kind === 'detail' ? kbFind(d.id) : null
+      const markdown = d?.markdown?.trim() || ''
+      if (!markdownSource || markdownSource.type !== 'file' || markdownSource.importAs === 'qa') return true
+      if (!markdown) return toast('Markdown 全文不能为空', 'info'), true
+      markdownSource.markdown = markdown
+      markdownSource.entries = kbMarkdownToEntries(markdown, markdownSource.name)
+      d.markdown = markdown
+      cfg.kbEntryEdit = null
+      toast(`全文已保存，已重新生成 ${markdownSource.entries.length} 条内容并重建检索索引`)
+      renderApp(); return true
+    }
     case 'kb-save-tags': { const input = document.querySelector('[data-kb-tags]'); source.tags = input.value.split(/[、,，\s]+/).map(t => t.trim()).filter(Boolean); toast('知识标签已更新'); renderApp(); return true }
     case 'kb-reprocess': Object.assign(source, { status: 'processing', error: '' }); if (/失败|broken/i.test(source.name)) source.name = source.name.replace(/失败|broken/gi, ''); setTimeout(() => kbFinishProcessing(source.id), 1500); toast('已开始重新处理并重建索引'); renderApp(); return true
     case 'kb-switch-import': Object.assign(source, { importAs: source.importAs === 'qa' ? 'doc' : 'qa', suggestion: '', status: 'processing', entries: [], tests: [], conflicts: [] }); setTimeout(() => kbFinishProcessing(source.id), 1500); toast(`已改为按${source.importAs === 'qa' ? ' Q&A' : '知识资料'}导入，正在重新处理`); renderApp(); return true
     case 'kb-new-version': {
       const next = source.name.replace(/(\.[^.]+)$/, '-v2$1')
       source.updating = next
-      setTimeout(() => { const s = kbFind(source.id); if (!s) return; Object.assign(s, { updating: '', name: next, created: nowStamp(), entries: kbGenerateEntries(next) }); kbRefreshAfterAsync(); toast(`新版本「${next}」处理成功，已切换`) }, 2200)
+      setTimeout(() => { const s = kbFind(source.id); if (!s) return; const entries = kbGenerateEntries(next); Object.assign(s, { updating: '', name: next, created: nowStamp(), entries, markdown: kbEntriesToMarkdown(entries) }); if (cfg.kbDrawer?.kind === 'detail' && cfg.kbDrawer.id === s.id) cfg.kbDrawer.markdown = s.markdown; kbRefreshAfterAsync(); toast(`新版本「${next}」处理成功，已切换`) }, 2200)
       toast('新版本已上传，处理成功后再切换'); renderApp(); return true
     }
     case 'kb-site-adjust': cfg.kbDrawer = { kind: 'site', mode: 'crawl', proto: '', url: source.name, step: 'pick', search: '', sourceId: source.id, pages: source.pages.map(page => ({ ...page })) }; renderApp(); return true
-    case 'kb-tests-rerun': toast('自动试题已重新运行'); source.tests = source.tests.map(test => ({ ...test, pass: test.pass || kbAnswer(test.question).route !== 'none' })); renderApp(); return true
+    case 'kb-tests-rerun': cfg.sources.forEach(item => { if (item.tests) item.tests = item.tests.map(test => ({ ...test, pass: test.pass || kbAnswer(test.question).route !== 'none' })) }); toast('全部自动试题已重新运行'); renderApp(); return true
     case 'kb-entry-cancel': cfg.kbEntryEdit = null; renderApp(); return true
     case 'kb-entry-save': {
       const edit = cfg.kbEntryEdit
       if (!edit.title.trim() || !edit.body.trim()) return toast('标题和正文都不能为空', 'info'), true
       const entry = source.entries.find(item => item.id === edit.id)
       Object.assign(entry, { title: edit.title.trim(), body: edit.body.trim() })
+      kbSyncSourceMarkdown(source)
+      if (d?.kind === 'detail' && d.id === source.id) d.markdown = source.markdown
       cfg.kbEntryEdit = null; toast('已保存，相关检索片段已重建'); renderApp(); return true
     }
   }
@@ -766,6 +877,8 @@ function kbHandleInput(event) {
     return true
   }
   if (t.matches('[data-kb-text]')) { d[t.dataset.kbText] = t.value; return true }
+  if (t.matches('[data-kb-test-new-question]')) { d.question = t.value; return true }
+  if (t.matches('[data-kb-markdown]')) { d.markdown = t.value; return true }
   if (t.matches('[data-kb-qa]')) { d[t.dataset.kbQa] = t.value; return true }
   if (t.matches('[data-kb-qa-question]')) { d.questions[Number(t.dataset.kbQaQuestion)] = t.value; return true }
   if (t.matches('[data-kb-entry-edit]') && cfg.kbEntryEdit) { cfg.kbEntryEdit[t.dataset.kbEntryEdit] = t.value; return true }
@@ -781,6 +894,7 @@ function kbHandleChange(event) {
   if (!d) return false
   if (t.matches('[data-kb-file-input]')) { kbAddFiles([...t.files]); return true }
   if (t.matches('[data-kb-import-as]')) { d.importAs = t.value; return true }
+  if (t.matches('[data-kb-test-new-source]')) { d.sourceId = t.value; return true }
   if (t.matches('[data-kb-site-proto]')) { d.proto = t.value; return true }
   if (t.matches('[data-kb-append-to]')) { d.appendTo = t.value; renderApp(); return true }
   if (t.matches('[data-kb-site-page]')) { d.pages[Number(t.dataset.kbSitePage)].checked = t.checked; renderApp(); return true }

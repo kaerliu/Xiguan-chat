@@ -65,13 +65,6 @@ const leads = [
   ['匿名访客', '—', '未获取', 'FineReport 试用', '培育中', '11 月 8 日', '未推送']
 ]
 
-const qaItems = [
-  ['FineReport 和 FineBI 的主要区别是什么？', 'FineReport 侧重固定格式的复杂报表开发，面向 IT 人员；FineBI 侧重灵活的自助数据分析，面向业务人员。', '已命中知识库'],
-  ['个人试用版是否支持多人同时访问？', '个人试用版包含完整功能，但有并发限制。用于团队协作时建议申请企业试用。', 'AI 已优化'],
-  ['是否支持国产数据库和信创环境？', '支持主流国产数据库、操作系统与芯片环境，可根据具体技术栈提供适配清单。', '待人工确认'],
-  ['如何申请制造行业案例资料？', '留下公司、姓名与联系方式后，行业顾问会发送对应案例并提供进一步咨询。', '已命中知识库']
-]
-
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character])
 }
@@ -109,8 +102,11 @@ const state = {
   published: false,
   dirty: false,
   debugOpen: false,
+  channelDetail: null,
   previewMode: 'website',
+  websiteChatOpen: false,
   debugTab: 'config',
+  debugConfigTab: 'prompt',
   debugMessages: [],
   settingsSection: 'workspace',
   onboardingStep: localStorage.getItem('xiguan-onboarding') ? null : 0,
@@ -276,15 +272,15 @@ function renderLeads() {
 }
 
 function renderQna() {
-  return `<div class="content"><div class="data-page"><div class="page-head"><div><h2>Q&A 洞察</h2><p>了解访客问题分布，并持续优化 AI 的回答质量</p></div><button class="btn primary" data-action="add-qna">${icon('plus')} 添加标准问答</button></div>
-    <div class="stat-grid">${[['本周问题','126','↑ 21%'],['知识命中率','83%','↑ 6.4%'],['转人工率','11%','↓ 2.1%'],['待人工确认','7','需要处理']].map(x => `<div class="card stat-card"><div class="label"><span>${x[0]}</span>${icon('spark')}</div><div class="value">${x[1]}</div><div class="trend">${x[2]}</div></div>`).join('')}</div>
+  return `<div class="content"><div class="data-page"><div class="page-head"><div><h2>Q&A 洞察</h2><p>了解访客问题分布，并持续优化 AI 的回答质量</p></div></div>
+    <div class="stat-grid">${[['本周问题','126','↑ 21%'],['知识命中率','83%','↑ 6.4%'],['转人工率','11%','↓ 2.1%'],['待人工确认',String(cfg.unanswered.length),'需要处理']].map(x => `<div class="card stat-card"><div class="label"><span>${x[0]}</span>${icon('spark')}</div><div class="value">${x[1]}</div><div class="trend">${x[2]}</div></div>`).join('')}</div>
     <div class="card filter-bar"><div class="search" style="flex:1">${icon('search')}<input placeholder="搜索问题或答案" /></div><select class="select"><option>全部状态</option><option>待人工确认</option><option>已命中知识库</option></select><select class="select"><option>最近 7 天</option><option>最近 30 天</option></select></div>
-    <div class="qna-list">${qaItems.map((item,index) => `<div class="card qna-card"><div class="qna-top"><h3>${item[0]}</h3><div><span class="badge ${item[2] === '待人工确认' ? 'orange' : 'green'}">${item[2]}</span><button class="btn icon-btn small" data-qna="${index}">${icon('more')}</button></div></div><p>${item[1]}</p></div>`).join('')}</div>
-  </div></div>`
+    <div class="qna-unanswered-panel">${renderKbUnanswered()}</div>
+  </div>${renderKbOverlay()}</div>`
 }
 
 const agentNavItems = [
-  ['overview','调试台','spark'],
+  ['overview','概览','spark'],
   ['prompt','角色与提示词','bot'],
   ['capabilities','能力','plug'],
   ['knowledge','知识库','book'],
@@ -314,7 +310,7 @@ function renderAgent() {
   const showDebug = overviewSection || (state.agentSection !== 'channels' && !operationSection && !configSection && state.debugOpen)
   return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${overviewSection ? 'overview-section' : ''} ${operationSection ? 'operation-section' : ''} ${configSection ? 'config-section' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><strong>吸管 · AI 接待</strong><a class="product-logic-link" href="./product-logic.html" target="_blank" rel="noopener">产品逻辑</a></div>
-      <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('spark')}<span>调试台</span></button>
+      <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('spark')}<span>概览</span></button>
       <div class="agent-nav-divider"></div>
       <button class="nav-item ${state.agentSection === 'prompt' ? 'active' : ''}" data-agent-section="prompt">${icon('bot')}<span>角色与提示词</span></button>
       ${agentNavItems.filter(item => !['overview','prompt'].includes(item[0])).map(item => `<button class="nav-item ${state.agentSection === item[0] ? 'active' : ''}" data-agent-section="${item[0]}">${icon(item[2])}<span>${item[1]}</span></button>`).join('')}
@@ -338,7 +334,7 @@ function renderAgentSection() {
   return renderAppearanceConfig()
 }
 
-/* ---------- 调试台（原「概览」）：左侧一屏看全配置 / 运行轨迹，右侧官网页面 / 对话窗口 ---------- */
+/* ---------- 调试台（原「概览」）：左侧分类配置 / 运行轨迹，右侧官网页面 / 对话窗口 ---------- */
 
 function debugCard(anchor, iconName, title, link, body) {
   return `<section class="debug-card" id="debug-card-${anchor}"><header class="debug-card-head">${icon(iconName, 'xs')}<strong>${title}</strong>${link ? `<span class="debug-card-link">${link}</span>` : ''}</header><div class="debug-card-body">${body}</div></section>`
@@ -352,7 +348,7 @@ function renderDebugConfigTab() {
   const docs = cfg.sources.filter(item => item.type !== 'qa').length
   const qas = cfg.sources.length - docs
   const enabledCaps = CAPABILITIES.filter(cap => isCapEnabled(cap.id))
-  const jump = [['prompt', 'bot', '提示词'], ['knowledge', 'book', '知识库'], ['capabilities', 'plug', '能力'], ['appearance', 'sliders', '外观']]
+  const tabs = [['prompt', '提示词'], ['knowledge', '知识库'], ['capabilities', '能力'], ['appearance', '外观']]
   const goto = (section, label) => `<button type="button" class="debug-link" data-agent-section="${section}">${label} ${icon('arrow', 'xs')}</button>`
   const prompt = debugCard('prompt', 'bot', '提示词', goto('prompt', '完整编辑'), `
     ${debugRow('模型', '<em>Auto · 平台自动选择</em>')}
@@ -373,7 +369,9 @@ function renderDebugConfigTab() {
     ${debugRow('主色', `<span class="debug-swatch" style="background:${escapeHtml(a.primary)}"></span>${escapeHtml(String(a.primary).toUpperCase())}`)}
     ${debugRow('官网入口', escapeHtml(entryLabel(a.entry)))}
     ${debugRow('快捷问题', `${a.quickButtons.filter(item => item.text.trim()).length} 个`)}`)
-  return `<nav class="debug-jump" aria-label="跳到配置">${jump.map(([anchor, iconName, label]) => `<button type="button" data-debug-jump="${anchor}">${icon(iconName, 'sm')}<span>${label}</span></button>`).join('')}</nav>${prompt}${knowledge}${caps}${appearance}`
+  const cards = { prompt, knowledge, capabilities: caps, appearance }
+  const activeTab = cards[state.debugConfigTab] ? state.debugConfigTab : 'prompt'
+  return `<nav class="debug-config-tabs" role="tablist" aria-label="配置分类">${tabs.map(([tab, label]) => `<button type="button" role="tab" id="debug-config-tab-${tab}" aria-selected="${activeTab === tab}" aria-controls="debug-config-panel" class="${activeTab === tab ? 'active' : ''}" data-debug-config-tab="${tab}">${label}</button>`).join('')}</nav><div class="debug-config-panel" id="debug-config-panel" role="tabpanel" aria-labelledby="debug-config-tab-${activeTab}">${cards[activeTab]}</div>`
 }
 
 function renderDebugTraceTab() {
@@ -402,8 +400,9 @@ function refreshDebugTrace() {
 
 function renderAgentOverview() {
   const tab = state.debugTab === 'trace' ? 'trace' : 'config'
-  return cfgPage('debug-console', `<div class="debug-console">
-    <header class="debug-console-head"><div class="debug-console-title"><h1>调试台</h1><span class="cfg-badge success">当前草稿</span></div><p>在真实访客界面里测试回答，左侧一屏看到全部配置并可直接修改；需要细调时一键跳到对应页面。不计入正式渠道数据。</p></header>
+  const promptConfigActive = tab === 'config' && state.debugConfigTab === 'prompt'
+  return cfgPage('debug-console', `<div class="debug-console ${promptConfigActive ? 'prompt-config-active' : ''}">
+    <header class="debug-console-head"><div class="debug-console-title"><h1>概览</h1><span class="cfg-badge success">当前草稿</span></div><p>在真实访客界面里测试回答，左侧按分类切换配置并可直接修改；需要细调时一键进入对应页面。不计入正式渠道数据。</p></header>
     <div class="segmented debug-tabs" role="tablist"><button type="button" role="tab" aria-selected="${tab === 'config'}" class="${tab === 'config' ? 'active' : ''}" data-debug-tab="config">配置</button><button type="button" role="tab" aria-selected="${tab === 'trace'}" class="${tab === 'trace' ? 'active' : ''}" data-debug-tab="trace">运行轨迹</button></div>
     <div class="debug-console-body" ${tab === 'trace' ? 'data-debug-trace' : ''}>${tab === 'trace' ? renderDebugTraceTab() : renderDebugConfigTab()}</div>
   </div>`)
@@ -414,12 +413,40 @@ function renderEditorHeading(title, description, showDebugAction = true) {
 }
 
 function renderChannels() {
+  if (state.channelDetail === 'website') return renderWebsiteChannel()
+
+  const channelCards = [
+    ['website', '官网', '在官网、活动页接待访客', 'globe', 'website'],
+    ['douyin', '抖音', '收发客户消息', '抖', 'douyin'],
+    ['xiaohongshu', '小红书', '收发客户消息', '小红书', 'xiaohongshu'],
+    ['wechat-official', '微信公众号', '收发客户消息', '微', 'wechat'],
+    ['wechat-service', '微信客服', '收发客户消息', '微', 'wechat-service'],
+    ['wechat-mini', '微信小程序', '收发客户消息', '小', 'wechat-mini'],
+    ['wechat-store', '微信小店', '收发客户消息', '店', 'wechat-store'],
+    ['kuaishou', '快手', '收发客户消息', '快', 'kuaishou'],
+    ['bilibili', '哔哩哔哩', '收发客户消息', 'bili', 'bilibili'],
+    ['wecom', '企业微信', '收发客户消息', '企', 'wecom'],
+    ['channels', '视频号', '收发客户消息', '视', 'channels'],
+    ['personal-wechat', '个人微信', '接入个人微信', '微', 'personal-wechat'],
+    ['douyin-ads', '抖音来客广告', '收发客户消息', '广', 'douyin-ads']
+  ]
+
+  return `${renderEditorHeading('渠道', '选择渠道，将 AI 接待连接到你的客户触点。', false)}
+    <div class="channel-grid">${channelCards.map(([key, name, description, mark, theme]) => `<button type="button" class="channel-summary-card ${key === 'website' ? 'is-enabled' : ''}" data-channel-card="${key}" data-channel-name="${name}">
+      <span class="channel-logo ${theme}">${key === 'website' ? icon(mark) : mark}</span>
+      <span class="channel-card-copy"><strong>${name}</strong><small>${description}</small></span>
+      ${key === 'website' ? '<span class="channel-enabled-dot" title="已启用" aria-label="已启用"></span>' : ''}
+      ${icon('chevron', 'channel-card-arrow')}
+    </button>`).join('')}</div>`
+}
+
+function renderWebsiteChannel() {
   const channels = cfg.draft.channels
   const deployCode = `<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${channels.siteKey}" defer></script>`
-  return `${renderEditorHeading('渠道', '将 AI 接待部署到官网、活动页或其他业务入口。', false)}
+  return `<div class="channel-detail-heading"><button type="button" class="channel-back" data-action="channel-back" aria-label="返回渠道列表">${icon('arrow-left')}</button><div><div class="channel-breadcrumb"><span>渠道</span>${icon('chevron')}<strong>官网</strong></div><h2 class="editor-title">官网</h2><p class="editor-sub">将 AI 接待部署到官网、活动页或其他业务入口。</p></div></div>
     <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="${esc(channels.allowedDomains)}" data-bind="channels.allowedDomains" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="${esc(channels.siteKey)}" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">${esc(deployCode)}</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
-    <div class="card channel-card"><div class="channel-head"><strong>IM 工具</strong><span class="badge gray">未连接</span></div><p style="font-size:11px;color:var(--muted);line-height:1.6">连接企业微信、飞书或钉钉，将高意向访客实时推送给销售团队。</p><button class="btn small" data-action="connect-im">连接 IM</button></div>
-    <div class="card channel-card"><div class="channel-head"><strong>事件触发</strong><span class="badge blue">2 条规则</span></div><p style="font-size:11px;color:var(--muted)">监听价格页停留超过 30 秒、连续访问产品页 3 次。</p><button class="btn small">管理规则</button></div>`
+    <div class="card channel-card"><div class="channel-head"><strong>IM 工具</strong><span class="badge gray">未连接</span></div><p class="channel-card-description">连接企业微信、飞书或钉钉，将高意向访客实时推送给销售团队。</p><button class="btn small" data-action="connect-im">连接 IM</button></div>
+    <div class="card channel-card"><div class="channel-head"><strong>事件触发</strong><span class="badge blue">2 条规则</span></div><p class="channel-card-description">监听价格页停留超过 30 秒、连续访问产品页 3 次。</p><button class="btn small">管理规则</button></div>`
 }
 
 function renderConversationPreview() {
@@ -435,13 +462,12 @@ function renderOverviewPreview() {
   const mode = state.previewMode === 'conversation' ? 'conversation' : 'website'
   const tabs = [['website', 'globe', '官网页面'], ['conversation', 'chat', '对话窗口']]
   const content = mode === 'website'
-    ? `<div class="website-preview-stage"><div class="website-preview-browser"><div class="website-preview-bar"><span></span><span></span><span></span><div class="website-preview-url">${escapeHtml(website)}</div>${icon('external')}</div><div class="website-preview-frame"><iframe title="用户官网预览" src="${escapeHtml(website)}" sandbox="allow-forms allow-popups allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe><div class="ai-entry-guide"><span>AI 客服入口</span><strong>访客从这里唤起客服</strong></div><button class="ai-entry-trigger" style="--preview-brand:${escapeHtml(a.accent || a.primary)}" data-preview-mode="conversation" aria-label="打开对话窗口"><i></i>${icon('chat')}</button></div></div></div>`
+    ? `<div class="website-preview-stage"><div class="website-preview-browser"><div class="website-preview-bar"><span></span><span></span><span></span><div class="website-preview-url">${escapeHtml(website)}</div>${icon('external')}</div><div class="website-preview-frame"><iframe title="用户官网预览" src="${escapeHtml(website)}" sandbox="allow-forms allow-popups allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe>${state.websiteChatOpen ? `<div class="website-chat-window"><div class="cfg-widget-root" data-widget-root data-widget-close-action="close-website-chat">${renderCfgWidget({ closeAction: 'close-website-chat' })}</div></div>` : `<div class="ai-entry-guide"><span>AI 客服入口</span><strong>访客从这里唤起客服</strong></div><button class="ai-entry-trigger" style="--preview-brand:${escapeHtml(a.accent || a.primary)}" data-action="open-website-chat" aria-label="打开对话窗口" aria-expanded="false"><i></i>${icon('chat')}</button>`}</div></div></div>`
     : `<div class="overview-conversation-debug"><div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></div>`
-  const status = mode === 'website' ? `${escapeHtml(entryLabel(a.entry))} · 外观在「外观」页修改` : '实时预览'
   return `<div class="embedded-debug overview-preview debug-preview">
-    <div class="debug-preview-bar"><div class="debug-preview-tabs" role="tablist">${tabs.map(([key, iconName, label]) => `<button type="button" role="tab" aria-selected="${mode === key}" class="${mode === key ? 'active' : ''}" data-preview-mode="${key}">${icon(iconName, 'xs')}<span>${label}</span></button>`).join('')}</div>
-      <span class="debug-preview-status"><i></i>${status}</span>
-      <button type="button" class="cfg-btn sm primary debug-new-session" data-action="cfg-chat-reset">${icon('chat-plus', 'xs')}<span>新会话</span></button></div>
+    <div class="debug-preview-bar"><div class="debug-preview-heading"><strong class="debug-preview-title">调试台</strong><span class="debug-preview-description">可调试当前草稿中所有已开启的能力。</span></div>
+      <div class="debug-preview-tabs" role="tablist">${tabs.map(([key, iconName, label]) => `<button type="button" role="tab" aria-selected="${mode === key}" class="${mode === key ? 'active' : ''}" data-preview-mode="${key}">${icon(iconName, 'xs')}<span>${label}</span></button>`).join('')}</div>
+      <button type="button" class="cfg-btn sm outline debug-new-session" data-action="cfg-chat-reset">${icon('refresh', 'xs')}<span>新会话</span></button></div>
     <div class="overview-preview-body">${content}</div></div>`
 }
 
@@ -525,6 +551,7 @@ function enterAgentOverview() {
   state.agentSection = 'overview'
   state.debugOpen = false
   state.previewMode = 'website'
+  state.websiteChatOpen = false
   state.profileOpen = false
 }
 
@@ -560,9 +587,11 @@ document.addEventListener('click', event => {
   const agentSection = event.target.closest('[data-agent-section]')
   if (agentSection) {
     state.agentSection = agentSection.dataset.agentSection
+    state.channelDetail = null
     if (state.agentSection === 'overview') {
       state.debugOpen = false
       state.previewMode = 'website'
+      state.websiteChatOpen = false
     } else state.debugOpen = state.agentSection !== 'channels' && !isAgentOperationSection()
     return renderApp()
   }
@@ -570,8 +599,8 @@ document.addEventListener('click', event => {
   const debugTab = event.target.closest('[data-debug-tab]')
   if (debugTab) { state.debugTab = debugTab.dataset.debugTab; return renderApp() }
 
-  const debugJump = event.target.closest('[data-debug-jump]')
-  if (debugJump) { document.getElementById(`debug-card-${debugJump.dataset.debugJump}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
+  const debugConfigTab = event.target.closest('[data-debug-config-tab]')
+  if (debugConfigTab) { state.debugConfigTab = debugConfigTab.dataset.debugConfigTab; return renderApp() }
 
   const debugCap = event.target.closest('[data-debug-cap]')
   if (debugCap) {
@@ -617,6 +646,15 @@ document.addEventListener('click', event => {
     return renderApp()
   }
 
+  const channelCard = event.target.closest('[data-channel-card]')
+  if (channelCard) {
+    if (channelCard.dataset.channelCard === 'website') {
+      state.channelDetail = 'website'
+      return renderApp()
+    }
+    return toast(`「${channelCard.dataset.channelName}」渠道配置入口暂未在当前原型中展开`, 'info')
+  }
+
   const goal = event.target.closest('[data-onboarding-goal]')
   if (goal) {
     state.onboarding.goal = goal.dataset.onboardingGoal
@@ -652,6 +690,14 @@ document.addEventListener('click', event => {
   if (name === 'open-debug') { state.debugOpen = true; return renderApp() }
   if (name === 'close-debug') { state.debugOpen = false; return renderApp() }
   if (name === 'debug-send') return debugSend()
+  if (name === 'open-website-chat') {
+    state.websiteChatOpen = true
+    renderApp()
+    requestAnimationFrame(() => $('#cfg-widget-input')?.focus())
+    return
+  }
+  if (name === 'close-website-chat') { state.websiteChatOpen = false; return renderApp() }
+  if (name === 'channel-back') { state.channelDetail = null; return renderApp() }
   if (name === 'copy-code') return copyText(`<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${cfg.draft.channels.siteKey}" defer></script>`, '部署代码已复制')
   if (name === 'connect-im') return toast('已发起企业微信连接（原型演示）')
   if (name === 'save-workspace' || name === 'save-personal') return toast('设置已保存')
@@ -667,7 +713,7 @@ document.addEventListener('click', event => {
   if (name === 'logout') return toast('这是交互原型，未执行真实退出', 'info')
   if (name === 'lead-repush') { const row = leads[Number(action.dataset.repush)]; if (row) row[6] = '已推送'; toast('已重新推送到企业微信'); return renderApp() }
   if (name === 'add-lead') return toast('新建线索表单已打开（原型演示）')
-  if (name === 'add-qna' || name === 'add-knowledge') return toast('添加入口已响应（原型演示）')
+  if (name === 'add-knowledge') return toast('添加入口已响应（原型演示）')
 })
 
 document.addEventListener('input', event => {

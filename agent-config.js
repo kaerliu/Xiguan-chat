@@ -244,8 +244,8 @@ function cfgPanel(title, desc, body, { cls = '', actions = '', flush = false } =
   return `<section class="cfg-panel ${cls}"><div class="cfg-panel-head"><div class="cfg-panel-heading"><h3>${title}</h3>${desc ? `<p>${desc}</p>` : ''}</div>${actions ? `<div class="cfg-panel-actions">${actions}</div>` : ''}</div><div class="cfg-panel-body ${flush ? 'flush' : ''}">${body}</div></section>`
 }
 
-function renderCfgDebugToolbar({ description, center = '', actions = '' }) {
-  return `<div class="cfg-debug-toolbar"><strong class="cfg-debug-title">调试台</strong>${center}<span class="cfg-debug-description">${description}</span><div class="cfg-debug-actions">${actions}</div></div>`
+function renderCfgDebugToolbar({ title = '调试台', description, center = '', actions = '' }) {
+  return `<div class="cfg-debug-toolbar"><strong class="cfg-debug-title">${title}</strong>${center}<span class="cfg-debug-description">${description}</span><div class="cfg-debug-actions">${actions}</div></div>`
 }
 
 function cfgField(label, control, { help = '', full = false, cls = '' } = {}) {
@@ -296,13 +296,13 @@ function renderWidgetText(text) {
     .replace(/\n/g, '<br>')
 }
 
-function renderCfgWidget() {
+function renderCfgWidget({ closeAction = '' } = {}) {
   const a = cfg.draft.appearance
   const handoff = cfg.draft.actions.human_handoff.enabled
   const name = a.name.trim() || 'AI 助手'
   const showQuick = a.quickButtons.length && !cfg.typing && (cfg.chat.length === 0 || a.keepQuick)
   return `<div class="cfg-widget" style="--w-primary:${a.primary};--w-on-primary:${readableOn(a.primary)};--w-paper:${a.paper}">
-    <header class="cfg-widget-head"><div class="cfg-widget-identity"><span class="cfg-widget-avatar">${a.avatarImage ? `<img src="${esc(a.avatarImage)}" alt="" />` : esc(Array.from(name)[0])}</span><div><strong>${esc(name)}</strong><small><i></i>${handoff ? '人工在线' : '在线'}</small></div></div><button type="button" class="cfg-widget-close" aria-label="关闭" tabindex="-1">×</button></header>
+    <header class="cfg-widget-head"><div class="cfg-widget-identity"><span class="cfg-widget-avatar">${a.avatarImage ? `<img src="${esc(a.avatarImage)}" alt="" />` : esc(Array.from(name)[0])}</span><div><strong>${esc(name)}</strong><small><i></i>${handoff ? '人工在线' : '在线'}</small></div></div><button type="button" class="cfg-widget-close" aria-label="关闭" ${closeAction ? `data-action="${esc(closeAction)}"` : 'tabindex="-1"'}>×</button></header>
     <section class="cfg-widget-stage" data-widget-stage>
       <div class="cfg-widget-meta"><span>${esc(name)}</span><time>${cfg.chatStartedAt}</time></div>
       <div class="cfg-widget-msg assistant">${renderWidgetText(a.welcome)}</div>
@@ -316,7 +316,7 @@ function renderCfgWidget() {
 }
 
 function refreshWidget(focus = false) {
-  document.querySelectorAll('[data-widget-root]').forEach(root => { root.innerHTML = renderCfgWidget() })
+  document.querySelectorAll('[data-widget-root]').forEach(root => { root.innerHTML = renderCfgWidget({ closeAction: root.dataset.widgetCloseAction || '' }) })
   requestAnimationFrame(() => {
     document.querySelectorAll('[data-widget-stage]').forEach(stage => { stage.scrollTop = stage.scrollHeight })
     if (focus) $('#cfg-widget-input')?.focus()
@@ -353,7 +353,7 @@ function resetWidgetChat() {
 
 function renderCfgDebugPanel() {
   const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>新会话</span></button>`
-  return `<section class="cfg-panel cfg-debug-panel">${renderCfgDebugToolbar({ description: '本会话独立于其他能力和全局概览调试。', actions })}<div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></section>`
+  return `<section class="cfg-panel cfg-debug-panel">${renderCfgDebugToolbar({ description: '可调试当前草稿中所有已开启的能力。', actions })}<div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></section>`
 }
 
 /* ---------- 角色与提示词 ---------- */
