@@ -161,7 +161,7 @@ const cfg = {
   published: JSON.stringify(cfgPublishedDraft),
   fullscreen: null,
   capSearch: '', capTrigger: 'all', capDetail: null,
-  kbTab: 'sources', kbSearch: '', kbType: 'all', kbSort: 'new', kbPage: 1, kbPageSize: 10, kbModal: null,
+  kbTab: 'sources', kbSearch: '', kbType: 'all', kbSort: 'new', kbPage: 1, kbPageSize: 10,
   sources: [
     { id: 4, name: 'Widget 会影响官网加载速度吗？', type: 'qa', meta: 'AI 改写', created: '11/11 14:16', answer: '不会。Widget 脚本异步加载，体积约 30KB，首屏渲染完成后才初始化对话窗口。' },
     { id: 3, name: '可以免费试用吗？', type: 'qa', meta: 'AI 改写', created: '11/11 14:16', answer: '可以。免费版每月提供 200 次会话和 1 个智能体，注册后即可使用，无需绑定信用卡。' },
@@ -323,21 +323,22 @@ function refreshWidget(focus = false) {
   })
 }
 
-function cfgAsk(text) {
+/** 调试对话：知识库怎么参与回答见 agent-knowledge.js 的 kbAnswer()（PRD 4.4）。 */
+function cfgAsk(text, { button = false } = {}) {
   const question = String(text || '').trim()
   if (!question || cfg.typing) return
+  const first = !cfg.chat.some(message => message.from === 'user')
   cfg.chat.push({ from: 'user', text: question })
   cfg.typing = true
   refreshWidget(true)
   setTimeout(() => {
-    const qa = cfg.sources.find(item => item.type === 'qa' && item.answer && (question.includes(item.name.replace(/[？?]$/, '')) || item.name.includes(question.replace(/[？?]$/, ''))))
-    const hit = widgetAnswers.find(([pattern]) => pattern.test(question))
-    const answer = qa?.answer || hit?.[1]
-    cfg.chat.push({ from: 'assistant', text: answer || widgetFallback })
-    if (!answer) cfg.unanswered.unshift({ id: Date.now(), question, reason: 'no_kb', time: nowStamp() })
+    const result = kbAnswer(question, { button, first })
+    cfg.chat.push({ from: 'assistant', text: result.text })
+    // 依据不足记入未答队列；模型出错不计入（决议 4）
+    if (result.insufficient) cfg.unanswered.unshift({ id: Date.now(), question, reason: 'no_kb', time: nowStamp() })
     cfg.typing = false
     // 调试台「运行轨迹」展示本轮命中情况
-    cfg.debugTrace = { question, time: nowClock(), qa: qa?.name || '', answered: Boolean(answer), refs: answer ? 1 : 0 }
+    cfg.debugTrace = { question, time: nowClock(), qa: result.qa?.name || '', mode: result.qa ? KB_MODE[result.qa.mode] : '', route: result.route, how: KB_ROUTE_LABEL[result.route], answered: !result.insufficient, refs: result.refs || 0, candidates: result.candidates || 0 }
     if (typeof refreshDebugTrace === 'function') refreshDebugTrace()
     refreshWidget(true)
   }, 650)
@@ -390,101 +391,7 @@ function renderPersonaConfig() {
 
 /* ---------- 能力 ---------- */
 
-/* ---------- 知识库 ---------- */
-
-function filteredSources() {
-  const keyword = cfg.kbSearch.trim().toLowerCase()
-  const list = cfg.sources.filter(item => (cfg.kbType === 'all' || item.type === cfg.kbType) && (!keyword || `${item.name}${item.type === 'qa' ? item.answer || '' : ''}`.toLowerCase().includes(keyword)))
-  return cfg.kbSort === 'new' ? list : [...list].reverse()
-}
-
-function renderKbList() {
-  const list = filteredSources()
-  const pages = Math.max(1, Math.ceil(list.length / cfg.kbPageSize))
-  cfg.kbPage = Math.min(cfg.kbPage, pages)
-  const start = (cfg.kbPage - 1) * cfg.kbPageSize
-  const rows = list.slice(start, start + cfg.kbPageSize)
-  const body = rows.length ? rows.map(item => {
-    const type = sourceTypes[item.type]
-    return `<div class="cfg-kb-row"><button type="button" class="cfg-kb-row-main" data-kb-open="${item.id}"><strong>${esc(item.name)}</strong><span>创建于 ${item.created} · ${esc(item.meta)}</span></button><span class="cfg-type-chip">${icon(type.icon, 'xs')}${type.label}</span><button type="button" class="cfg-icon-btn" data-kb-more="${item.id}" aria-label="${esc(item.name)} 的更多操作" title="删除">${icon('more', 'sm')}</button></div>`
-  }).join('') : '<div class="cfg-empty">没有匹配的数据源。</div>'
-  const first = cfg.kbPage === 1
-  const last = cfg.kbPage === pages
-  return `<div class="cfg-kb-rows">${body}</div>
-    <div class="cfg-kb-pager"><label>每页 <select id="cfg-kb-size" class="cfg-select" aria-label="每页条数">${[10, 20, 50].map(size => `<option ${cfg.kbPageSize === size ? 'selected' : ''}>${size}</option>`).join('')}</select> 条</label>
-      <span class="cfg-kb-pager-spacer">第 ${cfg.kbPage} / ${pages} 页 · 共 ${list.length} 条</span>
-      <button type="button" class="cfg-icon-btn" data-kb-page="1" ${first ? 'disabled' : ''} aria-label="第一页">${icon('chevrons-left', 'sm')}</button>
-      <button type="button" class="cfg-btn sm ghost" data-kb-page="${cfg.kbPage - 1}" ${first ? 'disabled' : ''}>上一页</button>
-      <button type="button" class="cfg-btn sm ghost" data-kb-page="${cfg.kbPage + 1}" ${last ? 'disabled' : ''}>下一页</button>
-      <button type="button" class="cfg-icon-btn" data-kb-page="${pages}" ${last ? 'disabled' : ''} aria-label="最后一页">${icon('chevrons-right', 'sm')}</button></div>`
-}
-
-function renderKbSources() {
-  const entries = [
-    ['upload', 'file-up', '上传文件', 'PDF、Word、Excel、CSV、TXT、Markdown'],
-    ['site', 'globe', '添加网站', '抓取公开页面，勾选后同步'],
-    ['text', 'text', '添加文本片段', '直接写一段资料'],
-    ['qa', 'message', '新增 Q&A', '需要统一口径的标准答案']
-  ]
-  return `<div class="cfg-kb-usage">${icon('database', 'sm')}<span>知识库容量按内容量计算（初始 40 MB）</span><span class="cfg-badge">用量统计即将上线</span></div>
-    <section class="cfg-kb-entries" aria-label="添加知识">${entries.map(([key, iconName, title, desc]) => `<button type="button" class="cfg-kb-entry" data-kb-entry="${key}"><span class="cfg-kb-entry-icon">${icon(iconName, 'sm')}</span><strong>${title}</strong><small>${desc}</small></button>`).join('')}
-      <button type="button" class="cfg-kb-entry is-planned" disabled><span class="cfg-kb-entry-icon">${icon('server', 'sm')}</span><strong>MCP 知识同步</strong><small>连接企业内容服务自动同步</small><span class="cfg-badge">即将上线</span></button></section>
-    <div class="cfg-toolbar"><div class="cfg-search wide">${icon('search', 'sm')}<input id="cfg-kb-search" type="search" placeholder="搜索名称；Q&A 同时搜问法和答案" aria-label="搜索数据源" value="${esc(cfg.kbSearch)}" /></div>
-      <select id="cfg-kb-type" class="cfg-select" aria-label="按类型筛选"><option value="all">全部类型</option>${Object.entries(sourceTypes).map(([key, item]) => `<option value="${key}" ${cfg.kbType === key ? 'selected' : ''}>${item.label}</option>`).join('')}</select>
-      <select id="cfg-kb-sort" class="cfg-select" aria-label="排序"><option value="new" ${cfg.kbSort === 'new' ? 'selected' : ''}>最新</option><option value="old" ${cfg.kbSort === 'old' ? 'selected' : ''}>最早</option></select>
-      <button type="button" class="cfg-btn outline" data-action="cfg-kb-bulk">批量选择</button></div>
-    <div id="cfg-kb-list">${renderKbList()}</div>`
-}
-
-function renderKbUnanswered() {
-  const rows = cfg.unanswered.length ? cfg.unanswered.map(item => `<div class="cfg-unanswered-row"><strong>${esc(item.question)}</strong><span>${item.reason} · ${item.time}</span><div class="cfg-unanswered-actions"><button type="button" class="cfg-btn sm outline" data-unanswered-fill="${item.id}">补充答案</button><button type="button" class="cfg-btn sm ghost" data-unanswered-ignore="${item.id}">忽略</button></div></div>`).join('') : '<div class="cfg-empty">未答队列已清空，所有缺口都已通过 Q&A 关闭。</div>'
-  return cfgPanel('未答队列', '来自真实会话里 AI 依据不足和自动试题失败；同一个问题每次被问都单独记一条。只能通过 Q&A 关闭缺口。', `<div class="cfg-unanswered-list">${rows}</div>`, { flush: true, actions: `<span class="cfg-badge warning">${cfg.unanswered.length} 待处理</span>` })
-}
-
-function renderKbSettings() {
-  const num = (label, path, help) => cfgField(label, cfgInput(path, { type: 'number', min: 0 }), { help })
-  return `${renderCfgHint()}${cfgPanel('高级检索设置', '每个智能体单独设置；只影响知识检索，不改变智能体的角色或业务流程。', `<div class="cfg-form-grid cols-3">
-      ${num('检索参考轮数', 'retrieval.turns', '用最近多少轮访客消息构造检索查询，默认 3。')}
-      ${num('单条最大字符', 'retrieval.chunkChars', '每条证据进入模型前的最大长度，默认 600。')}
-      ${num('上下文总字符', 'retrieval.contextChars', '所有知识资料证据的总预算，默认 2400。')}
-      ${num('关键词触发字数上限', 'retrieval.keywordLimit', '访客输入超过这个字数时，关键词只把 Q&A 交给 AI 参考。')}
-      ${cfgField('分类词表', cfgTextarea('retrieval.taxonomy', { placeholder: '可选；用于统一导入资料中的行业、产品、场景标签' }), { full: true, help: '词表内容完全由工作区定义。' })}
-      ${cfgField('术语别名', cfgTextarea('retrieval.aliases', { placeholder: '正式名称=简称、旧称\n另一个术语=别名' }), { full: true, help: '每行是一组真正等价的说法，命中任一词都会扩展整组。不要把上位类目和细分类目放在同一组。' })}
-      ${cfgField('当前智能体的知识范围', `<label class="cfg-checkbox"><input type="checkbox" data-bind="retrieval.allSources" ${cfg.draft.retrieval.allSources ? 'checked' : ''} /><span>使用工作区全部知识源（新增来源自动可用）</span></label>`, { full: true, help: '默认使用全部知识源，也可以按标签或单个来源缩小范围。' })}
-      ${cfgToggle('retrieval.sensitive', '敏感资料隔离', '开启后，标记为敏感的资料不会进入模型上下文；智能体也不会推测其内容。')}
-    </div>`)}`
-}
-
-function renderKbModal() {
-  const modal = cfg.kbModal
-  if (!modal) return ''
-  const isQa = modal.type === 'qa'
-  return `<div class="modal-backdrop" data-cfg-backdrop><div class="modal" style="width:560px">
-    <div class="modal-head"><div><h2>${isQa ? '新增 Q&A' : '添加文本片段'}</h2><p>${isQa ? '配置需要统一口径的标准答案，命中后按答复方式返回。' : '直接写一段资料，保存后立即可被检索。'}</p></div><button type="button" class="btn icon-btn ghost" data-action="cfg-kb-modal-close">${icon('close')}</button></div>
-    <div class="modal-body cfg-modal-body">
-      <div class="cfg-field"><label>${isQa ? '访客问法' : '标题'}</label><input id="cfg-kb-title" value="${esc(modal.question || '')}" placeholder="${isQa ? '例如：支持私有化部署吗？' : '例如：售后服务说明'}" /></div>
-      <div class="cfg-field"><label>${isQa ? '标准答案' : '正文'}</label><textarea id="cfg-kb-body" rows="6" placeholder="${isQa ? '写一段可以直接回答访客的话' : '粘贴或输入资料内容'}"></textarea></div>
-      ${isQa ? '<div class="cfg-field"><label>答复方式</label><select id="cfg-kb-mode"><option value="AI 改写">允许 AI 改写（作为首要依据）</option><option value="固定答复">固定答复（原样返回）</option></select></div>' : ''}
-    </div>
-    <div class="modal-foot"><span></span><div><button type="button" class="btn" data-action="cfg-kb-modal-close">取消</button> <button type="button" class="btn primary" data-action="cfg-kb-modal-save">保存</button></div></div>
-  </div></div>`
-}
-
-function renderKnowledgeConfig() {
-  const docs = cfg.sources.filter(item => item.type !== 'qa').length
-  const qas = cfg.sources.length - docs
-  const tabs = [['sources', '数据源', ''], ['unanswered', '未答队列', cfg.unanswered.length], ['settings', '检索设置', '']]
-  const panel = cfg.kbTab === 'unanswered' ? renderKbUnanswered() : cfg.kbTab === 'settings' ? renderKbSettings() : renderKbSources()
-  return cfgPage(`knowledge-${cfg.kbTab}`, `${renderCfgHeader({
-      title: '知识库',
-      desc: '智能体答得准不准，取决于它手里有没有企业自己的资料。文件、网站、文本片段与 Q&A 都在这里维护。',
-      extra: `<span class="cfg-badge success">${docs} 份资料 · ${qas} 条 Q&A</span>`,
-      actions: `<button type="button" class="cfg-btn outline" data-action="cfg-kb-refresh">${icon('refresh', 'sm')}<span>刷新</span></button>`
-    })}
-    <div class="cfg-tabs-bar"><div class="cfg-tabs" role="tablist" aria-label="知识库标签">${tabs.map(([key, label, count]) => `<button type="button" role="tab" aria-selected="${cfg.kbTab === key}" class="${cfg.kbTab === key ? 'active' : ''}" data-kb-tab="${key}"><span>${label}</span>${count !== '' ? `<b>${count}</b>` : ''}</button>`).join('')}</div></div>
-    <section class="cfg-body" role="tabpanel">${panel}</section>
-    ${renderKbModal()}`)
-}
+/* ---------- 知识库：见 agent-knowledge.js ---------- */
 
 /* ---------- 外观 ---------- */
 
@@ -740,12 +647,7 @@ function handleConfigInput(event) {
     return true
   }
   if (target.matches('[data-cfg-color]')) return applyCfgColor(target.dataset.cfgColor, target.value)
-  if (target.id === 'cfg-kb-search') {
-    cfg.kbSearch = target.value
-    cfg.kbPage = 1
-    $('#cfg-kb-list').innerHTML = renderKbList()
-    return true
-  }
+  if (kbHandleInput(event)) return true
   return false
 }
 
@@ -766,15 +668,13 @@ function handleConfigChange(event) {
   }
   if (target.matches('[data-rerender]')) return renderApp()
   if (target.id === 'cfg-cap-trigger') { cfg.capTrigger = target.value; $('#cfg-cap-grid').innerHTML = renderCapabilityListCards(); return }
-  if (target.id === 'cfg-kb-type') { cfg.kbType = target.value; cfg.kbPage = 1; $('#cfg-kb-list').innerHTML = renderKbList(); return }
-  if (target.id === 'cfg-kb-sort') { cfg.kbSort = target.value; $('#cfg-kb-list').innerHTML = renderKbList(); return }
-  if (target.id === 'cfg-kb-size') { cfg.kbPageSize = Number(target.value); cfg.kbPage = 1; $('#cfg-kb-list').innerHTML = renderKbList() }
+  if (kbHandleChange(event)) return
 }
 
 function handleConfigKeydown(event) {
   if (capHandleKeydown(event)) return true
   if (event.key === 'Escape' && cfg.fullscreen) { cfg.fullscreen = null; renderApp(); return true }
-  if (event.key === 'Escape' && cfg.kbModal) { cfg.kbModal = null; renderApp(); return true }
+  if (kbHandleKeydown(event)) return true
   if (event.key === 'Enter' && !event.shiftKey && event.target.id === 'cfg-widget-input') {
     if (event.isComposing) return true
     event.preventDefault()
@@ -783,18 +683,6 @@ function handleConfigKeydown(event) {
   }
   if (event.key === 'Enter' && event.target.matches('[data-cfg-hex]')) { event.target.blur(); return true }
   return false
-}
-
-function saveKbModal() {
-  const title = $('#cfg-kb-title')?.value.trim()
-  const body = $('#cfg-kb-body')?.value.trim()
-  if (!title || !body) { toast(cfg.kbModal.type === 'qa' ? '请填写访客问法和标准答案' : '请填写标题和正文', 'info'); return }
-  const isQa = cfg.kbModal.type === 'qa'
-  cfg.sources.unshift({ id: Date.now(), name: title, type: isQa ? 'qa' : 'text', meta: isQa ? $('#cfg-kb-mode').value : `${body.length} 字`, created: nowStamp(), answer: isQa ? body : '' })
-  if (cfg.kbModal.fromId) cfg.unanswered = cfg.unanswered.filter(item => item.id !== cfg.kbModal.fromId)
-  toast(cfg.kbModal.fromId ? '已补充为 Q&A，缺口已关闭' : isQa ? 'Q&A 已添加，立即生效' : '文本片段已添加')
-  cfg.kbModal = null
-  renderApp()
 }
 
 function handleConfigClick(event) {
@@ -811,7 +699,9 @@ function handleConfigClick(event) {
     cfg.popup = null
     cfg.rec = null
     cfg.fullscreen = null
-    cfg.kbModal = null
+    cfg.kbDrawer = null
+    cfg.kbConfirm = null
+    cfg.kbMenu = null
     return false
   }
 
@@ -824,45 +714,8 @@ function handleConfigClick(event) {
     return true
   }
   if (capHandleClick(event)) return true
-  if ((el = pick('[data-widget-ask]'))) { cfgAsk(el.dataset.widgetAsk); return true }
-  if ((el = pick('[data-kb-tab]'))) { cfg.kbTab = el.dataset.kbTab; renderApp(); return true }
-  if ((el = pick('[data-kb-entry]'))) {
-    const key = el.dataset.kbEntry
-    if (key === 'qa' || key === 'text') { cfg.kbModal = { type: key }; renderApp(); requestAnimationFrame(() => $('#cfg-kb-title')?.focus()) }
-    else toast(key === 'upload' ? '已打开文件选择（原型演示）' : '已打开网站抓取配置（原型演示）')
-    return true
-  }
-  if ((el = pick('[data-kb-open]'))) { toast('数据源详情（原型演示）', 'info'); return true }
-  if ((el = pick('[data-kb-more]'))) {
-    const id = Number(el.dataset.kbMore)
-    const item = cfg.sources.find(source => source.id === id)
-    if (item && window.confirm(`删除「${item.name}」？删除后智能体将不再引用这条知识。`)) {
-      cfg.sources = cfg.sources.filter(source => source.id !== id)
-      toast('数据源已删除')
-      renderApp()
-    }
-    return true
-  }
-  if ((el = pick('[data-kb-page]'))) {
-    if (el.disabled) return true
-    cfg.kbPage = Number(el.dataset.kbPage)
-    $('#cfg-kb-list').innerHTML = renderKbList()
-    return true
-  }
-  if ((el = pick('[data-unanswered-fill]'))) {
-    const item = cfg.unanswered.find(row => row.id === Number(el.dataset.unansweredFill))
-    cfg.kbModal = { type: 'qa', question: item?.question || '', fromId: item?.id }
-    renderApp()
-    requestAnimationFrame(() => $('#cfg-kb-body')?.focus())
-    return true
-  }
-  if ((el = pick('[data-unanswered-ignore]'))) {
-    cfg.unanswered = cfg.unanswered.filter(row => row.id !== Number(el.dataset.unansweredIgnore))
-    toast('已忽略该问题')
-    renderApp()
-    return true
-  }
-  if (event.target.matches('[data-cfg-backdrop]')) { cfg.kbModal = null; renderApp(); return true }
+  if ((el = pick('[data-widget-ask]'))) { cfgAsk(el.dataset.widgetAsk, { button: true }); return true }
+  if (kbHandleClick(event)) return true
   if ((el = pick('[data-entry-pick]'))) {
     cfg.entryTab = el.dataset.entryPick
     cfg.accOpen = 'entry'
@@ -888,6 +741,7 @@ function handleConfigClick(event) {
 
   el = pick('[data-action]')
   const name = el?.dataset.action || ''
+  if (name && !el.disabled && kbAction(name)) return true
   if (!name.startsWith('cfg-')) return false
   if (el.disabled) return true
   if (capAction(name, el) || tbAction(name)) return true
@@ -925,16 +779,6 @@ function handleConfigClick(event) {
     return true
   } else if (name === 'cfg-cap-back') {
     cfg.capDetail = null
-  } else if (name === 'cfg-kb-refresh') {
-    toast('知识库已刷新')
-  } else if (name === 'cfg-kb-bulk') {
-    toast('批量选择（原型演示）', 'info')
-    return true
-  } else if (name === 'cfg-kb-modal-close') {
-    cfg.kbModal = null
-  } else if (name === 'cfg-kb-modal-save') {
-    saveKbModal()
-    return true
   } else if (name === 'cfg-set-entry') {
     cfg.draft.appearance.entry = cfg.entryTab
     toast(`已将「${entryLabel(cfg.entryTab)}」设为官网入口，发布后生效`)
