@@ -381,15 +381,15 @@ function renderDebugTraceTab() {
   const tools = CAPABILITIES.filter(cap => isCapEnabled(cap.id))
   const route = debugCard('route', 'spark', '本轮路由', `<span class="cfg-badge ${t ? 'success' : ''}">${t ? '已回答' : '就绪'}</span>`, `
     ${debugRow('模型', t ? 'Auto' : '等待运行')}
-    ${debugRow('固定答案', t?.qa ? `命中「${escapeHtml(t.qa)}」` : '未命中')}
+    ${debugRow('Q&A', t?.qa ? `命中「${escapeHtml(t.qa)}」· ${t.mode}` : '未命中')}
     ${debugRow('引用', `${t?.refs || 0} 条`)}
     ${debugRow('线索', '未收集')}`)
   const toolCard = debugCard('tools', 'plug', '下发工具', '', t ? `<div class="debug-chips">${tools.map(cap => `<span class="cfg-badge">${cap.name}</span>`).join('') || '<small>本轮未下发工具</small>'}</div>` : '<small>本轮未下发工具</small>')
   const steps = t ? [
     ['收到问题', `「${escapeHtml(t.question)}」 · ${t.time}`],
-    ['匹配 Q&A', t.qa ? `命中「${escapeHtml(t.qa)}」，直接使用固定答案` : '没有命中固定答案'],
-    ['检索知识库', t.answered ? `找到 ${t.refs} 条可用资料` : '没有找到可用资料，已记入未答队列'],
-    ['生成回答', t.answered ? '已按资料回答' : '回复兜底话术']
+    ['匹配 Q&A', `${t.how}${t.candidates ? `（候选 ${t.candidates} 条）` : ''}`],
+    ...(t.qa ? [] : [['检索知识资料', t.answered ? `找到 ${t.refs} 条可用资料` : '依据不足，已记入未答队列']]),
+    ['生成回答', t.qa ? (t.mode === '固定答复' ? '固定答复：原样返回答案，不调用模型' : 'AI 改写：以答案为依据结合上下文回复') : t.answered ? '已按资料回答' : '说明依据不足，回复兜底话术']
   ] : []
   const traceCard = debugCard('trace', 'clipboard', '调用轨迹', '', steps.length ? `<ol class="debug-steps">${steps.map(([title, text]) => `<li><strong>${title}</strong><small>${text}</small></li>`).join('')}</ol>` : '<small>发送问题后，这里显示本轮工具调用与交接情况。</small>')
   return `${route}${toolCard}${traceCard}`
