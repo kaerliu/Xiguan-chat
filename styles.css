@@ -416,7 +416,7 @@ button { color: inherit; }
 /* Agent editor: full-width toolbar with an optional debug column below it. */
 .agent-layout {
   --agent-nav-width: 230px;
-  --agent-debug-width: clamp(380px, calc((100vw - var(--agent-nav-width)) * .38), 540px);
+  --agent-debug-width: clamp(520px, calc((100vw - var(--agent-nav-width)) * .38), 540px);
   display: grid;
   grid-template-columns: var(--agent-nav-width) minmax(0, 1fr);
   grid-template-rows: 58px minmax(0, 1fr);
@@ -512,9 +512,13 @@ button { color: inherit; }
 @keyframes preview-entry-pulse { 0% { transform: scale(.82); opacity: .4; } 75%, 100% { transform: scale(1.18); opacity: 0; } }
 
 @media (max-width: 1300px) {
-  .agent-layout { --agent-nav-width: 210px; grid-template-columns: var(--agent-nav-width) minmax(0,1fr); }
+  .agent-layout { --agent-nav-width: 210px; --agent-debug-width: 480px; grid-template-columns: var(--agent-nav-width) minmax(0,1fr); }
   .agent-layout.debug-open { grid-template-columns: var(--agent-nav-width) minmax(540px,1fr) var(--agent-debug-width); }
   .agent-layout.overview-section { grid-template-columns: var(--agent-nav-width) minmax(540px,1fr) var(--agent-debug-width); }
+}
+
+@media (min-width: 1301px) and (max-width: 1440px) {
+  .agent-layout { --agent-nav-width: 210px; }
 }
 
 /* ==========================================================================
@@ -1045,6 +1049,8 @@ button { color: inherit; }
 .capability-workbench-scroll > .cfg-body { min-height: 100%; }
 .capability-workbench-debug { min-width: 0; min-height: 0; overflow: hidden; background: #fff; border-left: 1px solid var(--c-border-soft); }
 .capability-workbench-debug > .capability-debug-panel { position: static; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0; width: 100%; height: 100%; min-height: 0; overflow: hidden; border: 0; border-radius: 0; }
+.capability-debug-panel > .cfg-debug-toolbar { height: auto; min-height: 64px; padding-top: 8px; padding-bottom: 8px; }
+.capability-debug-panel .cfg-debug-description { display: -webkit-box; overflow: hidden; white-space: normal; text-overflow: clip; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .capability-debug-panel > .cfg-panel-body { min-height: 0; overflow: hidden; }
 .capability-debug-canvas { width: 100%; height: 100%; min-width: 0; min-height: 0; padding: 14px; overflow: auto; background: #f3f5f4; border: 0; border-radius: 0; }
 .capability-debug-canvas > .demo-preview, .capability-debug-canvas > [data-assess-root], .capability-debug-canvas > [data-popup-root], .capability-debug-canvas > [data-rec-root] { width: 100%; min-height: 100%; }
