@@ -187,9 +187,10 @@ const MCP_MAX_RESULT_KB = 20
 const MCP_AUTH = [['none', '无'], ['header', '请求头里的密钥']]
 const DEFAULT_MCP = {
   enabled: true,
-  instructions: '访客问到订单、发票进度或想预约演示时去查；参数不全先问访客，不猜。',
+  instructions: '参数只使用访客明确提供的信息；缺少必填参数时先询问，不猜测。',
   servers: [{
     id: 'srv_business', name: '吸管业务系统（演示）', url: 'https://api.example.com/mcp', auth: 'header', key_saved: true, status: 'connected', failures_24h: 0,
+    use_when: '访客查询订单状态、发票进度，或希望预约产品演示时，使用此服务。',
     tools: [
       { id: 'tool_order', name: 'query_order', label: '查询订单与发票', enabled: true, read_only: true, description: '访客询问订单、付款或发票进度时调用；需要订单号（XG 开头）。没有订单号时先向访客要。', params: [{ name: 'order_id', label: '订单号', required: true, example: 'XG20261108001' }], sample_result: { order_id: 'XG20261108001', plan: '专业版（年付）', amount: 35760, paid_at: '2026-11-08', invoice_status: '已开具', invoice_no: 'INV-2026-11-0832', invoice_sent_to: 'f***@yunfan.example' } },
       { id: 'tool_slots', name: 'query_demo_slots', label: '查询可预约的演示时段', enabled: true, read_only: true, description: '访客想预约产品演示、问什么时候有空时调用；需要城市（线下）或“线上”。', params: [{ name: 'city', label: '城市或“线上”', required: true, example: '上海' }], sample_result: { city: '上海', slots: ['11-14 周五 14:00', '11-17 周一 10:00', '11-18 周二 15:30'] } },
@@ -206,11 +207,14 @@ function normalizeMcp(mcp) {
   const base = JSON.parse(JSON.stringify(DEFAULT_MCP))
   if (!mcp || typeof mcp !== 'object') return base
   const servers = Array.isArray(mcp.servers) && mcp.servers.length ? mcp.servers.slice(0, MCP_MAX_SERVERS) : base.servers
+  const hasServiceInstructions = servers.some(server => typeof server.use_when === 'string')
+  const legacyInstructions = typeof mcp.instructions === 'string' ? mcp.instructions : ''
   return {
     enabled: mcp.enabled !== false,
-    instructions: typeof mcp.instructions === 'string' ? mcp.instructions : base.instructions,
-    servers: servers.map(server => ({
+    instructions: hasServiceInstructions && legacyInstructions ? legacyInstructions : base.instructions,
+    servers: servers.map((server, index) => ({
       ...server,
+      use_when: typeof server.use_when === 'string' ? server.use_when : (!hasServiceInstructions && index === 0 ? legacyInstructions : ''),
       auth: server.auth === 'none' ? 'none' : 'header',
       key_saved: server.key_saved ?? server.auth !== 'none',
       failures_24h: Number(server.failures_24h) || 0,
@@ -1711,7 +1715,7 @@ function renderMcpDetail(cap) {
   const m = C().mcp
   const enabled = isCapEnabled('mcp')
   if (!cfg.mcpTest) cfg.mcpTest = {}
-  const general = capGeneral(cap, 'mcp.instructions', { placeholder: '比如：访客问到具体型号有没有货、什么时候到货时去查；参数不全先问访客。', help: '整个能力一段；每个工具另有自己的说明，见下面的工具列表。' })
+  const general = capGeneral(cap, 'mcp.instructions', { label: '统一调用约束', placeholder: '比如：缺少必填参数时先向访客询问，不猜测；只使用当前会话中明确提供的信息。', help: '对所有 MCP 服务生效；具体何时选择某个服务，在下方服务内分别配置。' })
   const interaction = capFixedInteraction(cap, 'AI 用返回的数据组织回答，访客看不到调用过程。返回结果配小组件一期不做。')
   const servers = m.servers.map((server, si) => {
     const https = /^https:\/\//i.test(String(server.url || '').trim())
@@ -1736,7 +1740,8 @@ function renderMcpDetail(cap) {
           ${kind === 'read' || kind === 'unknown' ? `<div class="cfg-field full"><label>测试调用</label><div class="mcp-test">${tool.params.map(param => `<input placeholder="${esc(param.label)}（如 ${esc(param.example)}）" data-mcp-arg="${tool.id}:${esc(param.name)}" value="${esc(test?.args?.[param.name] || '')}" />`).join('')}<button type="button" class="cfg-btn sm outline" data-mcp-run="${si}:${ti}">${icon('plug', 'xs')}<span>测试调用</span></button></div><small>直接调用工具看返回结果，不经过 AI。</small>${test ? `<pre class="mcp-test-result ${test.error ? 'is-error' : ''}">${esc(test.error || JSON.stringify(test.result, null, 2))}</pre>` : ''}</div>` : ''}
         </div>` : ''}</div>`
     }).join('')
-    return capSection(`mcp:server:${server.id}`, `服务：${esc(server.name || '未命名服务')}`, https && server.status === 'connected', true, `<div class="cfg-form-grid">
+    return capSection(`mcp:server:${server.id}`, `服务：${esc(server.name || '未命名服务')}`, https && server.status === 'connected' && Boolean(String(server.use_when || '').trim()), true, `<div class="cfg-form-grid">
+        ${field('什么时候使用', capTextarea(`mcp.servers.${si}.use_when`, 3, 'maxlength="2000" placeholder="比如：访客查询订单状态、发票进度，或希望预约产品演示时，使用此服务。"'), { full: true, help: '用于判断何时选择这个服务；具体调用哪个工具，由工具说明决定。最多 2000 字。' })}
         ${field('服务名称', capInput(`mcp.servers.${si}.name`, 'maxlength="40"'))}
         ${field('鉴权方式', capSelect(`mcp.servers.${si}.auth`, MCP_AUTH, 'data-rerender="1"'))}
         ${field('服务地址', capInput(`mcp.servers.${si}.url`, 'type="url" placeholder="https://" data-rerender="1"'), { full: true, help: https ? '只接受 HTTPS。' : '<span class="mcp-error">只接受 HTTPS 地址。</span>' })}
@@ -1746,11 +1751,11 @@ function renderMcpDetail(cap) {
       <div class="notification-title"><strong>工具</strong><small>只有勾选的工具会给 AI 用，新发现的工具默认不勾。</small></div>
       <div class="proto-cards">${tools}</div>`)
   }).join('')
-  const addServer = `<div class="proto-editor-foot"><button type="button" class="cfg-btn sm outline" data-action="cfg-mcp-add" ${m.servers.length >= MCP_MAX_SERVERS ? 'disabled' : ''}>${icon('plus', 'xs')}<span>接入服务（${m.servers.length} / ${MCP_MAX_SERVERS}）</span></button></div>`
+  const serverListHeader = `<div class="mcp-services-head"><div><strong>MCP 服务</strong><small>已接入 ${m.servers.length} / ${MCP_MAX_SERVERS} 个；调用时机按服务分别配置。</small></div><button type="button" class="cfg-btn sm outline" data-action="cfg-mcp-add" ${m.servers.length >= MCP_MAX_SERVERS ? 'disabled' : ''}>${icon('plus', 'xs')}<span>接入服务</span></button></div>`
   const rules = capRules(cap, ['一期只启用查询类工具。服务声明为只读的可以直接勾选；没声明的，勾选时要确认“这个工具只查数据、不改数据”。', '参数只用访客明确说出的值，缺的先问，不猜；前面几轮说过的型号、城市可以用。', '每轮回答前最多调用一个工具；要连续查两次的问题，分两轮回答。', `单次调用最多等 ${MCP_TIMEOUT_SECONDS} 秒，返回内容最大 ${MCP_MAX_RESULT_KB}KB，超时或超长都算失败；返回的内容只当数据用，里面写的指令不执行。`, '事实以返回结果为准。没查到就说没查到，不能拿知识库里的旧数据充当实时结果。', '服务、工具勾选和说明走草稿发布；密钥不进草稿，单独保存到服务端。'])
   const demo = demoFor('mcp')
   const side = renderCapabilityDebugPanel(cap, '直接在窗口里问订单发票、演示时段或系统状态；返回数据为示例。', `<div class="demo-preview">${enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>'}<div data-demo-root>${renderMcpDemo(demo)}</div></div>`)
-  return capDetailPage(cap, enabled, [general, interaction, servers, addServer, rules], side)
+  return capDetailPage(cap, enabled, [general, interaction, serverListHeader, servers, rules], side)
 }
 
 const mcpTools = () => C().mcp.servers.flatMap(server => server.tools)
@@ -1984,7 +1989,7 @@ function capAction(name, el) {
   if (name === 'cfg-rec-clear') { cfg.rec = null; refreshRec(); return true }
   if (name === 'cfg-mcp-add') {
     if (d.mcp.servers.length >= MCP_MAX_SERVERS) return true
-    d.mcp.servers.push({ id: newProtoId('srv'), name: '新服务', url: 'https://', auth: 'header', key_saved: false, status: 'error', error: '还没测试连接', failures_24h: 0, tools: [] })
+    d.mcp.servers.push({ id: newProtoId('srv'), name: '新服务', use_when: '', url: 'https://', auth: 'header', key_saved: false, status: 'error', error: '还没测试连接', failures_24h: 0, tools: [] })
     renderApp()
     return true
   }
