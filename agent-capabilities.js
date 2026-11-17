@@ -20,7 +20,7 @@ const LEAD_FIELD_META = Object.fromEntries(LEAD_SYSTEM_FIELDS.map(item => [item.
 const CONTACT_FIELDS = ['phone', 'wechat', 'email']
 const LEAD_DEFAULT_MESSAGES = { success: '已收到，顾问会带着这次的聊天记录联系你。', failure: '提交没有成功，请稍后再试。' }
 const LEAD_FORM_FIELD_WARN = 4
-const HANDOFF_DEFAULT_MESSAGES = { online: '已为你提交转人工，前面还有 {排队人数} 位，预计等待 {分钟} 分钟。', offline: '现在人工不在线，留个联系方式，我们会尽快联系你。' }
+const HANDOFF_DEFAULT_MESSAGES = { online: '已为你提交转人工，前面还有 {排队人数} 位，预计等待 {分钟} 分钟。', offline: '已提交转人工申请，目前没有同事在线。' }
 const PROACTIVE_MESSAGE_MAX = 60
 const IDLE_MAX_PER_SESSION = 3
 
@@ -206,7 +206,7 @@ const DEFAULT_MCP = {
 function normalizeMcp(mcp) {
   const base = JSON.parse(JSON.stringify(DEFAULT_MCP))
   if (!mcp || typeof mcp !== 'object') return base
-  const servers = Array.isArray(mcp.servers) && mcp.servers.length ? mcp.servers.slice(0, MCP_MAX_SERVERS) : base.servers
+  const servers = Array.isArray(mcp.servers) ? mcp.servers.slice(0, MCP_MAX_SERVERS) : base.servers
   const hasServiceInstructions = servers.some(server => typeof server.use_when === 'string')
   const legacyInstructions = typeof mcp.instructions === 'string' ? mcp.instructions : ''
   return {
@@ -243,7 +243,7 @@ function capabilityDefaults() {
   return {
     actions: {
       lead_capture: { enabled: true, interaction: 'widget', form_size: 'medium', fields: defaultLeadFields(), max_invites: 2, success_message: LEAD_DEFAULT_MESSAGES.success, failure_message: LEAD_DEFAULT_MESSAGES.failure, instructions: '访客问到报价、试用、演示时邀请留手机号；先把他的问题答完再邀请。访客拒绝后不再追问，继续正常回答。' },
-      human_handoff: { enabled: true, instructions: '访客明确要求人工、连续两次答不上、或者表达不满时转人工；转之前告诉访客要等一会。', online_message: HANDOFF_DEFAULT_MESSAGES.online, offline_message: HANDOFF_DEFAULT_MESSAGES.offline, help_url: 'https://help.xiguan.cn' },
+      human_handoff: { enabled: true, instructions: '当用户说“我要转人工”时', online_message: HANDOFF_DEFAULT_MESSAGES.online, offline_message: HANDOFF_DEFAULT_MESSAGES.offline, help_url: 'https://help.xiguan.cn' },
       asset_delivery: { enabled: false, mode: 'immediate', max_items: 3, instructions: '访客明确索要白皮书、案例、产品手册或下载链接时，发送知识库里带链接的资料卡片。' }
     },
     auto_open: { enabled: false, delay_seconds: 5, page_rules: [{ pattern: '/pricing*', enabled: true, delay_seconds: 15 }, { pattern: '/enterprise*', enabled: true, delay_seconds: 10 }] },
@@ -549,14 +549,18 @@ function capNotices(selected) {
   return html
 }
 
-function capHeader(cap, enabled, extraBadge = '') {
+function renderCapabilityTopActions(cap) {
+  const enabled = isCapEnabled(cap.id)
   const unsaved = cfgSnapshot() !== cfg.saved
-  return `<header class="capability-detail-head">
-    <button type="button" class="cfg-btn sm ghost" data-action="cfg-cap-back">${icon('arrow-left', 'xs')}<span>能力</span></button>
-    <span class="capability-detail-title"><span class="capability-card-icon">${icon(cap.icon, 'sm')}</span><h1>${cap.name}</h1>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}${testingBadge(cap)}${extraBadge}</span>
-    <span class="cfg-capdetail-spacer"></span>
-    <label class="cfg-capdetail-switch"><span>${enabled ? '已开启' : '未开启'}</span><button type="button" class="cfg-switch ${enabled ? 'on' : ''}" role="switch" aria-checked="${enabled}" aria-label="启用${cap.name}" data-cap-toggle="${cap.id}"></button></label>
-    <button type="button" class="cfg-btn sm primary capability-detail-save" data-action="cfg-save" data-capability-save ${unsaved ? '' : 'disabled'}>${icon('save', 'xs')}<span>保存</span></button>
+  return `<label class="capability-top-switch"><span>${enabled ? '已开启' : '未开启'}</span><button type="button" class="cfg-switch ${enabled ? 'on' : ''}" role="switch" aria-checked="${enabled}" aria-label="启用${cap.name}" data-cap-toggle="${cap.id}"></button></label>
+    <button type="button" class="cfg-btn sm primary capability-top-save" data-action="cfg-save" ${unsaved ? '' : 'disabled'}>${icon('save', 'xs')}<span>保存</span></button>`
+}
+
+function renderCapabilityTop(cap) {
+  return `<header class="editor-top capability-top">
+    <div class="capability-top-context"><button type="button" class="cfg-btn sm ghost capability-top-back" data-action="cfg-cap-back" aria-label="返回能力列表" title="返回能力列表">${icon('chevron', 'sm')}</button>
+      <span class="capability-top-title"><span class="capability-top-icon">${icon(cap.icon, 'sm')}</span><strong>${cap.name}</strong>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}${testingBadge(cap)}</span></div>
+    <div class="capability-top-actions" id="cfg-cap-actions">${renderCapabilityTopActions(cap)}</div>
   </header>`
 }
 
@@ -564,7 +568,6 @@ function capHeader(cap, enabled, extraBadge = '') {
 function renderCapabilityWorkbench(key, cap, enabled, main, preview, notices = '') {
   return cfgPage(key, `<div class="capability-workbench">
     <section class="capability-workbench-main">
-      ${capHeader(cap, enabled)}
       <div class="capability-workbench-scroll" data-keep-scroll="cfg-${key}-scroll">
         <section class="cfg-body">${notices}${main}</section>
       </div>
@@ -576,9 +579,8 @@ function renderCapabilityWorkbench(key, cap, enabled, main, preview, notices = '
 /** 右侧演示面板：标题默认「演示」，带「重新开始」（清空本能力的调试会话）。 */
 function renderCapabilityDebugPanel(cap, description, body, { title = '演示', restart = true } = {}) {
   if (usesUnifiedDebug(cap.id)) {
-    const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-cap-debug-reset">${icon('refresh', 'xs')}<span>新会话</span></button>`
     return `<section class="capability-debug-panel capability-unified-debug">
-      ${renderCfgDebugToolbar({ description: '可调试当前草稿中所有已开启的能力。', actions })}
+      ${renderCfgDebugToolbar({ description: '可调试当前草稿中所有已开启的能力。' })}
       <div class="capability-debug-canvas">${body}</div>
     </section>`
   }
@@ -793,11 +795,11 @@ const capRules = (cap, items, open = false) => capSection(`${cap.id}:rules`, '�
 const capIssueNotices = id => capIssues(id).map(text => capNotice(`<strong>${text}。</strong>改好之前不能发布。`)).join('')
 
 /** 按 PRD 重做的能力页：左侧配置分区，右侧是能力调试台（框架同其他能力页）。 */
-function capDetailPage(cap, enabled, sections, side) {
+function capDetailPage(cap, enabled, sections, side, notices = '') {
   return renderCapabilityWorkbench(`cap-${cap.id}`, cap, enabled,
     `<div class="capability-sections">${sections.join('')}</div>`,
     side,
-    `${capNotices(cap.id)}${enabled ? capIssueNotices(cap.id) : ''}`)
+    `${notices}${capNotices(cap.id)}${enabled ? capIssueNotices(cap.id) : ''}`)
 }
 
 /* ---------- 转人工 ---------- */
@@ -809,18 +811,17 @@ const handoffMessage = (h, kind) => String(h?.[`${kind}_message`] || '').trim() 
 function renderHandoffDetail(cap) {
   const lead = C().actions.lead_capture
   const enabled = isCapEnabled('human_handoff')
-  const general = capGeneral(cap, 'actions.human_handoff.instructions', { placeholder: '比如：访客明确要求人工、连续两次答不上、或者表达不满时转人工；转之前告诉访客要等一会。', help: '写给 AI 的转人工时机。写得收紧一些，免得 AI 把自己能答的问题也转出去。' })
-  const interaction = capFixedInteraction(cap, '发起转人工后，访客看到下面的在线或不在线消息。')
-  const messages = capSection('human_handoff:messages', '消息', true, true, `<div class="cfg-form-grid">
-      ${field('有人在线时的消息', capTextarea('actions.human_handoff.online_message', 2, `maxlength="200" placeholder="${HANDOFF_DEFAULT_MESSAGES.online}" data-demo-sync="1"`), { full: true, help: '可以插入 {排队人数} 和 {分钟}。排队人数是前面还在等人工的会话数，预计等待按每位 5 分钟算，最多显示 60 分钟。留空用默认文案。' })}
-      ${field('没人在线时的消息', capTextarea('actions.human_handoff.offline_message', 2, `maxlength="200" placeholder="${HANDOFF_DEFAULT_MESSAGES.offline}" data-demo-sync="1"`), { full: true, help: lead.enabled ? '留资表单开着：发完这句接着邀请留资，不占留资表单的邀请次数。' : '留资表单没开：只告知访客暂时没人在线，不邀请留资。' })}
-    </div><small class="capability-hint">“有人在线”指工作区有成员开着控制台。</small>`)
-  const more = capSection('human_handoff:more', '帮助中心与通知', true, false, `<div class="cfg-form-grid">
-      ${field('帮助中心地址（可选）', capInput('actions.human_handoff.help_url', 'type="url" placeholder="https://help.example.com"'), { full: true, help: '访客问安装、报错这类技术问题时，AI 可以给出这个地址。' })}
-      ${field('外部通知', '<p class="capability-readonly">在「通知与业务系统」里配企业微信；不配也会进人工列表。</p>', { full: true })}
+  const general = capSection('human_handoff:general', '通用', Boolean(C().actions.human_handoff.instructions.trim()), true, `<div class="cfg-form-grid">
+      <p class="capability-readonly cfg-field full">遇到需要人工处理的问题，将对话转交给客服。</p>
+      ${field('什么时候使用 / AI 指令', capTextarea('actions.human_handoff.instructions', 4, 'maxlength="4000" placeholder="当用户说“我要转人工”时"'), { full: true })}
     </div>`)
-  const rules = capRules(cap, ['一次会话只发起一次转人工。访客再次要求时，告诉他当前的排队情况，不重复通知。', '发起后到人工点接管之前，AI 继续回答；接管后 AI 不再回复；人工交还后 AI 接着聊。', 'AI 只能说“已提交转人工”，不能说“已经接通”。', '人工一直没接时 AI 继续回答；一期不做等待超时提醒和重发通知。', '能力关闭时，访客要人工，AI 按指令和知识库正常回复，但不能说已经转了。'])
-  return capDetailPage(cap, enabled, [general, interaction, messages, more, rules], renderDemoPanel('human_handoff', enabled))
+  const messages = capSection('human_handoff:messages', '消息', true, true, `<div class="cfg-form-grid">
+      ${field('有人在线时的消息', capTextarea('actions.human_handoff.online_message', 2, `maxlength="200" placeholder="${HANDOFF_DEFAULT_MESSAGES.online}" data-demo-sync="1"`), { full: true })}
+      ${field('没人在线时的消息', capTextarea('actions.human_handoff.offline_message', 2, `maxlength="200" placeholder="${HANDOFF_DEFAULT_MESSAGES.offline}" data-demo-sync="1"`), { full: true })}
+    </div><small class="capability-hint">在线话术可插入 {排队人数} 和 {分钟}。</small>
+    <small class="capability-hint">${lead.enabled ? '留资表单已开启。无人在线或暂时无法转接时，邀请访客留下联系方式。' : '留资表单未开启。无人在线或暂时无法转接时，只告知访客当前没有同事在线。'}</small>
+    ${capNotice('转人工通知未配置。访客的申请仍会进入人工列表。', '<button type="button" class="cfg-btn sm outline" data-action="cfg-handoff-notification">查看转人工通知配置</button>')}`)
+  return capDetailPage(cap, enabled, [general, messages], renderDemoPanel('human_handoff', enabled))
 }
 
 /* ---------- 主动弹窗 ---------- */
@@ -998,7 +999,7 @@ function renderDemoWidget(demo, { quick = null, statusText = '在线', notice = 
   const chips = quick ?? a.quickButtons.map(item => item.text).filter(Boolean)
   const hasUser = demo.messages.some(item => item.kind === 'user')
   return `<div class="demo-widget ${compact ? 'is-compact' : ''}"><div class="xg-widget-shell" style="${widgetStyle()}">
-    <header class="xg-widget-header"><div class="xg-widget-identity"><span class="xg-widget-avatar">${esc(Array.from(brand)[0])}</span><div class="xg-widget-identity-copy"><strong>${esc(brand)}</strong><small class="xg-widget-status">${statusText}</small></div></div>${closeable ? '<button type="button" class="xg-widget-header-action" aria-label="关闭" title="关闭" data-demo-close>×</button>' : ''}</header>
+    <header class="xg-widget-header"><div class="xg-widget-identity"><span class="xg-widget-avatar">${esc(Array.from(brand)[0])}</span><div class="xg-widget-identity-copy"><strong>${esc(brand)}</strong><small class="xg-widget-status">${statusText}</small></div></div><div class="xg-widget-header-actions">${usesUnifiedDebug(demo.id) ? `<button type="button" class="xg-widget-session-reset" data-action="cfg-cap-debug-reset">${icon('refresh', 'xs')}<span>新会话</span></button>` : ''}${closeable ? '<button type="button" class="xg-widget-header-action" aria-label="关闭" title="关闭" data-demo-close>×</button>' : ''}</div></header>
     <section class="xg-widget-messages"><div class="xg-widget-message-list" data-demo-list>
       ${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${demoMarkdown(a.welcome)}</div>
       ${!hasUser && chips.length ? `<div class="xg-widget-quick-actions demo-quick">${chips.map(label => `<button type="button" ${demo.busy ? 'disabled' : ''} data-demo-send="${esc(label)}">${esc(label)}</button>`).join('')}</div>` : ''}
@@ -1478,7 +1479,7 @@ function renderAssessPreview() {
     <ul>${s.questions.map(q => { const picked = q.options.filter(o => st.answers[q.id]?.includes(o.id)).map(o => o.label); return picked.length ? `<li><span>${esc(q.title)}</span><b>${esc(picked.join('、'))}</b></li>` : '' }).join('')}</ul>
     <small>答题记录随线索一起保存，销售跟进时不用再从头问需求。</small><button type="button" class="cfg-btn sm outline" data-action="cfg-go-leads">${icon('arrow', 'xs')}<span>去线索页查看</span></button></div>` : ''
   return `<div class="assess-preview"><div class="assess-preview-frame"><div class="xg-widget-shell" style="${widgetStyle()}">
-    <header class="xg-widget-header"><div class="xg-widget-identity"><span class="xg-widget-avatar">${esc(Array.from(brand)[0])}</span><div class="xg-widget-identity-copy"><strong>${esc(brand)}</strong><small class="xg-widget-status">在线</small></div></div><button type="button" class="xg-widget-header-action" aria-label="重新开始预览" title="重新开始预览" data-action="cfg-assess-restart">×</button></header>
+    <header class="xg-widget-header"><div class="xg-widget-identity"><span class="xg-widget-avatar">${esc(Array.from(brand)[0])}</span><div class="xg-widget-identity-copy"><strong>${esc(brand)}</strong><small class="xg-widget-status">在线</small></div></div><button type="button" class="xg-widget-session-reset" data-action="cfg-cap-debug-reset">${icon('refresh', 'xs')}<span>新会话</span></button></header>
     <section class="xg-widget-messages"><div class="xg-widget-message-list" data-demo-list>${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${demoMarkdown(d.appearance.welcome)}</div>${body}</div></section>
     <footer class="xg-widget-composer"><div class="xg-widget-input-row"><textarea rows="1" disabled placeholder="${st.phase === 'quiz' ? '直接点选上面的选项作答' : '输入你的问题…'}"></textarea><button type="button" class="xg-widget-send" disabled aria-label="发送">↗</button></div>${d.appearance.attribution ? '<div class="xg-powered-slot"><span class="xg-powered"><span class="xg-powered__mark" aria-hidden="true"></span><span class="xg-powered__text">吸管 提供技术支持</span></span></div>' : ''}</footer>
   </div></div>${sales}</div>`
@@ -1627,15 +1628,13 @@ function renderRecommendationsDetail(cap) {
   const r = C().recommendations
   const enabled = isCapEnabled('recommendations')
   const general = capGeneral(cap, 'recommendations.instructions', { placeholder: '比如：访客问完功能后，推荐他问价格或同行案例；不推荐和当前话题无关的问题。', help: '写给 AI 的推荐要求，只约束推荐问题怎么生成，不影响回答本身。' })
-  const interaction = capFixedInteraction(cap, '访客点一下就当作发了这句话，也可以不点、直接打字。固定的推荐问题用外观里的快捷按钮做，这里不提供手工填写。')
   const settings = capSection('recommendations:settings', '推荐设置', true, true, `<div class="lead-modes" role="radiogroup" aria-label="什么时候出现">${REC_SHOW_MODES.map(item => `<button type="button" class="lead-mode ${r.show === item.value ? 'is-current' : ''}" role="radio" aria-checked="${r.show === item.value}" data-rec-show="${item.value}"><strong>${item.title}${item.value === 'ai' ? badge('', '默认') : ''}</strong><span><em>访客看到</em>${item.sees}</span><span><em>适合</em>${item.fit}</span></button>`).join('')}</div>
     <div class="cfg-form-grid">
       ${field('每轮最多几条', capSelect('recommendations.max_items', [1, 2, 3, 4].map(n => [n, `${n} 条${n === 3 ? '（默认）' : ''}`]), 'data-type="number" data-live="rec"'))}
       ${field('每条最多字数', `<p class="capability-readonly">平台固定 ${REC_MAX_CHARS} 字</p>`, { help: '超长的单条直接丢掉，不截断。' })}
     </div>`)
-  const rules = capRules(cap, ['只根据当前对话和这一轮用到的资料生成，不推荐知识库里没有的内容；可以推荐引向已开启能力的说法，比如留资表单开着时推“我想预约演示”。', '和快捷按钮同时存在：有推荐消息的那一轮，快捷按钮收起；没有推荐消息时，快捷按钮按外观里「首轮对话后继续显示」的设置。', '生成失败、结果为空、超长或格式不对时，这一轮不显示，不影响回答。', '不让访客多等：推荐消息和回答一起出来，或者在回答显示完之后补上。', '访客点了推荐消息，这句话按普通访客消息处理，走 Q&A 匹配和知识检索。', '人工接管中不生成推荐消息。'])
   const side = renderCapabilityDebugPanel(cap, '直接提问或点推荐继续聊；改左侧设置后，最近一轮的推荐会按新设置重算。', `<div class="demo-preview">${enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>'}<div data-rec-root>${renderRecPreview()}</div></div>`, { title: '访客体验预览', restart: false })
-  return capDetailPage(cap, enabled, [general, interaction, settings, rules], side)
+  return capDetailPage(cap, enabled, [general, settings], side)
 }
 
 function recState() {
@@ -1656,7 +1655,7 @@ function renderRecPreview() {
   const showQuick = quick.length && !st.busy && (!st.turns.length || (!lastHasRec && d.appearance.keepQuick))
   const turns = st.turns.map(turn => `<div class="xg-widget-message xg-widget-message--user">${esc(turn.question)}</div>${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${turn.answer ? demoMarkdown(turn.answer) : '<span class="rec-typing"><i></i><i></i><i></i></span>'}</div>${turn.done && turn === last && turn.items.length ? `<div class="rec-chips">${turn.items.map(item => `<button type="button" ${st.busy ? 'disabled' : ''} data-rec-ask="${esc(item)}">${icon('arrow', 'xs')}${esc(item)}</button>`).join('')}</div>` : ''}`).join('')
   return `<div class="rec-preview"><div class="rec-preview-frame"><div class="xg-widget-shell" style="${widgetStyle()}">
-    <header class="xg-widget-header"><div class="xg-widget-identity"><span class="xg-widget-avatar">${esc(Array.from(brand)[0])}</span><div class="xg-widget-identity-copy"><strong>${esc(brand)}</strong><small class="xg-widget-status">在线</small></div></div><button type="button" class="xg-widget-header-action" aria-label="清空对话" title="清空对话" data-action="cfg-rec-clear">×</button></header>
+    <header class="xg-widget-header"><div class="xg-widget-identity"><span class="xg-widget-avatar">${esc(Array.from(brand)[0])}</span><div class="xg-widget-identity-copy"><strong>${esc(brand)}</strong><small class="xg-widget-status">在线</small></div></div><button type="button" class="xg-widget-session-reset" data-action="cfg-cap-debug-reset">${icon('refresh', 'xs')}<span>新会话</span></button></header>
     <section class="xg-widget-messages"><div class="xg-widget-message-list" data-demo-list>${demoMeta(brand)}<div class="xg-widget-message xg-widget-message--assistant">${demoMarkdown(d.appearance.welcome)}</div>${turns}${showQuick ? `<div class="xg-widget-quick-actions rec-quick">${quick.map(item => `<button type="button" data-rec-ask="${esc(item.text)}">${esc(item.text)}</button>`).join('')}</div>` : ''}</div></section>
     <footer class="xg-widget-composer"><div class="xg-widget-input-row"><textarea rows="1" placeholder="输入你的问题…" data-demo-input="rec"></textarea><button type="button" class="xg-widget-send" aria-label="发送" data-demo-submit="rec">↗</button></div>${d.appearance.attribution ? '<div class="xg-powered-slot"><span class="xg-powered"><span class="xg-powered__mark" aria-hidden="true"></span><span class="xg-powered__text">吸管 提供技术支持</span></span></div>' : ''}</footer>
   </div></div>
@@ -1715,11 +1714,14 @@ function renderMcpDetail(cap) {
   const m = C().mcp
   const enabled = isCapEnabled('mcp')
   if (!cfg.mcpTest) cfg.mcpTest = {}
-  const general = capGeneral(cap, 'mcp.instructions', { label: '统一调用约束', placeholder: '比如：缺少必填参数时先向访客询问，不猜测；只使用当前会话中明确提供的信息。', help: '对所有 MCP 服务生效；具体何时选择某个服务，在下方服务内分别配置。' })
-  const interaction = capFixedInteraction(cap, 'AI 用返回的数据组织回答，访客看不到调用过程。返回结果配小组件一期不做。')
+  const connectedCount = m.servers.filter(server => server.status === 'connected').length
+  const availableTools = m.servers.flatMap(server => server.tools).filter(tool => !tool.offline && tool.read_only !== false)
+  const enabledToolsCount = availableTools.filter(tool => tool.enabled).length
   const servers = m.servers.map((server, si) => {
     const https = /^https:\/\//i.test(String(server.url || '').trim())
-    const enabledTools = server.tools.filter(tool => tool.enabled && !tool.offline).length
+    const connected = server.status === 'connected'
+    const serverTools = server.tools.filter(tool => !tool.offline && tool.read_only !== false)
+    const enabledTools = serverTools.filter(tool => tool.enabled).length
     const keyField = server.auth === 'none' ? '' : field('密钥', server.key_saved
       ? `<div class="mcp-key-saved">${badge('success', '已保存')}<small>保存后不再明文显示，也不进草稿</small><button type="button" class="cfg-btn sm ghost" data-mcp-key-reset="${si}">更换</button></div>`
       : `<div class="mcp-key-saved"><input type="password" placeholder="粘贴请求头里的密钥" data-mcp-key="${si}" autocomplete="off" /><button type="button" class="cfg-btn sm outline" data-mcp-key-save="${si}">保存</button></div>`, { help: '密钥单独保存到服务端，不随草稿发布。' })
@@ -1740,22 +1742,31 @@ function renderMcpDetail(cap) {
           ${kind === 'read' || kind === 'unknown' ? `<div class="cfg-field full"><label>测试调用</label><div class="mcp-test">${tool.params.map(param => `<input placeholder="${esc(param.label)}（如 ${esc(param.example)}）" data-mcp-arg="${tool.id}:${esc(param.name)}" value="${esc(test?.args?.[param.name] || '')}" />`).join('')}<button type="button" class="cfg-btn sm outline" data-mcp-run="${si}:${ti}">${icon('plug', 'xs')}<span>测试调用</span></button></div><small>直接调用工具看返回结果，不经过 AI。</small>${test ? `<pre class="mcp-test-result ${test.error ? 'is-error' : ''}">${esc(test.error || JSON.stringify(test.result, null, 2))}</pre>` : ''}</div>` : ''}
         </div>` : ''}</div>`
     }).join('')
-    return capSection(`mcp:server:${server.id}`, `服务：${esc(server.name || '未命名服务')}`, https && server.status === 'connected' && Boolean(String(server.use_when || '').trim()), true, `<div class="cfg-form-grid">
-        ${field('什么时候使用', capTextarea(`mcp.servers.${si}.use_when`, 3, 'maxlength="2000" placeholder="比如：访客查询订单状态、发票进度，或希望预约产品演示时，使用此服务。"'), { full: true, help: '用于判断何时选择这个服务；具体调用哪个工具，由工具说明决定。最多 2000 字。' })}
-        ${field('服务名称', capInput(`mcp.servers.${si}.name`, 'maxlength="40"'))}
-        ${field('鉴权方式', capSelect(`mcp.servers.${si}.auth`, MCP_AUTH, 'data-rerender="1"'))}
-        ${field('服务地址', capInput(`mcp.servers.${si}.url`, 'type="url" placeholder="https://" data-rerender="1"'), { full: true, help: https ? '只接受 HTTPS。' : '<span class="mcp-error">只接受 HTTPS 地址。</span>' })}
-        ${keyField}
+    const open = cfg.secOpen[`mcp:server:${server.id}`] ?? true
+    return `<details class="mcp-service-card" data-sec="mcp:server:${server.id}" ${open ? 'open' : ''}>
+      <summary><span class="mcp-service-icon">${icon('plug', 'sm')}</span><span class="mcp-service-summary"><strong>${esc(server.name || '未命名服务')}</strong><small>${esc(String(server.url || '').trim() || '尚未填写服务地址')}</small></span>${badge(connected ? 'success' : 'warning', connected ? '已连接' : '待连接')}<span class="mcp-service-tool-count">${enabledTools} / ${serverTools.length} 个工具已启用</span>${icon('chevron-down', 'mcp-service-chevron')}</summary>
+      <div class="mcp-service-body">
+        <section class="mcp-service-step"><header><span>1</span><div><strong>填写连接信息</strong><small>配置服务地址与鉴权信息，密钥会单独安全保存。</small></div></header><div class="cfg-form-grid">
+          ${field('服务名称', capInput(`mcp.servers.${si}.name`, 'maxlength="40"'))}
+          ${field('鉴权方式', capSelect(`mcp.servers.${si}.auth`, MCP_AUTH, `data-mcp-connection="${si}"`))}
+          ${field('服务地址', capInput(`mcp.servers.${si}.url`, `type="url" placeholder="https://example.com/mcp" data-mcp-connection="${si}"`), { full: true, help: https ? '仅支持 HTTPS 地址。' : '<span class="mcp-error">请输入 HTTPS 地址。</span>' })}
+          ${keyField}
+        </div></section>
+        <section class="mcp-service-step"><header><span>2</span><div><strong>测试连接并发现工具</strong><small>连接成功后自动读取服务提供的工具列表。</small></div></header><div class="mcp-server-status">${badge(connected ? 'success' : 'warning', connected ? '连接正常' : '尚未连通')}<small>${connected ? `发现 ${server.tools.filter(tool => !tool.offline).length} 个工具` : esc(server.error || '填写连接信息后测试连接')} · 最近 24 小时失败 ${server.failures_24h || 0} 次</small><button type="button" class="cfg-btn sm ${connected ? 'outline' : 'primary'}" data-mcp-test="${si}">${icon('refresh', 'xs')}<span>${connected ? '重新测试' : '测试连接'}</span></button><button type="button" class="cfg-btn sm ghost is-danger" data-mcp-remove="${si}">${icon('trash', 'xs')}<span>移除服务</span></button></div></section>
+        <section class="mcp-service-step"><header><span>3</span><div><strong>配置调用时机与工具</strong><small>AI 只会使用你启用的查询类工具。</small></div></header><div class="cfg-form-grid">${field('什么时候使用这个服务', capTextarea(`mcp.servers.${si}.use_when`, 3, 'maxlength="2000" placeholder="比如：访客查询订单状态、发票进度，或希望预约产品演示时，使用此服务。"'), { full: true, help: '用于判断何时选择这个服务；具体调用哪个工具，由各工具说明决定。' })}</div>
+          ${server.tools.length ? `<div class="mcp-tools-head"><strong>选择工具</strong><small>新发现的工具默认关闭；点击工具卡片可以查看说明、参数并测试调用。</small></div><div class="proto-cards">${tools}</div>` : '<div class="mcp-tools-empty"><span>' + icon('plug', 'sm') + '</span><strong>连接后显示工具</strong><small>先完成上一步的连接测试，系统会自动发现可用工具。</small></div>'}
+        </section>
       </div>
-      <div class="mcp-server-status">${badge(server.status === 'connected' ? 'success' : 'warning', server.status === 'connected' ? '已连接' : '连接异常')}<small>${server.status === 'connected' ? `发现 ${server.tools.length} 个工具，已启用 ${enabledTools} 个` : esc(server.error || '连不上')} · 最近 24 小时失败 ${server.failures_24h || 0} 次</small><button type="button" class="cfg-btn sm ghost" data-mcp-test="${si}">${icon('refresh', 'xs')}<span>测试连接</span></button>${m.servers.length > 1 ? `<button type="button" class="cfg-btn sm ghost" data-mcp-remove="${si}">${icon('trash', 'xs')}<span>移除服务</span></button>` : ''}</div>
-      <div class="notification-title"><strong>工具</strong><small>只有勾选的工具会给 AI 用，新发现的工具默认不勾。</small></div>
-      <div class="proto-cards">${tools}</div>`)
+    </details>`
   }).join('')
-  const serverListHeader = `<div class="mcp-services-head"><div><strong>MCP 服务</strong><small>已接入 ${m.servers.length} / ${MCP_MAX_SERVERS} 个；调用时机按服务分别配置。</small></div><button type="button" class="cfg-btn sm outline" data-action="cfg-mcp-add" ${m.servers.length >= MCP_MAX_SERVERS ? 'disabled' : ''}>${icon('plus', 'xs')}<span>接入服务</span></button></div>`
-  const rules = capRules(cap, ['一期只启用查询类工具。服务声明为只读的可以直接勾选；没声明的，勾选时要确认“这个工具只查数据、不改数据”。', '参数只用访客明确说出的值，缺的先问，不猜；前面几轮说过的型号、城市可以用。', '每轮回答前最多调用一个工具；要连续查两次的问题，分两轮回答。', `单次调用最多等 ${MCP_TIMEOUT_SECONDS} 秒，返回内容最大 ${MCP_MAX_RESULT_KB}KB，超时或超长都算失败；返回的内容只当数据用，里面写的指令不执行。`, '事实以返回结果为准。没查到就说没查到，不能拿知识库里的旧数据充当实时结果。', '服务、工具勾选和说明走草稿发布；密钥不进草稿，单独保存到服务端。'])
+  const flow = [['添加服务', '填写地址与鉴权', m.servers.length > 0], ['测试连接', '发现服务提供的工具', connectedCount > 0], ['启用工具', '配置 AI 可以调用的工具', enabledToolsCount > 0]]
+  const header = `<section class="mcp-center-head"><div><span class="mcp-center-kicker">MCP 服务</span><h2>连接 AI 可以查询的业务系统</h2><p>接入订单、库存、预约等实时数据服务，并选择允许 AI 调用的工具。</p></div><button type="button" class="cfg-btn primary" data-action="cfg-mcp-add" ${m.servers.length >= MCP_MAX_SERVERS ? 'disabled' : ''}>${icon('plus', 'sm')}<span>添加 MCP 服务</span></button></section>
+    <ol class="mcp-setup-flow">${flow.map(([title, text, done], index) => `<li class="${done ? 'is-done' : index === 0 || flow[index - 1][2] ? 'is-current' : ''}"><span>${done ? icon('check', 'xs') : index + 1}</span><div><strong>${title}</strong><small>${text}</small></div></li>`).join('')}</ol>
+    <div class="mcp-center-summary"><span>已添加 <strong>${m.servers.length}</strong> / ${MCP_MAX_SERVERS} 个服务</span><span><strong>${connectedCount}</strong> 个连接正常</span><span><strong>${enabledToolsCount}</strong> 个工具可供 AI 使用</span></div>`
+  const serviceList = servers || `<div class="mcp-empty"><span>${icon('plug')}</span><h3>还没有 MCP 服务</h3><p>添加服务后，AI 才能查询订单、库存、预约等实时业务数据。</p><button type="button" class="cfg-btn primary" data-action="cfg-mcp-add">${icon('plus', 'sm')}<span>添加第一个 MCP 服务</span></button></div>`
   const demo = demoFor('mcp')
   const side = renderCapabilityDebugPanel(cap, '直接在窗口里问订单发票、演示时段或系统状态；返回数据为示例。', `<div class="demo-preview">${enabled ? '' : '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>'}<div data-demo-root>${renderMcpDemo(demo)}</div></div>`)
-  return capDetailPage(cap, enabled, [general, interaction, serverListHeader, servers, rules], side)
+  return renderCapabilityWorkbench('cap-mcp', cap, enabled, `<div class="mcp-service-center">${header}<div class="mcp-service-list">${serviceList}</div></div>`, side, `${capNotices('mcp')}${enabled ? capIssueNotices('mcp') : ''}`)
 }
 
 const mcpTools = () => C().mcp.servers.flatMap(server => server.tools)
@@ -1856,6 +1867,12 @@ function capLiveRefresh(target) {
 
 function capHandleChange(event) {
   const target = event.target
+  if (target.matches('[data-mcp-connection]')) {
+    const server = C().mcp.servers[Number(target.dataset.mcpConnection)]
+    if (server) Object.assign(server, { status: 'error', error: '连接信息已变更，请重新测试' })
+    renderApp()
+    return true
+  }
   if (target.dataset.clamp && target.matches('[data-bind]') && target.value !== '') {
     const [min, max] = target.dataset.clamp.split(',').map(Number)
     const value = Math.min(max, Math.max(min, Number(target.value) || min))
@@ -1932,6 +1949,7 @@ function capAction(name, el) {
   const d = C()
   const demo = cfg.demo
   if (name === 'cfg-cap-back') { saveCapabilityDebugSession(cfg.capDetail); cfg.capDetail = null; renderApp(); return true }
+  if (name === 'cfg-handoff-notification') { saveCapabilityDebugSession(cfg.capDetail); cfg.capDetail = null; state.agentSection = 'notifications'; state.channelDetail = null; renderApp(); return true }
   if (name === 'cfg-cap-debug-reset') { resetCapabilityDebugSession(cfg.capDetail); renderApp(); return true }
   if (name === 'cfg-demo-restart') { if (demo) cfg.demo = newDemo(demo.id); renderApp(); return true }
   if (name === 'cfg-go-leads') { saveCapabilityDebugSession(cfg.capDetail); state.agentSection = 'leads'; cfg.capDetail = null; renderApp(); toast('调试线索已加入「线索」列表'); return true }
@@ -1989,7 +2007,9 @@ function capAction(name, el) {
   if (name === 'cfg-rec-clear') { cfg.rec = null; refreshRec(); return true }
   if (name === 'cfg-mcp-add') {
     if (d.mcp.servers.length >= MCP_MAX_SERVERS) return true
-    d.mcp.servers.push({ id: newProtoId('srv'), name: '新服务', use_when: '', url: 'https://', auth: 'header', key_saved: false, status: 'error', error: '还没测试连接', failures_24h: 0, tools: [] })
+    const server = { id: newProtoId('srv'), name: '新 MCP 服务', use_when: '', url: 'https://', auth: 'header', key_saved: false, status: 'error', error: '等待测试连接', failures_24h: 0, tools: [] }
+    d.mcp.servers.push(server)
+    cfg.secOpen[`mcp:server:${server.id}`] = true
     renderApp()
     return true
   }
@@ -2070,12 +2090,12 @@ function capHandleClick(event) {
   if ((el = pick('[data-mcp-confirm-cancel]'))) { cfg.mcpConfirm = ''; renderApp(); return true }
   if ((el = pick('[data-mcp-test]'))) { mcpTestConnection(Number(el.dataset.mcpTest)); return true }
   if ((el = pick('[data-mcp-remove]'))) { C().mcp.servers.splice(Number(el.dataset.mcpRemove), 1); renderApp(); return true }
-  if ((el = pick('[data-mcp-key-reset]'))) { C().mcp.servers[Number(el.dataset.mcpKeyReset)].key_saved = false; renderApp(); return true }
+  if ((el = pick('[data-mcp-key-reset]'))) { Object.assign(C().mcp.servers[Number(el.dataset.mcpKeyReset)], { key_saved: false, status: 'error', error: '密钥已更换，请重新测试连接' }); renderApp(); return true }
   if ((el = pick('[data-mcp-key-save]'))) {
     const si = Number(el.dataset.mcpKeySave)
     const input = document.querySelector(`[data-mcp-key="${si}"]`)
     if (!input?.value.trim()) { toast('先填密钥', 'info'); return true }
-    C().mcp.servers[si].key_saved = true
+    Object.assign(C().mcp.servers[si], { key_saved: true, status: 'error', error: '密钥已更新，请重新测试连接' })
     renderApp()
     toast('密钥已单独保存到服务端，不再明文显示')
     return true

@@ -126,6 +126,9 @@ function mergeConfigDraft(stored) {
     flag('follow_up', on => { mergedCaps.idle_follow_up.enabled = on })
   }
   mergedCaps.actions.lead_capture = normalizeLeadCapture(mergedCaps.actions.lead_capture)
+  const handoff = mergedCaps.actions.human_handoff
+  if (handoff.instructions === '访客明确要求人工、连续两次答不上、或者表达不满时转人工；转之前告诉访客要等一会。') handoff.instructions = caps.actions.human_handoff.instructions
+  if (handoff.offline_message === '现在人工不在线，留个联系方式，我们会尽快联系你。') handoff.offline_message = caps.actions.human_handoff.offline_message
   mergedCaps.mcp = normalizeMcp(stored.mcp || mergedCaps.mcp)
   mergedCaps.recommendations = normalizeRecommendations(stored.recommendations || mergedCaps.recommendations)
   // 沉默跟进：话术最多 3 条；主动弹窗：旧版没有「访客回应后怎么接」
@@ -215,7 +218,11 @@ function refreshCfgChrome() {
   if (status) status.outerHTML = renderCfgStatus()
   const actions = $('#cfg-actions')
   if (actions) actions.innerHTML = renderCfgDraftActions()
-  document.querySelectorAll('[data-capability-save]').forEach(button => { button.disabled = cfgSnapshot() === cfg.saved })
+  const capabilityActions = $('#cfg-cap-actions')
+  if (capabilityActions) {
+    const cap = CAPABILITIES.find(item => item.id === cfg.capDetail)
+    if (cap) capabilityActions.innerHTML = renderCapabilityTopActions(cap)
+  }
 }
 
 function getCfgValue(path) {
@@ -233,7 +240,7 @@ function setCfgValue(path, value) {
 
 function renderCfgHeader({ title, desc, iconName = '', crumb = '', extra = '', actions = '' }) {
   return `<header class="cfg-page-header">
-    <div class="cfg-page-title">${iconName ? `<span class="cfg-page-icon">${icon(iconName)}</span>` : ''}<div class="cfg-page-heading">${crumb}<div class="cfg-title-row"><h1>${title}</h1>${extra}</div><p>${desc}</p></div></div>
+    <div class="cfg-page-title">${iconName ? `<span class="cfg-page-icon">${icon(iconName)}</span>` : ''}<div class="cfg-page-heading">${crumb}<div class="cfg-title-row"><h1>${title}</h1>${extra}</div>${desc ? `<p>${desc}</p>` : ''}</div></div>
     ${actions ? `<div class="cfg-page-actions">${actions}</div>` : ''}
   </header>`
 }
@@ -296,13 +303,13 @@ function renderWidgetText(text) {
     .replace(/\n/g, '<br>')
 }
 
-function renderCfgWidget({ closeAction = '' } = {}) {
+function renderCfgWidget({ closeAction = '', resetAction = '' } = {}) {
   const a = cfg.draft.appearance
   const handoff = cfg.draft.actions.human_handoff.enabled
   const name = a.name.trim() || 'AI 助手'
   const showQuick = a.quickButtons.length && !cfg.typing && (cfg.chat.length === 0 || a.keepQuick)
   return `<div class="cfg-widget" style="--w-primary:${a.primary};--w-on-primary:${readableOn(a.primary)};--w-paper:${a.paper}">
-    <header class="cfg-widget-head"><div class="cfg-widget-identity"><span class="cfg-widget-avatar">${a.avatarImage ? `<img src="${esc(a.avatarImage)}" alt="" />` : esc(Array.from(name)[0])}</span><div><strong>${esc(name)}</strong><small><i></i>${handoff ? '人工在线' : '在线'}</small></div></div><button type="button" class="cfg-widget-close" aria-label="关闭" ${closeAction ? `data-action="${esc(closeAction)}"` : 'tabindex="-1"'}>×</button></header>
+    <header class="cfg-widget-head"><div class="cfg-widget-identity"><span class="cfg-widget-avatar">${a.avatarImage ? `<img src="${esc(a.avatarImage)}" alt="" />` : esc(Array.from(name)[0])}</span><div><strong>${esc(name)}</strong><small><i></i>${handoff ? '人工在线' : '在线'}</small></div></div><div class="cfg-widget-head-actions">${resetAction ? `<button type="button" class="cfg-widget-reset" data-action="${esc(resetAction)}">${icon('refresh', 'xs')}<span>新会话</span></button>` : ''}<button type="button" class="cfg-widget-close" aria-label="关闭" ${closeAction ? `data-action="${esc(closeAction)}"` : 'tabindex="-1"'}>×</button></div></header>
     <section class="cfg-widget-stage" data-widget-stage>
       <div class="cfg-widget-meta"><span>${esc(name)}</span><time>${cfg.chatStartedAt}</time></div>
       <div class="cfg-widget-msg assistant">${renderWidgetText(a.welcome)}</div>
@@ -316,7 +323,7 @@ function renderCfgWidget({ closeAction = '' } = {}) {
 }
 
 function refreshWidget(focus = false) {
-  document.querySelectorAll('[data-widget-root]').forEach(root => { root.innerHTML = renderCfgWidget({ closeAction: root.dataset.widgetCloseAction || '' }) })
+  document.querySelectorAll('[data-widget-root]').forEach(root => { root.innerHTML = renderCfgWidget({ closeAction: root.dataset.widgetCloseAction || '', resetAction: root.dataset.widgetResetAction || '' }) })
   requestAnimationFrame(() => {
     document.querySelectorAll('[data-widget-stage]').forEach(stage => { stage.scrollTop = stage.scrollHeight })
     if (focus) $('#cfg-widget-input')?.focus()
@@ -352,8 +359,7 @@ function resetWidgetChat() {
 }
 
 function renderCfgDebugPanel() {
-  const actions = `<button type="button" class="cfg-btn sm outline" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>新会话</span></button>`
-  return `<section class="cfg-panel cfg-debug-panel">${renderCfgDebugToolbar({ description: '可调试当前草稿中所有已开启的能力。', actions })}<div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></section>`
+  return `<section class="cfg-panel cfg-debug-panel">${renderCfgDebugToolbar({ description: '可调试当前草稿中所有已开启的能力。' })}<div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root data-widget-reset-action="cfg-chat-reset">${renderCfgWidget({ resetAction: 'cfg-chat-reset' })}</div></div></section>`
 }
 
 /* ---------- 角色与提示词 ---------- */
@@ -368,12 +374,8 @@ function renderPersonaConfig() {
       <div class="cfg-prompt-meta"><small>${helper}</small><span data-count="${key}">${d[key].length.toLocaleString()} / ${limit.toLocaleString()}</span></div>
     </div>`
   }
-  const model = cfgPanel('模型', '控制由哪个模型生成回答，不改变智能体能做什么。', `<div class="cfg-model-row"><div class="cfg-model-auto" aria-label="当前模型：平台自动选择"><i>✦</i><div><strong>Auto</strong><small>由平台按可用性选择</small></div><span>只读</span></div><p>当前只有一套已验证的模型能力与计费契约，因此暂不开放任意模型名称，避免保存后实际不生效。</p></div>`)
-  const templates = cfgPanel('模板', '模板只替换通用指令与业务边界，不会暗中打开或关闭能力；套用后仍可自由编辑。', `<div class="cfg-template-groups">
-      ${cfgField('工作区模板', '', { help: '当前工作区还没有自定义模板。' })}
-      ${cfgField('通用模板', `<div class="cfg-template-strip">${personaTemplates.map((item, index) => `<button type="button" data-cfg-template="${index}"><strong>${item.name}</strong><span>${item.description}</span></button>`).join('')}</div>`)}
-    </div>`)
-  const instructions = cfgPanel('指令内容', '通用指令决定怎么工作，业务边界定义哪些事情不应做。', `<div class="cfg-form-grid">
+  const model = cfgPanel('模型', '', `<div class="cfg-model-row"><div class="cfg-model-auto" aria-label="当前模型：平台自动选择"><i>✦</i><div><strong>Auto</strong><small>由平台按可用性选择</small></div><span>只读</span></div></div>`)
+  const instructions = cfgPanel('指令内容', '', `<div class="cfg-form-grid">
       ${promptField('general', '通用指令（General）', 16000, '写角色、目标、回答方式、语气和业务流程。可自由组织，不要求任何固定标题。')}
       ${promptField('guardrails', '业务边界（Guardrails）', 8000, '写业务上不应回答、何时停止或转交等边界。平台安全、证据和工具协议始终优先，业务边界可由你修改。')}
       <div class="cfg-field full"><small>两块内容都会直接进入智能体指令；平台不识别隐藏标题。当前总长度 <span data-count="total">${(d.general.length + d.guardrails.length).toLocaleString()}</span> / 20,000。</small></div>
@@ -381,8 +383,8 @@ function renderPersonaConfig() {
   const debug = renderCfgDebugPanel()
   return cfgPage('prompt', `<div class="cfg-persona-workbench">
       <main class="cfg-persona-scroll">
-        ${renderCfgHeader({ title: '角色与提示词', desc: '定义智能体的角色、回答方式与业务边界；平台安全协议和已启用能力会独立生效。' })}
-        <section class="cfg-body"><div class="cfg-main">${model}${templates}${instructions}</div></section>
+        ${renderCfgHeader({ title: '角色与提示词', desc: '' })}
+        <section class="cfg-body"><div class="cfg-main">${model}${instructions}</div></section>
       </main>
       <aside class="cfg-persona-debug">${debug}</aside>
     </div>
@@ -705,14 +707,6 @@ function handleConfigClick(event) {
     return false
   }
 
-  if ((el = pick('[data-cfg-template]'))) {
-    const template = personaTemplates[Number(el.dataset.cfgTemplate)]
-    cfg.draft.general = template.general
-    cfg.draft.guardrails = template.guardrails
-    toast(`已套用「${template.name}」模板，可继续编辑`)
-    renderApp()
-    return true
-  }
   if (capHandleClick(event)) return true
   if ((el = pick('[data-widget-ask]'))) { cfgAsk(el.dataset.widgetAsk, { button: true }); return true }
   if (kbHandleClick(event)) return true
