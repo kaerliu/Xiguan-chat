@@ -1759,9 +1759,7 @@ function renderMcpDetail(cap) {
       </div>
     </details>`
   }).join('')
-  const flow = [['添加服务', '填写地址与鉴权', m.servers.length > 0], ['测试连接', '发现服务提供的工具', connectedCount > 0], ['启用工具', '配置 AI 可以调用的工具', enabledToolsCount > 0]]
   const header = `<section class="mcp-center-head"><div><span class="mcp-center-kicker">MCP 服务</span><h2>连接 AI 可以查询的业务系统</h2><p>接入订单、库存、预约等实时数据服务，并选择允许 AI 调用的工具。</p></div><button type="button" class="cfg-btn primary" data-action="cfg-mcp-add" ${m.servers.length >= MCP_MAX_SERVERS ? 'disabled' : ''}>${icon('plus', 'sm')}<span>添加 MCP 服务</span></button></section>
-    <ol class="mcp-setup-flow">${flow.map(([title, text, done], index) => `<li class="${done ? 'is-done' : index === 0 || flow[index - 1][2] ? 'is-current' : ''}"><span>${done ? icon('check', 'xs') : index + 1}</span><div><strong>${title}</strong><small>${text}</small></div></li>`).join('')}</ol>
     <div class="mcp-center-summary"><span>已添加 <strong>${m.servers.length}</strong> / ${MCP_MAX_SERVERS} 个服务</span><span><strong>${connectedCount}</strong> 个连接正常</span><span><strong>${enabledToolsCount}</strong> 个工具可供 AI 使用</span></div>`
   const serviceList = servers || `<div class="mcp-empty"><span>${icon('plug')}</span><h3>还没有 MCP 服务</h3><p>添加服务后，AI 才能查询订单、库存、预约等实时业务数据。</p><button type="button" class="cfg-btn primary" data-action="cfg-mcp-add">${icon('plus', 'sm')}<span>添加第一个 MCP 服务</span></button></div>`
   const demo = demoFor('mcp')
