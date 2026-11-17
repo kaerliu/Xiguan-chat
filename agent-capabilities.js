@@ -905,7 +905,7 @@ function renderIdleDetail(cap) {
 
 const DEMO_SUBTITLES = {
   lead_capture: '在窗口里直接对话。AI 判断合适时会邀请留资，提交后生成一条调试线索。',
-  human_handoff: '访客要求人工后，在下方「客服工作台」接管并回复。可以切换有人在线 / 没人在线，看访客收到哪条消息。',
+  human_handoff: '在窗口里请求人工，查看访客收到的转接状态与消息。',
   asset_delivery: '向助手索要资料，按「交付条件」演示交付方式；知识库里带链接的资料才会以卡片发送。',
   proactive: '切换页面，看对话窗何时自动打开、主动消息何时出现；点开主动消息后回一句，看 AI 怎么接。时间按 5 倍速演示。',
   idle_follow_up: '先问一个问题，然后不回复，看助手按顺序补发跟进话术；一次会话最多 3 条。时间按 10 倍速演示。'
@@ -1068,10 +1068,6 @@ function validateContact(fields, values) {
   return Object.values(validateLeadForm(fields, values))[0] || ''
 }
 
-const demoHints = (demo, items) => `<div class="demo-hints">${Array.from(new Set(items.filter(Boolean))).slice(0, 4).map(item => `<button type="button" ${demo.busy ? 'disabled' : ''} data-demo-send="${esc(item)}">${esc(item)}</button>`).join('')}</div>`
-const quickLabels = () => C().appearance.quickButtons.map(item => item.text).filter(Boolean)
-const leadLink = demo => demo.leadId ? `<div class="demo-panel demo-lead-result"><div class="demo-panel-head">${icon('user-check', 'xs')}<strong>已生成调试线索</strong>${badge('success', '调试')}</div><small>调试会话产生的线索不会推送通知，在「线索」里勾选「含调试会话」可以看到。</small><button type="button" class="cfg-btn sm outline" data-action="cfg-go-leads">${icon('arrow', 'xs')}<span>去线索页查看</span></button></div>` : ''
-
 function renderDemoPanel(id, enabled) {
   const cap = CAPABILITIES.find(item => item.id === id)
   const body = `${!enabled ? '<div class="demo-off-note">能力还没开启，当前调试会话不会触发这项能力；开启后可立即测试左侧草稿。</div>' : ''}
@@ -1081,33 +1077,11 @@ function renderDemoPanel(id, enabled) {
 
 function renderDemoBody(id) {
   const demo = demoFor(id)
-  if (id === 'lead_capture') {
-    const lead = debugLead()
-    const st = demo.session
-    const stats = [badge('', `${lead.interaction === 'text' ? '对话' : '表单'}方式`), badge(st.invites >= lead.max_invites ? 'warning' : '', `已主动邀请 ${st.invites} / ${lead.max_invites} 次`), st.refused ? badge('warning', '访客已拒绝') : '', st.leadId ? badge('success', '已生成线索') : badge('', '还没有线索')].join('')
-    return `${renderDemoWidget(demo)}
-    <div class="demo-panel"><div class="demo-panel-head">${icon('spark', 'xs')}<strong>试试这样问</strong></div>${demoHints(demo, ['我想了解一下价格', '我叫王明，在星云科技', '不用了，谢谢', '你们怎么联系我？'])}
-      <div class="demo-lead-stats">${stats}</div><p>${demo.decision || '还没开始对话。'}</p>${demo.error ? `<small class="demo-error">${esc(demo.error)}</small>` : ''}
-      <label class="console-checkbox"><input type="checkbox" data-demo-failsave ${st.failSave ? 'checked' : ''} /><span>模拟保存失败</span></label>
-      <small>是否邀请由 AI 按左侧「什么时候用」和对话内容判断；收集方式、次数、消息、表单字段和尺寸都跟随左侧当前草稿。</small></div>${leadLink(demo)}`
-  }
+  if (id === 'lead_capture') return renderDemoWidget(demo)
   if (id === 'human_handoff') {
-    const waited = Math.max(0, Math.round((Date.now() - demo.requestedAt) / 1000))
-    const tone = demo.mode === 'ai' ? '' : demo.mode === 'waiting' ? 'warning' : 'success'
-    return `${renderDemoWidget(demo, { statusText: demo.mode === 'human' ? '人工客服在线' : '在线', notice: demo.mode === 'waiting' ? '正在为你转接人工客服…' : demo.mode === 'human' ? '人工客服正在为你服务' : '' })}
-      <div class="demo-panel"><div class="demo-panel-head">${icon('headset', 'xs')}<strong>客服工作台</strong>${badge(tone, demo.mode === 'ai' ? 'AI 接待中' : demo.mode === 'waiting' ? '待接管' : '人工接待中')}</div>
-        <div class="demo-handoff-sim"><label class="console-checkbox"><input type="checkbox" data-demo-offline ${demo.session.handoffOnline ? '' : 'checked'} ${demo.session.handoffRequested ? 'disabled' : ''} /><span>模拟没人在线</span></label>${demo.session.handoffOnline ? `<small>前面排队 ${demo.session.handoffQueue} 位，预计 ${handoffMinutes(demo.session.handoffQueue)} 分钟</small>` : `<small>${debugLead().enabled ? '留资表单开着：发完不在线消息接着邀请留资' : '留资表单没开：只告知暂时没人在线'}</small>`}</div>
-        ${demo.mode === 'ai' ? `<p>${demo.decision || '访客还在和 AI 对话。AI 按左侧「什么时候用」判断需要人工时，会提交转人工。'}</p>${demoHints(demo, ['我想找人工客服', '安装的时候报错了怎么办？', '你们怎么收费？'])}` : ''}
-        ${demo.mode === 'waiting' ? `<p><strong>新的转人工请求</strong> · 已等待 <span data-demo-waited>${waited}</span> 秒</p><small>人工接管之前 AI 继续回答；访客再要人工只告诉他排队情况，不重复通知。这条调试会话也会出现在「人工」列表里（需勾选含调试会话）。</small>${demoHints(demo, ['再帮我转一下人工', '你们怎么收费？'])}<button type="button" class="cfg-btn sm primary" data-action="cfg-demo-takeover">${icon('headset', 'xs')}<span>接管对话</span></button>` : ''}
-        ${demo.mode === 'human' ? `${demo.lastVisitor ? `<small>访客最近说：${esc(demo.lastVisitor)}</small>` : ''}<div class="demo-reply"><input class="console-input" placeholder="以人工身份回复访客，回车发送" data-demo-reply /><button type="button" class="cfg-btn sm primary" data-action="cfg-demo-reply">发送</button></div><button type="button" class="cfg-btn sm ghost" data-action="cfg-demo-release">${icon('bot', 'xs')}<span>交还 AI</span></button>` : ''}
-        ${demo.error ? `<small class="demo-error">${esc(demo.error)}</small>` : ''}</div>`
+    return renderDemoWidget(demo, { statusText: demo.mode === 'human' ? '人工客服在线' : '在线', notice: demo.mode === 'waiting' ? '正在为你转接人工客服…' : demo.mode === 'human' ? '人工客服正在为你服务' : '' })
   }
-  if (id === 'asset_delivery') {
-    const delivery = C().actions.asset_delivery
-    const modeLabel = delivery.mode === 'immediate' ? '立即交付' : delivery.mode === 'contact_required' ? '收集联系方式后交付' : '仅由人工交付'
-    return `${renderDemoWidget(demo)}
-      <div class="demo-panel"><div class="demo-panel-head">${icon('file', 'xs')}<strong>交付情况</strong>${badge('info', modeLabel)}</div>${demoHints(demo, ['有相关资料可以发我吗？', '有产品手册吗？', ...quickLabels()])}<p>${demo.log || '还没开始对话。'}</p>${demo.error ? `<small class="demo-error">${esc(demo.error)}</small>` : ''}<small>每轮最多 ${delivery.max_items} 份；只有被本轮回答采用、且带链接的知识库资料才会以卡片发送。</small></div>${leadLink(demo)}`
-  }
+  if (id === 'asset_delivery') return renderDemoWidget(demo)
   if (id === 'proactive') return renderProactiveDemo(demo)
   if (id === 'idle_follow_up') return renderIdleDemo(demo)
   return ''
@@ -1167,24 +1141,14 @@ function renderProactiveDemo(demo) {
           ${demo.state === 'browsing' ? `<div class="site-demo-hint">${icon('clock', 'xs')}${demo.closedManually ? '访客手动关闭了对话窗，本次访问不再触发' : `访客停留 <span data-demo-elapsed>${demo.elapsed}</span> 秒 · ${ruleText}`}</div>` : ''}
           ${demo.state === 'bubble' && trigger?.kind === 'proactive' ? `<button type="button" class="demo-proactive-bubble" data-action="cfg-demo-open-bubble"><strong>${esc(brand)}</strong>${esc(trigger.message)}</button>` : ''}
           ${demo.state === 'open' ? `<div class="demo-site-chat">${renderDemoWidget(demo, { quick: [], closeable: true, compact: true })}</div>` : `<button type="button" class="demo-launcher" aria-label="打开对话" data-action="cfg-demo-launch">${esc(Array.from(brand)[0])}</button>`}
-        </div></div></div>
-    <div class="demo-panel"><div class="demo-panel-head">${icon('spark', 'xs')}<strong>这个页面的规则</strong></div><p>${ruleText}。${demo.openedBy ? `<br />本次：${demo.openedBy}。` : ''}${demo.decision ? `<br />${esc(demo.decision)}` : ''}</p><small>页面规则从上到下第一条匹配的生效，没有命中时用全站默认。自动打开和主动消息同时命中时只取自动打开；一次访问最多出现一个。改左侧设置后会从头演示。</small></div>`
+        </div></div></div>`
 }
 
 /* 沉默跟进演示：10 倍速 */
 function idleSeconds(demo) { return demo.idleFrom == null ? 0 : Math.floor(((Date.now() - demo.idleFrom) / 1000) * 10) + demo.offset }
 
 function renderIdleDemo(demo) {
-  const steps = C().idle_follow_up.steps.filter(step => step.message.trim())
-  const step = steps[demo.stepIndex]
-  const seconds = idleSeconds(demo)
-  let status
-  if (!steps.length) status = '<p>左侧还没有跟进话术，先添加一步。</p>'
-  else if (demo.idleSent >= IDLE_MAX_PER_SESSION) status = `<p>本次会话已经发满 ${IDLE_MAX_PER_SESSION} 条跟进话术，之后访客再沉默也不再发；访客回复不会重置这个总数。</p>`
-  else if (demo.idleFrom == null) status = '<p>访客发出一条消息、助手回复后开始计时。先问一个问题，然后别回复。</p>'
-  else if (step) status = `<p>访客已沉默 <span data-demo-idle>${seconds}</span> 秒 · 第 ${demo.stepIndex + 1}/${steps.length} 条跟进将在 ${step.idle_seconds} 秒时发出</p><div class="demo-progress"><i data-demo-progress style="width:${Math.min(100, (seconds / step.idle_seconds) * 100)}%"></i></div><button type="button" class="cfg-btn sm ghost" data-action="cfg-demo-forward">${icon('arrow', 'xs')}<span>快进到这一条</span></button>`
-  else status = `<p>${steps.length} 条跟进话术都已发出。访客再次发言后会重新计时。</p>`
-  return `${renderDemoWidget(demo)}<div class="demo-panel"><div class="demo-panel-head">${icon('clock', 'xs')}<strong>沉默计时</strong>${badge('', '10 倍速')}${badge(demo.idleSent >= IDLE_MAX_PER_SESSION ? 'warning' : '', `本次会话已发 ${demo.idleSent} / ${IDLE_MAX_PER_SESSION} 条`)}</div>${status}${demoHints(demo, quickLabels())}<small>访客一回复就停止跟进，下一轮回答后从第一条重新计时；一次会话加起来最多 ${IDLE_MAX_PER_SESSION} 条。</small></div>`
+  return renderDemoWidget(demo)
 }
 
 /** 留资相关的系统消息与决策说明（留资表单、资料交付两个演示共用）。 */
@@ -1772,12 +1736,7 @@ const mcpUsable = name => mcpTools().find(item => item.name === name && item.ena
 const firstHit = (text, words) => words.find(word => text.includes(word))
 
 function renderMcpDemo(demo) {
-  const usable = mcpTools().filter(item => item.enabled && !item.offline && item.read_only !== false)
-  return `${renderDemoWidget(demo, { quick: ['帮我查一下订单 XG20261108001 的发票开了没', '想约个产品演示，上海这周有空吗？', '你们系统现在正常吗？'] })}
-    <div class="demo-panel"><div class="demo-panel-head">${icon('plug', 'xs')}<strong>调用记录</strong>${badge('', `${usable.length} 个工具可用`)}${badge('', '仅控制台可见')}</div>
-      ${demo.calls.length ? `<ul class="mcp-calls">${demo.calls.map(item => `<li><span><strong>${esc(item.label)}</strong><code>${esc(item.name)}(${esc(Object.entries(item.args).map(([k, v]) => `${k}: ${v}`).join(', '))})</code></span><small>${item.ms} ms</small>${badge(item.ok ? 'success' : 'danger', item.ok ? '成功' : '超时')}</li>`).join('')}</ul>` : '<p>还没有调用。</p>'}
-      <label class="console-checkbox"><input type="checkbox" data-demo-mcpfail ${demo.mcpFail ? 'checked' : ''} /><span>模拟服务超时（${MCP_TIMEOUT_SECONDS} 秒没返回）</span></label>
-      <small>访客只看到 AI 用返回数据组织的文字回答。每轮最多调用一个工具。</small></div>`
+  return renderDemoWidget(demo, { quick: ['帮我查一下订单 XG20261108001 的发票开了没', '想约个产品演示，上海这周有空吗？', '你们系统现在正常吗？'] })
 }
 
 async function mcpCall(demo, name, args) {
