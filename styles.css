@@ -2516,6 +2516,8 @@ button { color: inherit; }
 .ap-seg button { height: 28px; padding: 0 14px; color: var(--c-muted); font-size: 12px; font-weight: 600; background: transparent; border: 0; border-radius: 6px; cursor: pointer; }
 .ap-seg button[aria-checked=true] { color: var(--c-strong); background: #fff; box-shadow: 0 1px 3px rgba(15,23,20,.1); }
 .ap-pos-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.ap-checklist { display: grid; gap: 9px; padding: 10px 12px; background: #fafbfa; border: 1px solid var(--c-border-soft); border-radius: 8px; }
+.ap-checklist .cfg-checkbox span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .ap-chips span { max-width: 100%; padding: 4px 10px; overflow: hidden; color: var(--c-text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; background: #f1f2f3; border-radius: 999px; }
 .ap-link { margin-left: 4px; padding: 0; color: var(--c-primary); font-size: 11px; background: none; border: 0; cursor: pointer; }

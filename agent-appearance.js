@@ -58,7 +58,7 @@ function defaultAppearance() {
     },
     entryOrder: ['float'], mainEntry: 'float',
     size: 'md', pulse: true,
-    floatStyle: 'bubble', bubbleIcon: 'question', bubbleShape: 'teardrop', capsuleLabel: '', guides: '',
+    floatStyle: 'bubble', bubbleIcon: 'question', bubbleShape: 'teardrop', capsuleLabel: '', guides: [],
     barLabel: '', barLength: 'wide',
     mascot: 'headset', mascotGreeting: '', mascotFloat: true, mascotImage: '',
     mobile: { icon: 'question', shape: 'teardrop', size: 'md', accent, side: 'right', offset: 16, y: 100 },
@@ -110,7 +110,8 @@ function normalizeAppearance(stored) {
     next.entries = entries
     next.entryOrder = [s.entry === 'bubble' ? 'float' : s.entry, 'float']
     next.mainEntry = ['human', 'bar'].includes(s.entry) ? s.entry : 'float'
-    next.guides = String(s.capsuleGuides || '')
+    const lines = String(s.capsuleGuides || '').split('\n').map(line => line.trim()).filter(Boolean)
+    next.guides = lines.map(line => next.quickButtons.find(item => item.text.trim() === line)?.id).filter(Boolean)
     next.mobile = { ...base.mobile, icon: next.bubbleIcon, shape: next.bubbleShape, size: next.size, accent }
     ;['entry', 'accent', 'sideCapsule', 'capsuleTop', 'capsuleRight', 'capsuleGuides'].forEach(key => { delete next[key] })
   } else {
@@ -118,9 +119,10 @@ function normalizeAppearance(stored) {
     next.mobile = { ...base.mobile, ...(s.mobile || {}) }
   }
   next.toolbar = normalizeToolbarDraft(s.toolbar)
-  // 引导语是运营自己写的文字，每行一条；上一版存的是快捷按钮 id，换回对应的文字
-  if (Array.isArray(next.guides)) next.guides = next.guides.map(value => next.quickButtons.find(item => item.id === value)?.text ?? value).join('\n')
-  next.guides = typeof next.guides === 'string' ? next.guides : ''
+  const ids = next.quickButtons.map(item => item.id)
+  // 中间有一版存的是每行一条的文字，按文字找回对应的快捷按钮
+  if (typeof next.guides === 'string') next.guides = next.guides.split('\n').map(line => line.trim()).filter(Boolean).map(line => next.quickButtons.find(item => item.text.trim() === line)?.id).filter(Boolean)
+  next.guides = (Array.isArray(next.guides) ? next.guides : []).filter((id, index, list) => ids.includes(id) && list.indexOf(id) === index).slice(0, AP_LIMITS.guides)
   return apFixEntries(next)
 }
 
@@ -128,9 +130,7 @@ const apA = () => cfg.draft.appearance
 const apEnabledKeys = (a = apA()) => a.entryOrder.filter(key => a.entries[key]?.enabled)
 const apMainAccent = (a = apA()) => a.entries[a.mainEntry]?.accent || a.primary
 const apName = (a = apA()) => a.name.trim() || 'AI 助手'
-/** 滚动引导语：每行一条，空行跳过，最多显示前 8 条。 */
-const apGuideAll = (a = apA()) => String(a.guides || '').split('\n').map(line => line.trim()).filter(Boolean)
-const apGuideLines = (a = apA()) => apGuideAll(a).slice(0, AP_LIMITS.guides)
+const apGuideItems = (a = apA()) => a.guides.map(id => a.quickButtons.find(item => item.id === id)).filter(item => item && item.text.trim())
 const apQuickShown = (a = apA()) => a.quickButtons.filter(item => item.text.trim())
 /** 对话窗口从主入口所在的一侧打开；中间按键居中，原型里按贴右处理（PRD 待定）。 */
 const apChatSide = (a = apA()) => (a.mainEntry === 'bar' ? 'right' : a.entries[a.mainEntry].side)
@@ -244,7 +244,7 @@ function apDiffSpecs() {
     { label: '悬浮入口 · 图标', paths: [['bubbleIcon']], fmt: a => label(AP_ICON_OPTIONS, a.bubbleIcon) },
     { label: '悬浮入口 · 形状', paths: [['bubbleShape']], fmt: a => label(AP_SHAPE_OPTIONS, a.bubbleShape) },
     { label: '悬浮入口 · 竖排文案', paths: [['capsuleLabel']], fmt: a => text(a.capsuleLabel) },
-    { label: '悬浮入口 · 滚动引导语', paths: [['guides']], fmt: a => `${apGuideLines(a).length} 条` },
+    { label: '悬浮入口 · 滚动引导语', paths: [['guides']], fmt: a => `${a.guides.length} 条` },
     ...entry('float', '悬浮入口'),
     { label: '中间按键 · 按钮文案', paths: [['barLabel']], fmt: a => text(a.barLabel) },
     { label: '中间按键 · 长度', paths: [['barLength']], fmt: a => ({ compact: '短', standard: '中', wide: '长' }[a.barLength]) },
@@ -300,24 +300,24 @@ function apPositionFields(base, { horizontal = true, max = 600 } = {}) {
     ${cfgField(`纵向 · <b data-range-label="${base}.y">${pos.y}</b>%`, `<input type="range" min="0" max="100" step="1" value="${pos.y}" data-bind="${base}.y" data-type="number" data-live="preview" aria-label="纵向位置" />`, { full: true, help: '0% 在页面最上，100% 在最下。也可以在右侧预览里直接拖动入口。' })}`
 }
 
-function apGuideCountText(a = apA()) {
-  const total = apGuideAll(a).length
-  if (!total) return ''
-  return total > AP_LIMITS.guides ? `当前 ${total} 条，只显示前 ${AP_LIMITS.guides} 条。` : `当前 ${total} 条。`
-}
-
 const apPulseToggle = () => cfgToggle('appearance.pulse', '呼吸提醒', '入口右上角的红色感叹号和呼吸圈。悬浮入口和中间按键共用这一个开关。', { live: 'preview' })
 
 function apFloatFields() {
   const a = apA()
   const bubble = a.floatStyle !== 'capsule'
+  const quick = a.quickButtons.filter(item => item.text.trim())
+  const full = a.guides.length >= AP_LIMITS.guides
+  const guideList = quick.length
+    ? `<div class="ap-checklist">${quick.map(item => { const checked = a.guides.includes(item.id); return `<label class="cfg-checkbox"><input type="checkbox" data-ap-guide-toggle="${esc(item.id)}" ${checked ? 'checked' : ''} ${!checked && full ? 'disabled' : ''} /><span>${esc(item.text)}</span></label>` }).join('')}</div>`
+    : `<div class="cfg-empty">引导语从快捷按钮里选，现在还没有快捷按钮。<br /><button type="button" class="cfg-btn sm outline" data-acc="quick">去添加快捷按钮</button></div>`
   return `${cfgField('样式', apSegment('appearance.floatStyle', [['bubble', '气泡'], ['capsule', '胶囊']]), { full: true, help: '同一时间只显示一种；切换后位置、强调色、引导语都保留。' })}
     ${bubble
       ? `${cfgField('图标', cfgSelect('appearance.bubbleIcon', AP_ICON_OPTIONS, { live: 'preview' }))}${cfgField('形状', cfgSelect('appearance.bubbleShape', AP_SHAPE_OPTIONS, { live: 'preview' }))}`
       : cfgField('竖排文案', `<input value="${esc(a.capsuleLabel)}" maxlength="${AP_LIMITS.capsuleLabel}" placeholder="${esc(a.barLabel.trim() || apName(a))}" data-bind="appearance.capsuleLabel" data-live="preview" />`, { full: true, help: `${AP_LIMITS.capsuleLabel} 字以内，建议 2–6 字。留空时依次用中间按键的按钮文案、助手名称。` })}
     ${cfgColorField('强调色', 'appearance.entries.float.accent', AP_ACCENTS, '气泡和胶囊共用，文字和图标按对比度自动用白色或深色。')}
     ${apPositionFields('appearance.entries.float')}
-    ${cfgField('滚动引导语', `<textarea rows="5" placeholder="${esc('每行一条，例如：\n怎么收费？\n能免费试用吗？')}" data-bind="appearance.guides" data-live="preview">${esc(a.guides)}</textarea>`, { full: true, help: `每行一条，最多 ${AP_LIMITS.guides} 条，过长时省略显示。访客点一条，打开对话窗口并发出这句话，和 Q&A 同名时直接命中。<span data-ap-guide-count>${apGuideCountText(a)}</span>` })}
+    <div class="cfg-subgroup full"><strong>滚动引导语 · 已选 ${a.guides.length} / ${AP_LIMITS.guides}</strong></div>
+    <div class="cfg-field full">${guideList}${quick.length ? '<small>3 条以内轮流高亮，超过 3 条每 2.8 秒向上滚一条，鼠标悬停时暂停。访客点一条，等于点对应的快捷按钮。</small>' : ''}</div>
     ${apPulseToggle()}`
 }
 
@@ -380,7 +380,7 @@ function apQuickFields() {
   const count = text => Array.from(String(text)).length
   const rows = a.quickButtons.map((item, index) => {
     const bad = errors.includes(index)
-    const tags = `${barOn && index < AP_LIMITS.barQuick ? '<span class="cfg-badge">中间按键显示</span>' : ''}`
+    const tags = `${barOn && index < AP_LIMITS.barQuick ? '<span class="cfg-badge">中间按键显示</span>' : ''}${a.guides.includes(item.id) ? '<span class="cfg-badge">滚动引导语</span>' : ''}`
     return `<div class="ap-qb-row ${bad ? 'has-error' : ''}">
       <div class="ap-qb-top">${tags}<span class="ap-qb-tools">
         <button type="button" class="cfg-icon-btn" data-ap-qb-move="${index}:-1" aria-label="上移" ${index === 0 ? 'disabled' : ''}>${icon('arrow-up', 'sm')}</button>
@@ -529,9 +529,9 @@ function apAside(key, a, main) {
     return `<div class="ap-aside"><div class="ap-leadcard ${key === 'bar' ? 'is-strip' : ''}"><span class="ap-leadcard-kind">${esc(material.kind)}</span><strong>${esc(material.title)}</strong><span class="ap-leadcard-cta">免费领取</span></div></div>`
   }
   if (key !== 'float') return ''
-  const guides = apGuideLines(a)
+  const guides = apGuideItems(a)
   if (!guides.length) return ''
-  return `<div class="ap-aside"><div class="ap-guides ${guides.length > 3 ? 'is-scroll' : ''}" data-ap-guides><div class="ap-guides-track">${guides.map((text, index) => `<button type="button" class="ap-guide ${index === 0 && guides.length <= 3 ? 'is-active' : ''}" data-ap-guide="${esc(text)}" title="${esc(text)}"><i>?</i><em>${esc(text)}</em></button>`).join('')}</div></div></div>`
+  return `<div class="ap-aside"><div class="ap-guides ${guides.length > 3 ? 'is-scroll' : ''}" data-ap-guides><div class="ap-guides-track">${guides.map((item, index) => `<button type="button" class="ap-guide ${index === 0 && guides.length <= 3 ? 'is-active' : ''}" data-ap-guide="${esc(item.id)}"><i>?</i><em>${esc(item.text)}</em></button>`).join('')}</div></div></div>`
 }
 
 function apEntryHtml(key, a) {
@@ -771,7 +771,8 @@ function apHandleClick(event) {
   if ((el = pick('[data-mascot]'))) { apA().mascot = el.dataset.mascot; cfg.uploadError = ''; renderApp(); return true }
   if ((el = pick('[data-ap-qb-remove]'))) {
     const a = apA()
-    a.quickButtons.splice(Number(el.dataset.apQbRemove), 1)
+    const [removed] = a.quickButtons.splice(Number(el.dataset.apQbRemove), 1)
+    if (removed && a.guides.includes(removed.id)) { a.guides = a.guides.filter(id => id !== removed.id); toast('这个按钮同时从滚动引导语里移除了', 'info') }
     cfg.apErrors = {}
     renderApp()
     return true
@@ -782,12 +783,14 @@ function apHandleClick(event) {
     const list = a.quickButtons
     const [item] = list.splice(index, 1)
     list.splice(index + step, 0, item)
+    // 滚动引导语跟着快捷按钮的顺序走
+    a.guides = list.map(button => button.id).filter(id => a.guides.includes(id))
     cfg.apErrors = {}
     renderApp()
     return true
   }
   // 预览里的入口：点一下打开对话窗口，再点收起
-  if ((el = pick('[data-ap-guide]'))) { apOpenChatWith(el.dataset.apGuide, { button: true }); return true }
+  if ((el = pick('[data-ap-guide]'))) { const item = apA().quickButtons.find(button => button.id === el.dataset.apGuide); if (item) apOpenChatWith(item.text, { button: true }); return true }
   if ((el = pick('[data-ap-bar-q]'))) { const item = apA().quickButtons.find(button => button.id === el.dataset.apBarQ); if (item) apOpenChatWith(item.text, { button: true }); return true }
   if ((el = pick('[data-ap-bar-submit]'))) { const input = el.closest('.cfg-lp-prompt').querySelector('[data-ap-bar-input]'); apOpenChatWith(input.value.trim()); return true }
   if (pick('[data-ap-bar-input]')) return true
@@ -819,7 +822,6 @@ function apAction(name) {
 /** 表单输入后的联动：字数、必填报错、位置标签。 */
 function apAfterInput(path, target) {
   if (!path.startsWith('appearance.')) return
-  if (path === 'appearance.guides') document.querySelectorAll('[data-ap-guide-count]').forEach(node => { node.textContent = apGuideCountText() })
   document.querySelectorAll(`[data-ap-count="${path}"]`).forEach(node => { node.textContent = `${Array.from(target.value).length} / ${target.maxLength}` })
   if (cfg.apErrors && Object.keys(cfg.apErrors).length) {
     if (path === 'appearance.name' && target.value.trim()) delete cfg.apErrors.name
@@ -830,6 +832,14 @@ function apAfterInput(path, target) {
 
 function apHandleChange(event) {
   const target = event.target
+  if (target.matches('[data-ap-guide-toggle]')) {
+    const a = apA()
+    const id = target.dataset.apGuideToggle
+    if (target.checked && a.guides.length < AP_LIMITS.guides) a.guides = a.quickButtons.map(item => item.id).filter(item => a.guides.includes(item) || item === id)
+    else a.guides = a.guides.filter(item => item !== id)
+    renderApp()
+    return true
+  }
   if (target.matches('[data-ap-sim]')) { cfg.apSim = target.value; refreshAppearancePreview(); return true }
   return false
 }
