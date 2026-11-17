@@ -2634,3 +2634,42 @@ button.cfg-lp-submit { flex: none; font: inherit; font-weight: 700; border: 0; c
 .cfg-publish-group li strong { color: #16191c; font-size: 13px; font-weight: 600; }
 .cfg-publish-group li small { overflow: hidden; color: #757b83; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .cfg-publish-empty { margin: 0; padding: 20px; color: #757b83; font-size: 13px; text-align: center; background: #fcfcfd; border: 1px dashed #e0e2e4; border-radius: 10px; }
+
+/* ===== 外观页 · 11 月 17 日评审后：外观模板、官网预览、人工接入样式、技术支持标识 ===== */
+.ap-templates { margin-bottom: 12px; padding: 12px; background: #fff; border: 1px solid var(--c-border); border-radius: 12px; }
+.ap-tpl-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ap-tpl { display: grid; gap: 3px; min-width: 0; padding: 6px 6px 8px; text-align: left; background: #fcfcfd; border: 1px solid var(--c-border); border-radius: 9px; cursor: pointer; }
+.ap-tpl:hover { border-color: var(--c-brand); }
+.ap-tpl[aria-pressed=true] { background: var(--c-brand-soft); border-color: var(--c-brand); box-shadow: inset 0 0 0 1px var(--c-brand); }
+.ap-tpl strong { margin-top: 4px; color: var(--c-strong); font-size: 12px; font-weight: 600; }
+.ap-tpl small { overflow: hidden; color: var(--c-muted); font-size: 10.5px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.ap-tpl-thumb { position: relative; display: block; height: 62px; overflow: hidden; background: #f3f4f3; border-radius: 6px; }
+.ap-tpl-thumb i { position: absolute; display: block; }
+.ap-tpl-thumb .t-site { left: 8px; right: 8px; top: 8px; height: 22px; background: linear-gradient(#e4e7e5 0 6px, transparent 6px 10px, #ebedec 10px 14px, transparent 14px 17px, #ebedec 17px 21px); border-radius: 3px; }
+.ap-tpl-thumb .t-capsule { right: 4px; top: 20px; width: 11px; height: 30px; background: var(--tpl-accent); border-radius: 6px; }
+.ap-tpl-thumb .t-guide { right: 19px; top: 24px; width: 34px; height: 8px; background: #fff; border: 1px solid #dcdfdd; border-radius: 6px; }
+.ap-tpl-thumb .t-guide.is-2 { top: 36px; width: 28px; }
+.ap-tpl-thumb .t-bar { left: 18%; right: 26%; bottom: 6px; height: 11px; background: #fff; border: 1px solid #dcdfdd; border-radius: 7px; box-shadow: inset -14px 0 0 var(--tpl-accent); }
+.ap-tpl-thumb .t-chip { left: 18%; bottom: 21px; width: 22px; height: 6px; background: #fff; border: 1px solid #dcdfdd; border-radius: 4px; }
+.ap-tpl-thumb .t-chip.is-2 { left: calc(18% + 26px); }
+.ap-tpl-thumb .t-bubble { right: 6px; bottom: 6px; width: 12px; height: 12px; background: var(--tpl-accent); border-radius: 50% 50% 50% 3px; }
+.ap-tpl-thumb .t-bubble.is-lg { width: 20px; height: 20px; border-radius: 50%; box-shadow: 0 0 0 3px #fff; }
+
+/* 桌面端预览：浏览器地址栏可以填官网，页面用 iframe 嵌进来；拖动入口时官网页面不接收鼠标 */
+.cfg-lp-chrome .ap-address { flex: 1; min-width: 0; max-width: 320px; height: 15px; margin-left: 8px; padding: 0 8px; color: var(--c-text); font-size: 9.5px; background: #fff; border: 1px solid transparent; border-radius: 999px; outline: none; }
+.cfg-lp-chrome .ap-address:focus { border-color: var(--c-brand); }
+.cfg-lp-chrome .ap-address-btn { height: 15px; padding: 0 7px; color: var(--c-muted); font-size: 9px; background: #fff; border: 0; border-radius: 999px; cursor: pointer; }
+.cfg-lp-chrome .ap-address-btn:hover { color: var(--c-strong); }
+.ap-site-frame { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; background: #fff; border: 0; }
+.cfg-lp-page.is-dragging-entry .ap-site-frame { pointer-events: none; }
+
+/* 对话窗口：人工接入时的样式（占位，视觉会单独设计） */
+.cfg-widget-avatar.is-human { color: #fff; font: 700 17px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #e8833a; border-radius: 50%; }
+.cfg-widget-divider.is-human { color: #b45f20; }
+.cfg-widget-msg.is-human { background: color-mix(in srgb, #e8833a 12%, var(--w-paper)); border: 1px solid color-mix(in srgb, #e8833a 30%, var(--w-paper)); }
+
+/* 技术支持标识：可以点，打开吸管接待产品首页 */
+button.xg-powered { font: inherit; background: none; border: 0; cursor: pointer; }
+.cfg-toggle:has(input:disabled) { cursor: default; }
+.cfg-toggle:has(input:disabled) .cfg-toggle-control i { opacity: .55; }
+.cfg-toggle strong .cfg-badge { height: 18px; margin-left: 6px; padding: 0 6px; font-size: 11px; font-weight: 500; vertical-align: 1px; }

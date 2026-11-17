@@ -133,7 +133,8 @@ const cfg = {
   ],
   // 外观页：展开的配置分组（已开启的入口各一组，默认展开主入口）、预览内容（site 桌面端 / mobile 手机端 / chat 对话窗口）
   accOpen: cfgSavedDraft.appearance.mainEntry, previewSurface: 'site',
-  apChatOpen: false, apSim: '', apErrors: {}, apLeave: null,
+  // apHuman：对话窗口预览模拟人工接入；apTemplate：本次套用的外观模板；apSiteUrl：桌面端预览里的官网地址（不进草稿）
+  apChatOpen: false, apSim: '', apHuman: false, apTemplate: null, apSiteUrl: undefined, apErrors: {}, apLeave: null,
   tbExpanded: null, tbPending: null, tbImageBusy: '', tbImageError: null, uploadBusy: '', uploadError: '',
   chat: [], chatStartedAt: nowClock(), typing: false, chatHistory: 0,
   // 能力详情页：折叠状态与各演示的运行状态
@@ -338,24 +339,28 @@ function renderCfgWidget({ closeAction = '' } = {}) {
   // 文字颜色按背景色推算：深色背景换成浅色文字，画在背景上的主色文字（头像首字、快捷按钮）也跟着换
   const dark = readableOn(a.paper) === '#FFFFFF'
   const ink = dark ? '#F3F6F5' : '#102F2A'
-  const message = item => `<div class="cfg-widget-meta ${item.from}">${item.from === 'user' ? '' : `<span>${esc(name)}</span>`}<time>${esc(item.time || '')}</time></div><div class="cfg-widget-msg ${item.from}">${renderWidgetText(item.text)}</div>${a.citations && item.cites?.length ? `<div class="cfg-widget-cites"><span>引用</span>${item.cites.map(cite => `<em>${esc(cite)}</em>`).join('')}</div>` : ''}`
+  const message = item => `<div class="cfg-widget-meta ${item.from}">${item.from === 'user' ? '' : `<span>${esc(name)}</span>`}<time>${esc(item.time || '')}</time></div><div class="cfg-widget-msg ${item.from}">${renderWidgetText(item.text)}</div>`
+  // 外观页模拟人工接入：标题栏换成人工客服，消息区插一条接入提示和一条人工消息（样式由视觉单独设计）
+  const human = cfg.apHuman && typeof apOnPage === 'function' && apOnPage()
+  const humanBlock = human ? `<div class="cfg-widget-divider is-human"><span>人工客服小林已接入，AI 暂停回复</span></div><div class="cfg-widget-meta"><span>小林 · 人工客服</span><time>${nowClock()}</time></div><div class="cfg-widget-msg assistant is-human">你好，我是小林，接着帮你看。方便留个电话吗？稍后给你发详细报价。</div>` : ''
   const loaded = WIDGET_HISTORY.slice(WIDGET_HISTORY.length - cfg.chatHistory)
   const history = a.history
     ? `${cfg.chatHistory < WIDGET_HISTORY.length ? '<button type="button" class="cfg-widget-history" data-action="cfg-widget-history">查看历史消息</button>' : '<span class="cfg-widget-history is-end">没有更早的消息了</span>'}${loaded.map(session => `<div class="cfg-widget-divider"><span>${session.date}</span></div>${session.messages.map(message).join('')}`).join('')}${cfg.chatHistory ? '<div class="cfg-widget-divider"><span>本次对话</span></div>' : ''}`
     : ''
-  return `<div class="cfg-widget" style="--w-primary:${a.primary};--w-on-primary:${readableOn(a.primary)};--w-paper:${a.paper};--w-ink:${ink};--w-on-paper:${dark ? ink : a.primary}">
-    <header class="cfg-widget-head"><div class="cfg-widget-identity"><span class="cfg-widget-avatar">${a.avatarImage ? `<img src="${esc(a.avatarImage)}" alt="" />` : esc(Array.from(name)[0])}</span><div><strong>${esc(name)}</strong><small><i></i>${cfg.typing ? '对方正在输入…' : handoff ? '人工在线' : '在线'}</small></div></div>
+  return `<div class="cfg-widget ${human ? 'is-human' : ''}" style="--w-primary:${a.primary};--w-on-primary:${readableOn(a.primary)};--w-paper:${a.paper};--w-ink:${ink};--w-on-paper:${dark ? ink : a.primary}">
+    <header class="cfg-widget-head"><div class="cfg-widget-identity"><span class="cfg-widget-avatar ${human ? 'is-human' : ''}">${human ? '林' : a.avatarImage ? `<img src="${esc(a.avatarImage)}" alt="" />` : esc(Array.from(name)[0])}</span><div><strong>${esc(name)}</strong><small><i></i>${human ? '人工客服 小林 为你服务' : cfg.typing ? '对方正在输入…' : handoff ? '人工在线' : '在线'}</small></div></div>
       <div class="cfg-widget-head-actions"><button type="button" class="cfg-widget-close is-refresh" aria-label="重新开始对话" title="清空聊天记录，重新开一个对话" data-action="cfg-chat-reset">${icon('rotate', 'sm')}</button><button type="button" class="cfg-widget-close" aria-label="关闭" ${closeAction ? `data-action="${esc(closeAction)}"` : 'tabindex="-1"'}>×</button></div></header>
     <section class="cfg-widget-stage" data-widget-stage>
       ${history}
       <div class="cfg-widget-meta"><span>${esc(name)}</span><time>${cfg.chatStartedAt}</time></div>
       <div class="cfg-widget-msg assistant">${renderWidgetText(a.welcome)}</div>
       ${cfg.chat.map(message).join('')}
+      ${humanBlock}
       ${cfg.typing ? '<div class="cfg-widget-msg assistant typing"><i></i><i></i><i></i></div>' : ''}
-      ${showQuick ? `<div class="cfg-widget-quick" aria-label="快捷按钮">${quick.map(item => `<button type="button" data-widget-ask="${esc(item.text)}">${esc(item.text)}</button>`).join('')}</div>` : ''}
+      ${showQuick && !human ? `<div class="cfg-widget-quick" aria-label="快捷按钮">${quick.map(item => `<button type="button" data-widget-ask="${esc(item.text)}">${esc(item.text)}</button>`).join('')}</div>` : ''}
     </section>
     <footer class="cfg-widget-composer"><div class="cfg-widget-input"><textarea id="cfg-widget-input" rows="2" placeholder="输入你的问题…" aria-label="输入问题"></textarea><button type="button" class="cfg-widget-send" data-action="cfg-widget-send" aria-label="发送">↗</button></div>
-      ${a.attribution ? `<div class="xg-powered-slot"><span class="xg-powered"><span class="xg-powered__mark" aria-hidden="true"></span><span class="xg-powered__text">吸管 提供技术支持</span></span></div>` : ''}</footer>
+      ${a.attribution ? `<div class="xg-powered-slot"><button type="button" class="xg-powered" data-action="cfg-powered" title="打开吸管接待产品首页"><span class="xg-powered__mark" aria-hidden="true"></span><span class="xg-powered__text">吸管 提供技术支持</span></button></div>` : ''}</footer>
   </div>`
 }
 
@@ -377,9 +382,7 @@ function cfgAsk(text, { button = false } = {}) {
   refreshWidget(true)
   setTimeout(() => {
     const result = kbAnswer(question, { button, first })
-    // 回答引用：命中 Q&A 时引用这条 Q&A，否则引用检索到的资料
-    const cites = result.insufficient ? [] : result.qa ? [`Q&A · ${result.qa.name}`] : cfg.sources.filter(item => item.type !== 'qa').slice(0, Math.max(1, result.refs || 0)).map(item => item.name)
-    cfg.chat.push({ from: 'assistant', text: result.text, time: nowClock(), cites })
+    cfg.chat.push({ from: 'assistant', text: result.text, time: nowClock() })
     // 依据不足记入未答队列；模型出错不计入（决议 4）
     if (result.insufficient) cfg.unanswered.unshift({ id: Date.now(), question, reason: 'no_kb', time: nowStamp() })
     cfg.typing = false

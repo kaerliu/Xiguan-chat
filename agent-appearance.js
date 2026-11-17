@@ -29,18 +29,28 @@ const shapeRadius = { circle: '50%', rounded: '18px', teardrop: '50% 50% 50% 12p
 
 /* 入口有三种，可以同时开启多个；数字人与卡通形象的配置项下周单独评审，这里保留原有的形象设置 */
 const AP_ENTRIES = [
-  { key: 'human', name: '数字人（卡通形象）', short: '数字人', icon: 'user' },
+  { key: 'human', name: '数字人', short: '数字人', icon: 'user' },
   { key: 'float', name: '悬浮入口', short: '悬浮入口', icon: 'message' },
   { key: 'bar', name: '中间按键', short: '中间按键', icon: 'panel-bottom' }
 ]
 const AP_ACCENTS = ['#2F7CF6', '#1A6384', '#123C35', '#1E5B4B', '#624A8E', '#FF6A00']
-const AP_LIMITS = { quick: 12, quickText: 80, quickHint: 300, guides: 8, capsuleLabel: 12, barLabel: 20, barInput: 4000, greeting: 24, barQuick: 4 }
+const AP_LIMITS = { quick: 12, quickText: 80, guides: 8, capsuleLabel: 12, barLabel: 20, barInput: 4000, greeting: 24, barQuick: 4 }
 /* 预览用的页面尺寸；margin 是入口离上下边缘的最小距离（屏宽 600px 以下为 16px） */
 const AP_PAGE = { desktop: { w: 1440, h: 810, margin: 24 }, mobile: { w: 390, h: 760, margin: 16 } }
 const AP_SIZE_LABELS = { sm: '小', md: '标准', lg: '大' }
 const AP_ICON_OPTIONS = [['question', '「问」字'], ['message', '对话图标'], ['avatar', '助手头像']]
 const AP_SHAPE_OPTIONS = [['circle', '圆形'], ['rounded', '圆角方形'], ['teardrop', '水滴形']]
 const AP_SIZE_OPTIONS = [['sm', '小'], ['md', '标准'], ['lg', '大']]
+
+/* 官网：onboarding 时填的地址和抓取知识库时读到的主题色。主题色是入口强调色和对话窗口品牌主色的默认值。 */
+const AP_SITE_FALLBACK = { url: 'https://www.example.com', theme: '#13795B' }
+function apSite() {
+  const onboarding = typeof state !== 'undefined' ? state.onboarding : null
+  const theme = /^#[0-9a-f]{6}$/i.test(onboarding?.color || '') ? onboarding.color.toUpperCase() : AP_SITE_FALLBACK.theme
+  return { url: onboarding?.website || AP_SITE_FALLBACK.url, theme }
+}
+/** 色板第一个是官网主题色。 */
+const apSwatches = list => [apSite().theme, ...list.filter(color => color.toUpperCase() !== apSite().theme)]
 
 let apSeq = 0
 const apNewId = () => `qb_${Date.now().toString(36)}${(apSeq += 1)}`
@@ -49,29 +59,31 @@ const apEntryName = key => AP_ENTRIES.find(item => item.key === key)?.name || '�
 const apEntryShort = key => AP_ENTRIES.find(item => item.key === key)?.short || '悬浮入口'
 
 function defaultAppearance() {
-  const accent = '#123C35'
+  const accent = apSite().theme
   return {
     entries: {
-      human: { enabled: false, accent, side: 'right', offset: 24, y: 100 },
-      float: { enabled: true, accent, side: 'right', offset: 24, y: 100 },
-      bar: { enabled: false, accent, y: 100 }
+      human: { enabled: false, accent, size: 'md', side: 'right', offset: 24, y: 100 },
+      float: { enabled: true, accent, size: 'md', side: 'right', offset: 24, y: 100 },
+      bar: { enabled: false, accent, size: 'md', y: 100 }
     },
     entryOrder: ['float'], mainEntry: 'float',
-    size: 'md', pulse: true,
+    pulse: true,
     floatStyle: 'bubble', bubbleIcon: 'question', bubbleShape: 'teardrop', capsuleLabel: '', guides: [],
     barLabel: '', barLength: 'wide',
     mascot: 'headset', mascotGreeting: '', mascotFloat: true, mascotImage: '',
-    mobile: { icon: 'question', shape: 'teardrop', size: 'md', accent, side: 'right', offset: 16, y: 100 },
+    // 手机端一期不单独配置样式，继承桌面端悬浮入口，只有位置单独存
+    mobile: { side: 'right', offset: 16, y: 100 },
     toolbar: defaultToolbar(),
     name: '吸管 Chat', avatarImage: '',
     welcome: '你好，我是吸管 Chat 智能助手 👋 可以帮你了解产品功能、价格和部署方式。',
-    primary: '#123C35', paper: '#FFFFFF',
+    primary: accent, paper: '#FFFFFF',
     quickButtons: [
-      { id: 'qb_1', text: '吸管 Chat 能做什么？', tag: '产品功能', hint: '', qa: '' },
-      { id: 'qb_2', text: '怎么收费？', tag: '价格', hint: '', qa: '' },
-      { id: 'qb_3', text: '如何接入官网？', tag: '部署', hint: '', qa: '' }
+      { id: 'qb_1', text: '吸管 Chat 能做什么？', tag: '产品功能', qa: '' },
+      { id: 'qb_2', text: '怎么收费？', tag: '价格', qa: '' },
+      { id: 'qb_3', text: '如何接入官网？', tag: '部署', qa: '' }
     ],
-    keepQuick: false, citations: false, attribution: true, history: true, historyDays: 180
+    // 技术支持标识一直显示，关闭属于付费解锁
+    keepQuick: false, attribution: true, history: true, historyDays: 180
   }
 }
 
@@ -96,7 +108,7 @@ function normalizeAppearance(stored) {
   if (s.bubbleShape === 'drop') s.bubbleShape = 'teardrop'
   const next = { ...base, ...s }
   next.quickButtons = (Array.isArray(s.quickButtons) ? s.quickButtons : base.quickButtons).slice(0, AP_LIMITS.quick)
-    .map((item, index) => ({ id: item?.id || `qb_${index + 1}`, text: String(item?.text ?? ''), tag: item?.tag || `quick_${index + 1}`, hint: String(item?.hint ?? ''), qa: item?.qa ?? '' }))
+    .map((item, index) => ({ id: item?.id || `qb_${index + 1}`, text: String(item?.text ?? ''), tag: item?.tag || `quick_${index + 1}`, qa: item?.qa ?? '' }))
   if (!s.entries || typeof s.entries !== 'object') {
     // 旧版草稿：同一时间只有一个入口，侧边胶囊是单独的开关；气泡和胶囊现在合并成「悬浮入口」的两种样式
     const accent = /^#[0-9a-f]{6}$/i.test(s.accent || '') ? s.accent.toUpperCase() : base.entries.float.accent
@@ -112,12 +124,16 @@ function normalizeAppearance(stored) {
     next.mainEntry = ['human', 'bar'].includes(s.entry) ? s.entry : 'float'
     const lines = String(s.capsuleGuides || '').split('\n').map(line => line.trim()).filter(Boolean)
     next.guides = lines.map(line => next.quickButtons.find(item => item.text.trim() === line)?.id).filter(Boolean)
-    next.mobile = { ...base.mobile, icon: next.bubbleIcon, shape: next.bubbleShape, size: next.size, accent }
     ;['entry', 'accent', 'sideCapsule', 'capsuleTop', 'capsuleRight', 'capsuleGuides'].forEach(key => { delete next[key] })
   } else {
     next.entries = Object.fromEntries(Object.keys(base.entries).map(key => [key, { ...base.entries[key], ...(s.entries[key] || {}) }]))
-    next.mobile = { ...base.mobile, ...(s.mobile || {}) }
   }
+  // 大小原来三种入口共用一个值，现在每个入口各存一个
+  if (AP_SIZE_LABELS[s.size]) Object.keys(next.entries).forEach(key => { if (!s.entries?.[key]?.size) next.entries[key].size = s.size })
+  Object.values(next.entries).forEach(entry => { if (!AP_SIZE_LABELS[entry.size]) entry.size = 'md' })
+  next.mobile = { side: s.mobile?.side === 'left' ? 'left' : 'right', offset: apClamp(s.mobile?.offset, 0, 150, base.mobile.offset), y: apClamp(s.mobile?.y, 0, 100, base.mobile.y) }
+  next.attribution = true
+  ;['size', 'citations'].forEach(key => { delete next[key] })
   next.toolbar = normalizeToolbarDraft(s.toolbar)
   const ids = next.quickButtons.map(item => item.id)
   // 中间有一版存的是每行一条的文字，按文字找回对应的快捷按钮
@@ -175,6 +191,7 @@ function apSave({ silent = false } = {}) {
 
 function apDiscard() {
   cfg.draft.appearance = JSON.parse(apSavedSnapshot())
+  cfg.apTemplate = null
   cfg.apErrors = {}
   cfg.uploadError = ''
   // 正展开的入口被撤回成未开启时，改为展开主入口
@@ -232,13 +249,13 @@ function apDiffSpecs() {
   const pos = p => (p.side ? `${p.side === 'left' ? '贴左' : '贴右'} ${p.offset}px，纵向 ${p.y}%` : `居中，纵向 ${p.y}%`)
   const label = (options, value) => options.find(item => item[0] === value)?.[1] || value
   const entry = (key, title) => [
+    { label: `${title} · 大小`, paths: [['entries', key, 'size']], fmt: a => AP_SIZE_LABELS[a.entries[key].size] },
     { label: `${title} · 强调色`, paths: [['entries', key, 'accent']], fmt: a => a.entries[key].accent },
     { label: `${title} · 位置`, paths: [['entries', key, 'side'], ['entries', key, 'offset'], ['entries', key, 'y']], fmt: a => pos(a.entries[key]) }
   ]
   return [
     { label: '开启的入口', paths: [['entryOrder'], ['entries', 'human', 'enabled'], ['entries', 'float', 'enabled'], ['entries', 'bar', 'enabled']], fmt: a => apEnabledKeys(a).map(apEntryName).join('、') },
     { label: '主入口', paths: [['mainEntry']], fmt: a => apEntryName(a.mainEntry) },
-    { label: '入口大小', paths: [['size']], fmt: a => AP_SIZE_LABELS[a.size] },
     { label: '呼吸提醒', paths: [['pulse']], fmt: a => on(a.pulse) },
     { label: '悬浮入口 · 样式', paths: [['floatStyle']], fmt: a => (a.floatStyle === 'capsule' ? '胶囊' : '气泡') },
     { label: '悬浮入口 · 图标', paths: [['bubbleIcon']], fmt: a => label(AP_ICON_OPTIONS, a.bubbleIcon) },
@@ -253,10 +270,6 @@ function apDiffSpecs() {
     { label: '数字人 · 招呼语', paths: [['mascotGreeting']], fmt: a => text(a.mascotGreeting) },
     { label: '数字人 · 待机浮动', paths: [['mascotFloat']], fmt: a => on(a.mascotFloat) },
     ...entry('human', '数字人'),
-    { label: '手机端入口 · 图标', paths: [['mobile', 'icon']], fmt: a => label(AP_ICON_OPTIONS, a.mobile.icon) },
-    { label: '手机端入口 · 形状', paths: [['mobile', 'shape']], fmt: a => label(AP_SHAPE_OPTIONS, a.mobile.shape) },
-    { label: '手机端入口 · 大小', paths: [['mobile', 'size']], fmt: a => AP_SIZE_LABELS[a.mobile.size] },
-    { label: '手机端入口 · 强调色', paths: [['mobile', 'accent']], fmt: a => a.mobile.accent },
     { label: '手机端入口 · 位置', paths: [['mobile', 'side'], ['mobile', 'offset'], ['mobile', 'y']], fmt: a => pos(a.mobile) },
     { label: '官网侧边工具栏', paths: [['toolbar']], fmt: a => (a.toolbar.enabled ? `开，${a.toolbar.items.length} 个按钮` : '关') },
     { label: '助手头像', paths: [['avatarImage']], fmt: a => (a.avatarImage ? '自定义图片' : '名称首字') },
@@ -266,10 +279,8 @@ function apDiffSpecs() {
     { label: '背景色', paths: [['paper']], fmt: a => a.paper },
     { label: '快捷按钮', paths: [['quickButtons']], fmt: a => `${a.quickButtons.length} 个` },
     { label: '首轮对话后继续显示快捷按钮', paths: [['keepQuick']], fmt: a => on(a.keepQuick) },
-    { label: '技术支持标识', paths: [['attribution']], fmt: a => on(a.attribution) },
     { label: '查看聊天记录', paths: [['history']], fmt: a => on(a.history) },
-    { label: '聊天记录保留天数', paths: [['historyDays']], fmt: a => `${a.historyDays} 天` },
-    { label: '回答引用', paths: [['citations']], fmt: a => on(a.citations) }
+    { label: '聊天记录保留天数', paths: [['historyDays']], fmt: a => `${a.historyDays} 天` }
   ]
 }
 
@@ -302,6 +313,8 @@ function apPositionFields(base, { horizontal = true, max = 600 } = {}) {
 
 const apPulseToggle = () => cfgToggle('appearance.pulse', '呼吸提醒', '入口右上角的红色感叹号和呼吸圈。悬浮入口和中间按键共用这一个开关。', { live: 'preview' })
 
+const apSizeField = (key, help) => cfgField('大小', cfgSelect(`appearance.entries.${key}.size`, AP_SIZE_OPTIONS, { live: 'preview' }), { help })
+
 function apFloatFields() {
   const a = apA()
   const bubble = a.floatStyle !== 'capsule'
@@ -314,7 +327,8 @@ function apFloatFields() {
     ${bubble
       ? `${cfgField('图标', cfgSelect('appearance.bubbleIcon', AP_ICON_OPTIONS, { live: 'preview' }))}${cfgField('形状', cfgSelect('appearance.bubbleShape', AP_SHAPE_OPTIONS, { live: 'preview' }))}`
       : cfgField('竖排文案', `<input value="${esc(a.capsuleLabel)}" maxlength="${AP_LIMITS.capsuleLabel}" placeholder="${esc(a.barLabel.trim() || apName(a))}" data-bind="appearance.capsuleLabel" data-live="preview" />`, { full: true, help: `${AP_LIMITS.capsuleLabel} 字以内，建议 2–6 字。留空时依次用中间按键的按钮文案、助手名称。` })}
-    ${cfgColorField('强调色', 'appearance.entries.float.accent', AP_ACCENTS, '气泡和胶囊共用，文字和图标按对比度自动用白色或深色。')}
+    ${apSizeField('float', bubble ? '气泡直径 52 / 60 / 68px。' : '胶囊宽 58 / 66 / 74px。')}
+    ${cfgColorField('强调色', 'appearance.entries.float.accent', apSwatches(AP_ACCENTS), '第一个色块是从官网读到的主题色。气泡和胶囊共用，文字和图标按对比度自动用白色或深色。')}
     ${apPositionFields('appearance.entries.float')}
     <div class="cfg-subgroup full"><strong>滚动引导语 · 已选 ${a.guides.length} / ${AP_LIMITS.guides}</strong></div>
     <div class="cfg-field full">${guideList}${quick.length ? '<small>3 条以内轮流高亮，超过 3 条每 2.8 秒向上滚一条，鼠标悬停时暂停。访客点一条，等于点对应的快捷按钮。</small>' : ''}</div>
@@ -326,7 +340,8 @@ function apBarFields() {
   const quick = apQuickShown(a).slice(0, AP_LIMITS.barQuick)
   return `${cfgField('按钮文案', `<input value="${esc(a.barLabel)}" maxlength="${AP_LIMITS.barLabel}" placeholder="${esc(apName(a))}" data-bind="appearance.barLabel" data-live="preview" />`, { full: true, help: `${AP_LIMITS.barLabel} 字以内，显示在输入栏右侧的按钮上；留空用助手名称。` })}
     ${cfgField('长度', cfgSelect('appearance.barLength', [['compact', '短'], ['standard', '中'], ['wide', '长']], { live: 'preview' }), { help: '最宽约 600 / 768 / 960px，屏幕不够宽时自动收窄。' })}
-    ${cfgColorField('强调色', 'appearance.entries.bar.accent', AP_ACCENTS, '')}
+    ${apSizeField('bar', '高 58 / 68 / 80px。')}
+    ${cfgColorField('强调色', 'appearance.entries.bar.accent', apSwatches(AP_ACCENTS), '')}
     ${apPositionFields('appearance.entries.bar', { horizontal: false })}
     <div class="cfg-subgroup full"><strong>快捷问题</strong></div>
     <div class="cfg-field full">${quick.length ? `<div class="ap-chips">${quick.map(item => `<span>${esc(item.text)}</span>`).join('')}</div>` : ''}<small>输入栏上方横向排列，只显示快捷按钮的前 ${AP_LIMITS.barQuick} 个，顺序和快捷按钮一致。<button type="button" class="ap-link" data-acc="quick">${quick.length ? '调整快捷按钮' : '去添加快捷按钮'}</button></small></div>
@@ -341,20 +356,18 @@ function apHumanFields() {
   const busy = cfg.uploadBusy === 'mascot'
   const upload = `<label class="cfg-mascot-option is-upload" role="radio" aria-checked="${a.mascot === 'custom'}" aria-disabled="${busy}">${custom ? `<img src="${esc(custom)}" alt="" />` : `<span class="cfg-mascot-upload-icon">${icon('upload')}</span>`}<span>${busy ? '处理中…' : custom ? '自定义形象' : '上传形象'}</span><input class="cfg-file" type="file" accept="image/png,image/jpeg,image/webp" data-upload="mascot" ${busy ? 'disabled' : ''} /></label>`
   const customActions = a.mascot === 'custom' && custom ? '<div class="cfg-mascot-custom-actions"><button type="button" class="cfg-btn sm ghost" data-action="cfg-mascot-reset">移除自定义形象</button></div>' : ''
-  return `<div class="cfg-notice info full"><span class="cfg-notice-icon">${icon('clock', 'sm')}</span><div>数字人和卡通形象的配置项下周单独评审，和留资弹窗一起定。这里先保留现有的形象设置。</div></div>
-    ${cfgField('形象', `<div class="cfg-mascot-picker" role="radiogroup">${cards}${upload}</div>${customActions}${cfg.uploadError && !busy ? `<small class="cfg-error" role="alert">${esc(cfg.uploadError)}</small>` : ''}`, { full: true, help: '自定义形象建议用透明背景 PNG，居中裁成方形，原图不超过 4MB。' })}
+  return `<div class="cfg-notice info full"><span class="cfg-notice-icon">${icon('clock', 'sm')}</span><div>数字人（含卡通形象）和留资弹窗另开专项评审（11 月 19 日）。一期做动作动画加状态机，每个动作配一句气泡台词；这里先保留现有的形象设置。</div></div>
+    ${cfgField('形象', `<div class="cfg-mascot-picker" role="radiogroup">${cards}${upload}</div>${customActions}${cfg.uploadError && !busy ? `<small class="cfg-error" role="alert">${esc(cfg.uploadError)}</small>` : ''}`, { full: true, help: '预设人物或动物形象；自定义形象建议用透明背景 PNG，原图不超过 4MB。' })}
     ${cfgField('招呼语', `<input value="${esc(a.mascotGreeting)}" maxlength="${AP_LIMITS.greeting}" placeholder="有问题随时问我" data-bind="appearance.mascotGreeting" data-live="preview" />`, { full: true, help: `${AP_LIMITS.greeting} 字以内；有主动消息时由主动消息替代。` })}
     ${cfgToggle('appearance.mascotFloat', '待机浮动', '', { live: 'preview' })}
-    ${cfgColorField('强调色', 'appearance.entries.human.accent', AP_ACCENTS, '')}
+    ${apSizeField('human', '高 116 / 144 / 172px。')}
+    ${cfgColorField('强调色', 'appearance.entries.human.accent', apSwatches(AP_ACCENTS), '')}
     ${apPositionFields('appearance.entries.human')}`
 }
 
 function apMobileFields() {
-  return `<div class="cfg-notice info full"><span class="cfg-notice-icon">${icon('monitor', 'sm')}</span><div>屏宽 760px 以下，不管桌面端开了哪些入口，都只显示这一个气泡。这组配置和桌面端的悬浮入口分开保存。</div></div>
-    ${cfgField('图标', cfgSelect('appearance.mobile.icon', AP_ICON_OPTIONS, { live: 'preview' }))}
-    ${cfgField('形状', cfgSelect('appearance.mobile.shape', AP_SHAPE_OPTIONS, { live: 'preview' }))}
-    ${cfgField('大小', cfgSelect('appearance.mobile.size', AP_SIZE_OPTIONS, { live: 'preview' }), { help: '直径 52 / 60 / 68px。' })}
-    ${cfgColorField('强调色', 'appearance.mobile.accent', AP_ACCENTS, '')}
+  const a = apA()
+  return `<div class="cfg-notice info full"><span class="cfg-notice-icon">${icon('monitor', 'sm')}</span><div>屏宽 760px 以下只显示一个气泡，样式跟桌面端悬浮入口一致${a.floatStyle === 'capsule' ? '（胶囊显示成气泡）' : ''}，这里只调位置。<button type="button" class="ap-link" data-ap-goto-float>去改悬浮入口</button></div></div>
     ${apPositionFields('appearance.mobile', { max: 150 })}`
 }
 
@@ -367,9 +380,9 @@ function apWindowFields() {
   return `${cfgField('助手头像', avatar, { full: true, help: '入口上的头像也用这一张。' })}
     <div class="cfg-field full ${errors.name ? 'has-error' : ''}"><label>助手名称<i class="ap-required">必填</i></label>${cfgInput('appearance.name', { live: 'preview' })}${error('name')}</div>
     <div class="cfg-field full ${errors.welcome ? 'has-error' : ''}"><label>欢迎语<i class="ap-required">必填</i></label>${cfgTextarea('appearance.welcome', { live: 'preview' })}${error('welcome') || '<small>每次新会话的第一条消息。</small>'}</div>
-    ${cfgColorField('品牌主色', 'appearance.primary', ['#123C35', '#1E5B4B', '#266D5B', '#1A6384', '#7A4F35', '#624A8E'], '用于标题栏、访客消息、按钮。')}
+    ${cfgColorField('品牌主色', 'appearance.primary', apSwatches(['#123C35', '#1E5B4B', '#266D5B', '#1A6384', '#7A4F35', '#624A8E']), '用于标题栏、访客消息、按钮。第一个色块是从官网读到的主题色。')}
     ${cfgColorField('背景色', 'appearance.paper', ['#FFFFFF', '#FBF8F1', '#F5F7F6', '#F2F6FA', '#FFF6F1', '#1F2937'], '用于对话区、快捷按钮、输入区，也是中间按键和主动消息气泡的底色。文字和边框颜色自动推算，深色背景会换成浅色文字。')}
-    <small class="cfg-inline-hint full">窗口从主入口所在的一侧打开，最大 410×690px；屏宽 600px 以下全屏显示。</small>`
+    <small class="cfg-inline-hint full">窗口从主入口所在的一侧打开，最大 410×690px；屏宽 600px 以下全屏显示。输入框一期只支持文字。</small>`
 }
 
 function apQuickFields() {
@@ -387,7 +400,6 @@ function apQuickFields() {
         <button type="button" class="cfg-icon-btn" data-ap-qb-move="${index}:1" aria-label="下移" ${index === a.quickButtons.length - 1 ? 'disabled' : ''}>${icon('arrow-down', 'sm')}</button>
         <button type="button" class="cfg-icon-btn" data-ap-qb-remove="${index}" aria-label="删除快捷按钮：${esc(item.text)}">${icon('trash', 'sm')}</button></span></div>
       <div class="cfg-field"><label>访客看到的问题<i class="ap-required">必填</i><em data-ap-count="appearance.quickButtons.${index}.text">${count(item.text)} / ${AP_LIMITS.quickText}</em></label><input value="${esc(item.text)}" maxlength="${AP_LIMITS.quickText}" data-bind="appearance.quickButtons.${index}.text" data-live="preview" />${bad ? '<small class="cfg-error" role="alert">这一项必填</small>' : ''}</div>
-      <div class="cfg-field"><label>上下文提示<em data-ap-count="appearance.quickButtons.${index}.hint">${count(item.hint)} / ${AP_LIMITS.quickHint}</em></label><textarea rows="2" maxlength="${AP_LIMITS.quickHint}" placeholder="告诉 AI 这个按钮代表什么" data-bind="appearance.quickButtons.${index}.hint">${esc(item.hint)}</textarea></div>
       <div class="cfg-field"><label>绑定 Q&A</label>${cfgSelect(`appearance.quickButtons.${index}.qa`, qaOptions)}</div>
     </div>`
   }).join('')
@@ -401,10 +413,13 @@ function apQuickFields() {
 
 function apDisplayFields() {
   const a = apA()
-  return `${cfgToggle('appearance.attribution', '技术支持标识', '窗口最下方显示「吸管 提供技术支持」。', { live: 'preview' })}
+  // 技术支持标识不能关；关闭属于付费解锁，按年收费
+  const attribution = cfgToggle('appearance.attribution', '技术支持标识', '一直显示在对话窗口最下方，访客点击打开吸管接待产品首页。关闭需开通付费版（按年收费）。', {})
+    .replace('type="checkbox"', 'type="checkbox" disabled')
+    .replace('</strong>', '<span class="cfg-badge">付费可关闭</span></strong>')
+  return `${attribution}
     ${cfgToggle('appearance.history', '查看聊天记录', '窗口顶部出现「查看历史消息」，按会话分段加载。没有历史记录的访客看不到这个入口。', { live: 'preview', rerender: true })}
-    ${cfgField('聊天记录保留天数', `<input type="number" min="1" max="730" value="${a.historyDays}" data-bind="appearance.historyDays" data-type="number" data-clamp="1,730" ${a.history ? '' : 'disabled'} />`, { full: true, help: a.history ? '1–730 天。' : '开启「查看聊天记录」后生效。' })}
-    ${cfgToggle('appearance.citations', '回答引用', '回答下方显示引用来源。', { live: 'preview' })}`
+    ${cfgField('聊天记录保留天数', `<input type="number" min="1" max="730" value="${a.historyDays}" data-bind="appearance.historyDays" data-type="number" data-clamp="1,730" ${a.history ? '' : 'disabled'} />`, { full: true, help: a.history ? '1–730 天。' : '开启「查看聊天记录」后生效。' })}`
 }
 
 function renderAccordionBody(key) {
@@ -426,25 +441,94 @@ function apEntrySummary(key, a) {
   return where
 }
 
+/** 主入口只在留资弹窗开启、并且开了两个以上入口时出现：资料卡和数字人的气泡只能从一个地方弹出。 */
+function apShowMainEntry(a = apA()) {
+  return apEnabledKeys(a).length > 1 && typeof isCapEnabled === 'function' && isCapEnabled('lead_popup')
+}
+
 function renderEntryPicker() {
   const a = apA()
   const enabled = apEnabledKeys(a)
+  const showMain = apShowMainEntry(a)
   const rows = AP_ENTRIES.map(item => {
     const entry = a.entries[item.key]
-    const main = entry.enabled && a.mainEntry === item.key && enabled.length > 1
+    const main = entry.enabled && a.mainEntry === item.key && showMain
     return `<div class="ap-entry-row ${entry.enabled ? 'is-on' : ''}">
       <span class="ap-entry-icon">${icon(item.icon, 'sm')}</span>
-      <span class="ap-entry-copy"><strong>${item.name}${main ? '<span class="cfg-badge success">主入口</span>' : ''}${item.key === 'human' ? '<span class="cfg-badge warning">配置待定</span>' : ''}</strong><small>${apEntrySummary(item.key, a)}</small></span>
+      <span class="ap-entry-copy"><strong>${item.name}${main ? '<span class="cfg-badge success">主入口</span>' : ''}${item.key === 'human' ? '<span class="cfg-badge warning">专项评审</span>' : ''}</strong><small>${apEntrySummary(item.key, a)}</small></span>
       <button type="button" class="cfg-switch ${entry.enabled ? 'on' : ''}" role="switch" aria-checked="${entry.enabled}" aria-label="开启${item.name}" data-ap-entry-toggle="${item.key}"></button>
     </div>`
   }).join('')
-  const mainField = enabled.length > 1
-    ? cfgField('主入口', cfgSelect('appearance.mainEntry', enabled.map(key => [key, apEntryName(key)]), { rerender: true }), { help: '主动消息气泡、留资资料卡出现在主入口旁边，对话窗口从它所在的一侧打开。' })
+  const mainField = showMain
+    ? `<div class="cfg-form-grid compact">${cfgField('主入口', cfgSelect('appearance.mainEntry', enabled.map(key => [key, apEntryName(key)]), { rerender: true }), { full: true, help: '留资弹窗的资料卡从主入口旁边弹出，对话窗口从它所在的一侧打开。' })}</div>`
     : ''
   return `<section class="cfg-entry-picker" aria-label="官网入口"><div class="cfg-entry-picker-head"><strong>官网入口</strong><small>可以同时开启多个，已开启 ${enabled.length} 个</small></div>
-    <div class="ap-entry-list">${rows}</div>
-    <div class="cfg-form-grid compact">${cfgField('大小', cfgSelect('appearance.size', AP_SIZE_OPTIONS, { live: 'preview' }), { help: '三种入口共用。气泡直径 52 / 60 / 68px，胶囊宽 58 / 66 / 74px，卡通形象高 116 / 144 / 172px，中间按键高 58 / 68 / 80px。', full: !mainField })}${mainField}</div>
+    <div class="ap-entry-list">${rows}</div>${mainField}
   </section>`
+}
+
+/* 外观模板：预设几组常见组合，选了右侧预览直接变，再细调。颜色、文案、快捷按钮不动。 */
+const AP_TEMPLATES = [
+  { key: 'lead', name: '高留资率', note: '胶囊 + 引导语',
+    apply: a => {
+      Object.assign(a.entries.float, { enabled: true, side: 'right', offset: 24, y: 50 })
+      a.entries.bar.enabled = false
+      a.entries.human.enabled = false
+      a.floatStyle = 'capsule'
+      if (!a.capsuleLabel.trim()) a.capsuleLabel = '在线咨询'
+      a.guides = a.quickButtons.filter(item => item.text.trim()).slice(0, 3).map(item => item.id)
+      a.pulse = true
+      a.entryOrder = ['float']
+    } },
+  { key: 'marketing', name: '高营销', note: '提问栏 + 气泡',
+    apply: a => {
+      Object.assign(a.entries.bar, { enabled: true, y: 100 })
+      Object.assign(a.entries.float, { enabled: true, side: 'right', offset: 24, y: 100 })
+      a.entries.human.enabled = false
+      a.floatStyle = 'bubble'
+      a.barLength = 'wide'
+      a.pulse = true
+      a.entryOrder = ['bar', 'float']
+      a.mainEntry = 'float'
+    } },
+  { key: 'brand', name: '强品牌展示', note: '大号头像气泡',
+    apply: a => {
+      Object.assign(a.entries.float, { enabled: true, side: 'right', offset: 24, y: 100, size: 'lg', accent: a.primary })
+      a.entries.bar.enabled = false
+      a.entries.human.enabled = false
+      a.floatStyle = 'bubble'
+      a.bubbleIcon = 'avatar'
+      a.bubbleShape = 'circle'
+      a.guides = []
+      a.pulse = false
+      a.entryOrder = ['float']
+    } }
+]
+
+function apTemplateThumb(key) {
+  if (key === 'lead') return '<span class="ap-tpl-thumb"><i class="t-site"></i><i class="t-guide"></i><i class="t-guide is-2"></i><i class="t-capsule"></i></span>'
+  if (key === 'marketing') return '<span class="ap-tpl-thumb"><i class="t-site"></i><i class="t-chip"></i><i class="t-chip is-2"></i><i class="t-bar"></i><i class="t-bubble"></i></span>'
+  return '<span class="ap-tpl-thumb"><i class="t-site"></i><i class="t-bubble is-lg"></i></span>'
+}
+
+function renderTemplatePicker() {
+  const accent = apMainAccent()
+  return `<section class="ap-templates" aria-label="外观模板"><div class="cfg-entry-picker-head"><strong>外观模板</strong></div>
+    <div class="ap-tpl-list" style="--tpl-accent:${accent}">${AP_TEMPLATES.map(item => `<button type="button" class="ap-tpl" data-ap-template="${item.key}" aria-pressed="${cfg.apTemplate === item.key}">${apTemplateThumb(item.key)}<strong>${item.name}</strong><small>${item.note}</small></button>`).join('')}</div>
+  </section>`
+}
+
+function apApplyTemplate(key) {
+  const template = AP_TEMPLATES.find(item => item.key === key)
+  if (!template) return
+  const a = apA()
+  template.apply(a)
+  apFixEntries(a)
+  cfg.apTemplate = key
+  cfg.accOpen = apEnabledKeys(a)[0]
+  cfg.previewSurface = 'site'
+  cfg.apChatOpen = false
+  toast(`已套用「${template.name}」，可以继续细调；不满意点「放弃改动」`, 'info')
 }
 
 const AP_SECTION_SURFACE = { human: 'site', float: 'site', bar: 'site', mobile: 'mobile', toolbar: 'site', window: 'chat', quick: 'chat', display: 'chat' }
@@ -456,7 +540,7 @@ function renderAppearanceConfig() {
   if (a.entries[cfg.accOpen] && !a.entries[cfg.accOpen].enabled) cfg.accOpen = null
   // 从上到下按配置频率排：已开启的入口 → 快捷按钮 → 对话窗口 → 官网侧边工具栏 → 显示设置 → 手机端入口
   const sections = [
-    ...AP_ENTRIES.filter(item => a.entries[item.key].enabled).map(item => [item.key, item.name, enabled.length > 1 && a.mainEntry === item.key ? '主入口' : '']),
+    ...AP_ENTRIES.filter(item => a.entries[item.key].enabled).map(item => [item.key, item.name, apShowMainEntry(a) && a.mainEntry === item.key ? '主入口' : '']),
     ['quick', '快捷按钮', `${a.quickButtons.length} / ${AP_LIMITS.quick} 个`],
     ['window', '对话窗口', ''],
     ['toolbar', '官网侧边工具栏', a.toolbar.enabled ? `已开启 · ${a.toolbar.items.length} 个按钮` : '未开启'],
@@ -468,9 +552,10 @@ function renderAppearanceConfig() {
     return `<section class="cfg-accordion-item" data-open="${open}"><button type="button" class="cfg-accordion-trigger" data-acc="${key}" aria-expanded="${open}"><span><strong>${title}</strong>${note ? `<small>${note}</small>` : ''}</span>${icon('chevron-down', 'sm')}</button>${open ? `<div class="cfg-accordion-body"><div class="cfg-form-grid compact">${renderAccordionBody(key)}</div></div>` : ''}</section>`
   }).join('')}</div>`
   const surface = cfg.previewSurface
-  const tabs = [['site', 'monitor', '桌面端'], ['mobile', 'panel-bottom', '手机端'], ['chat', 'message', '对话窗口']]
+  // 预览顺序：桌面端、对话窗口、手机端
+  const tabs = [['site', 'monitor', '桌面端'], ['chat', 'message', '对话窗口'], ['mobile', 'panel-bottom', '手机端']]
   const sim = surface === 'chat'
-    ? `<button type="button" class="cfg-btn sm ghost" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>重置对话</span></button>`
+    ? `<label class="ap-sim">模拟<select data-ap-human aria-label="模拟对话状态"><option value="" ${cfg.apHuman ? '' : 'selected'}>AI 接待</option><option value="1" ${cfg.apHuman ? 'selected' : ''}>人工接入</option></select></label><button type="button" class="cfg-btn sm ghost" data-action="cfg-chat-reset">${icon('rotate', 'xs')}<span>重置对话</span></button>`
     : `<label class="ap-sim">模拟<select data-ap-sim aria-label="模拟访客看到的状态">${[['', '平时'], ['proactive', '有主动消息'], ['lead', '弹出留资资料卡']].map(([key, label]) => `<option value="${key}" ${cfg.apSim === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`
   const stage = `<section class="cfg-preview-stage" aria-label="外观预览">
     <div class="cfg-preview-toolbar"><div class="cfg-surface-switch" role="tablist" aria-label="预览内容">${tabs.map(([key, iconName, label]) => `<button type="button" role="tab" aria-selected="${surface === key}" data-surface="${key}">${icon(iconName, 'xs')}${label}</button>`).join('')}</div>
@@ -479,7 +564,7 @@ function renderAppearanceConfig() {
   </section>`
   return `<div class="cfg-page is-workbench">${renderCfgHeader({ title: '外观', desc: '改动点保存后进草稿，发布后访客才看得到。', actions: `<div class="ap-page-actions" id="ap-page-actions">${renderApPageActions()}</div>` })}
     ${renderToolbarPendingModal()}${renderApLeaveModal()}
-    <div class="cfg-workbench"><aside class="cfg-controls" aria-label="外观配置"><div class="cfg-controls-scroll" data-keep-scroll="cfg-appearance-controls">${renderEntryPicker()}${accordion}</div></aside>${stage}</div>
+    <div class="cfg-workbench"><aside class="cfg-controls" aria-label="外观配置"><div class="cfg-controls-scroll" data-keep-scroll="cfg-appearance-controls">${renderTemplatePicker()}${renderEntryPicker()}${accordion}</div></aside>${stage}</div>
   </div>`
 }
 
@@ -490,16 +575,22 @@ const apAccentVars = accent => `--xg-color:${accent};--xg-color-highlight:color-
 const apInk = paper => (readableOn(paper) === '#FFFFFF' ? '#F3F6F5' : '#102F2A')
 
 function apPageVars(a) {
-  const sz = sizeTable[a.size]
   return [
     `--xg-paper:${a.paper}`, `--xg-paper-raised:color-mix(in srgb,var(--xg-paper) 45%,${readableOn(a.paper) === '#FFFFFF' ? '#3A4352' : '#fff'})`, `--xg-ink:${apInk(a.paper)}`,
-    '--xg-ink-muted:color-mix(in srgb,var(--xg-paper) 42%,var(--xg-ink))', '--xg-border:color-mix(in srgb,var(--xg-paper) 81%,var(--xg-ink))',
+    '--xg-ink-muted:color-mix(in srgb,var(--xg-paper) 42%,var(--xg-ink))', '--xg-border:color-mix(in srgb,var(--xg-paper) 81%,var(--xg-ink))'
+  ].join(';')
+}
+
+/** 每个入口各自的大小。 */
+function apSizeVars(sizeKey, a) {
+  const sz = sizeTable[sizeKey] || sizeTable.md
+  return [
     `--xg-launcher-size:${sz.launcher}px`, `--xg-launcher-font-size:${sz.font}px`,
     `--xg-prompt-width:${barLengths[a.barLength]}px`, `--xg-prompt-bar-height:${sz.bar}px`, `--xg-prompt-control-height:${sz.control}px`,
     `--xg-prompt-avatar-size:${sz.avatar}px`, `--xg-prompt-mark-size:${sz.mark}px`, `--xg-prompt-font-size:${sz.promptFont}px`,
     `--xg-prompt-suggestion-height:${sz.sug}px`, `--xg-prompt-suggestion-font-size:${sz.sugFont}px`, `--xg-prompt-gap:${sz.gap}px`, `--xg-prompt-padding:${sz.pad}px`,
     `--xg-mascot-height:${sz.mascot}px`
-  ].join(';')
+  ].join(';') + ';'
 }
 
 const apInitial = a => (a.avatarImage ? `<img src="${esc(a.avatarImage)}" alt="" />` : esc(Array.from(apName(a))[0]))
@@ -556,7 +647,7 @@ function apEntryHtml(key, a) {
   const side = key === 'bar' ? 'center' : entry.side
   const level = entry.y > 66 ? 'is-low' : entry.y < 34 ? 'is-high' : 'is-mid'
   const shape = key === 'float' ? `--xg-radius-launcher:${shapeRadius[a.bubbleShape]};` : ''
-  return `<div class="ap-entry is-${side} ${level}" data-ap-entry="${key}" style="--ap-off:${entry.offset || 0}px;--ap-y:${entry.y / 100};${shape}${apAccentVars(entry.accent)}">${core}${aside}</div>`
+  return `<div class="ap-entry is-${side} ${level}" data-ap-entry="${key}" style="--ap-off:${entry.offset || 0}px;--ap-y:${entry.y / 100};${shape}${apSizeVars(entry.size, a)}${apAccentVars(entry.accent)}">${core}${aside}</div>`
 }
 
 function apChatHtml(a, device) {
@@ -566,22 +657,36 @@ function apChatHtml(a, device) {
 
 const AP_SITE_SKELETON = '<div class="cfg-lp-site"><div class="cfg-lp-site-nav"><b></b><span></span><span></span><span></span><span></span></div><div class="cfg-lp-site-hero"><b></b><span></span><span></span><i></i></div><div class="cfg-lp-site-cards"><span></span><span></span><span></span></div></div>'
 
-function renderSitePreview() {
-  const a = apA()
-  // 预览只显示已开启的入口
-  const keys = AP_ENTRIES.map(item => item.key).filter(key => a.entries[key].enabled)
-  return `<div class="cfg-lp is-bare"><div class="cfg-lp-browser"><div class="cfg-lp-chrome"><i></i><i></i><i></i><span>www.example.com</span></div>
-    <div class="cfg-lp-viewport"><div class="cfg-lp-page" data-ap-page="desktop" data-ap-margin="${AP_PAGE.desktop.margin}" style="--ap-m:${AP_PAGE.desktop.margin}px;${apPageVars(a)}">${AP_SITE_SKELETON}${keys.map(key => apEntryHtml(key, a)).join('')}${renderToolbarPreview(a.toolbar)}${apChatHtml(a, 'desktop')}</div></div></div></div>`
+/** 桌面端预览显示用户填的官网，调位置时能看到官网已有的浮层和客服按钮；地址留空时用示意页。 */
+function apSiteUrl() {
+  if (cfg.apSiteUrl === undefined) cfg.apSiteUrl = apSite().url
+  const value = String(cfg.apSiteUrl || '').trim()
+  if (!value) return ''
+  const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`
+  try { const url = new URL(candidate); return ['http:', 'https:'].includes(url.protocol) ? url.href : '' } catch { return '' }
 }
 
+function renderSitePreview() {
+  const a = apA()
+  const url = apSiteUrl()
+  // 预览只显示已开启的入口
+  const keys = AP_ENTRIES.map(item => item.key).filter(key => a.entries[key].enabled)
+  const site = url
+    ? `${AP_SITE_SKELETON}<iframe class="ap-site-frame" src="${esc(url)}" title="官网预览" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>`
+    : AP_SITE_SKELETON
+  const address = `<input class="ap-address" value="${esc(cfg.apSiteUrl || '')}" placeholder="填官网地址，在真实页面上调位置" aria-label="官网地址" data-ap-siteurl title="有的官网不允许被嵌入，会显示空白，这时清空地址改看示意页" />${url ? '<button type="button" class="ap-address-btn" data-ap-siteurl-clear>示意页</button>' : ''}`
+  return `<div class="cfg-lp is-bare"><div class="cfg-lp-browser"><div class="cfg-lp-chrome"><i></i><i></i><i></i>${address}</div>
+    <div class="cfg-lp-viewport"><div class="cfg-lp-page" data-ap-page="desktop" data-ap-margin="${AP_PAGE.desktop.margin}" style="--ap-m:${AP_PAGE.desktop.margin}px;${apPageVars(a)}">${site}${keys.map(key => apEntryHtml(key, a)).join('')}${renderToolbarPreview(a.toolbar)}${apChatHtml(a, 'desktop')}</div></div></div></div>`
+}
+
+/** 手机端继承桌面端悬浮入口的样式，只有位置单独存。 */
 function renderMobilePreview() {
   const a = apA()
   const m = a.mobile
-  const sz = sizeTable[m.size]
-  const main = true
-  const aside = cfg.apSim === 'proactive' ? `<div class="ap-aside"><div class="ap-proactive">${esc(apSimMessage())}</div></div>` : cfg.apSim === 'lead' ? apAside('float', a, main) : ''
+  const float = a.entries.float
+  const aside = cfg.apSim === 'proactive' ? `<div class="ap-aside"><div class="ap-proactive">${esc(apSimMessage())}</div></div>` : cfg.apSim === 'lead' ? apAside('float', a, true) : ''
   const level = m.y > 66 ? 'is-low' : m.y < 34 ? 'is-high' : 'is-mid'
-  const entry = `<div class="ap-entry is-${m.side} ${level}" data-ap-entry="mobile" style="--ap-off:${m.offset}px;--ap-y:${m.y / 100};--xg-radius-launcher:${shapeRadius[m.shape]};--xg-launcher-size:${sz.launcher}px;--xg-launcher-font-size:${sz.font}px;${apAccentVars(m.accent)}">${apBubbleHtml({ ...a, pulse: false }, m.icon)}${aside}</div>`
+  const entry = `<div class="ap-entry is-${m.side} ${level}" data-ap-entry="mobile" style="--ap-off:${m.offset}px;--ap-y:${m.y / 100};--xg-radius-launcher:${shapeRadius[a.bubbleShape]};${apSizeVars(float.size, a)}${apAccentVars(float.accent)}">${apBubbleHtml({ ...a, pulse: false }, a.bubbleIcon)}${aside}</div>`
   return `<div class="ap-phone"><div class="ap-phone-screen"><div class="cfg-lp-page ap-page-mobile" data-ap-page="mobile" data-ap-margin="${AP_PAGE.mobile.margin}" style="--ap-m:${AP_PAGE.mobile.margin}px;${apPageVars(a)}"><div class="ap-mobile-site"><div class="ap-mobile-nav"><b></b><i></i></div><b></b><span></span><span></span><em></em><div></div><div></div></div>${entry}${apChatHtml(a, 'mobile')}</div></div></div>`
 }
 
@@ -594,11 +699,14 @@ function renderPreviewCanvas() {
 function apCheckOverlap() {
   const node = document.querySelector('#ap-overlap')
   if (!node) return
-  const entries = [...document.querySelectorAll('[data-ap-page="desktop"] .ap-entry')].map(el => ({ key: el.dataset.apEntry, rect: el.getBoundingClientRect() }))
+  const entries = [...document.querySelectorAll('[data-ap-page="desktop"] .ap-entry')].map(el => ({ name: apEntryShort(el.dataset.apEntry), rect: el.getBoundingClientRect() }))
+  // 侧边工具栏不算入口，但和入口叠在一起时也提醒
+  const toolbar = document.querySelector('[data-ap-page="desktop"] .cfg-st')
+  if (toolbar) entries.push({ name: '侧边工具栏', rect: toolbar.getBoundingClientRect() })
   const pairs = []
   entries.forEach((one, index) => entries.slice(index + 1).forEach(other => {
     const hit = one.rect.left < other.rect.right && other.rect.left < one.rect.right && one.rect.top < other.rect.bottom && other.rect.top < one.rect.bottom
-    if (hit) pairs.push(`${apEntryShort(one.key)}和${apEntryShort(other.key)}`)
+    if (hit) pairs.push(`${one.name}和${other.name}`)
   }))
   node.hidden = !pairs.length
   node.textContent = pairs.length ? `${pairs.join('、')}位置重叠，可以拖开，不影响保存` : ''
@@ -672,6 +780,8 @@ document.addEventListener('pointermove', event => {
     if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 5) return
     drag.moved = true
     drag.el.classList.add('is-dragging')
+    drag.page.classList.add('is-dragging-entry')
+    try { drag.el.setPointerCapture(event.pointerId) } catch {}
     document.activeElement?.blur?.()
     window.getSelection()?.removeAllRanges()
   }
@@ -704,6 +814,7 @@ document.addEventListener('pointermove', event => {
 function apEndDrag() {
   const drag = apDrag
   apDrag = null
+  drag?.page.classList.remove('is-dragging-entry')
   if (!drag?.moved) return
   apSuppressClick = true
   setTimeout(() => { apSuppressClick = false; renderApp() }, 0)
@@ -749,6 +860,17 @@ function apHandleClick(event) {
     apLeaveProceed()
     return true
   }
+  if ((el = pick('[data-ap-template]'))) { apApplyTemplate(el.dataset.apTemplate); renderApp(); return true }
+  if ((el = pick('[data-ap-goto-float]'))) {
+    const a = apA()
+    if (!a.entries.float.enabled) apToggleEntry('float')
+    cfg.accOpen = 'float'
+    cfg.previewSurface = 'site'
+    renderApp()
+    return true
+  }
+  if (pick('[data-ap-siteurl-clear]')) { cfg.apSiteUrl = ''; refreshAppearancePreview(); return true }
+  if (pick('[data-ap-siteurl]')) return true
   if ((el = pick('[data-ap-entry-toggle]'))) {
     const key = el.dataset.apEntryToggle
     apToggleEntry(key)
@@ -808,9 +930,10 @@ function apAction(name) {
   if (name === 'cfg-ap-save') { apSave(); renderApp(); return true }
   if (name === 'cfg-ap-discard') { apDiscard(); toast('已放弃本页未保存的改动', 'info'); renderApp(); return true }
   if (name === 'cfg-ap-chat-close') { cfg.apChatOpen = false; refreshAppearancePreview(); return true }
+  if (name === 'cfg-powered') { toast('访客点这里会打开吸管接待产品首页', 'info'); return true }
   if (name === 'cfg-qb-add') {
     if (a.quickButtons.length >= AP_LIMITS.quick) return true
-    a.quickButtons.push({ id: apNewId(), text: '新按钮', tag: `quick_${a.quickButtons.length + 1}`, hint: '', qa: '' })
+    a.quickButtons.push({ id: apNewId(), text: '新按钮', tag: `quick_${a.quickButtons.length + 1}`, qa: '' })
     renderApp()
     return true
   }
@@ -841,6 +964,13 @@ function apHandleChange(event) {
     return true
   }
   if (target.matches('[data-ap-sim]')) { cfg.apSim = target.value; refreshAppearancePreview(); return true }
+  if (target.matches('[data-ap-human]')) {
+    cfg.apHuman = Boolean(target.value)
+    refreshAppearancePreview()
+    document.querySelectorAll('[data-widget-stage]').forEach(stage => { stage.scrollTop = stage.scrollHeight })
+    return true
+  }
+  if (target.matches('[data-ap-siteurl]')) { cfg.apSiteUrl = target.value.trim(); refreshAppearancePreview(); return true }
   return false
 }
 
@@ -851,6 +981,7 @@ function apHandleKeydown(event) {
     apOpenChatWith(event.target.value.trim())
     return true
   }
+  if (event.key === 'Enter' && event.target.matches?.('[data-ap-siteurl]')) { event.preventDefault(); event.target.blur(); return true }
   if (event.key === 'Escape' && cfg.apLeave) { cfg.apLeave = null; renderApp(); return true }
   return false
 }

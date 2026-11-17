@@ -358,7 +358,6 @@ function renderDebugConfigTab() {
   const knowledge = debugCard('knowledge', 'book', '知识库', goto('knowledge', '管理知识库'), `
     <div class="debug-stats"><div><strong>${docs}</strong><span>份资料</span></div><div><strong>${qas}</strong><span>条问答</span></div><div><strong>${cfg.unanswered.length}</strong><span>个未答问题</span></div></div>
     <label class="debug-line"><span>参考的对话轮数</span><select data-bind="retrieval.turns" data-type="number">${[1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${Number(d.retrieval.turns) === n ? 'selected' : ''}>${n} 轮</option>`).join('')}</select></label>
-    <label class="debug-line"><span>向访客显示引用来源</span><span class="cfg-toggle-control"><input type="checkbox" role="switch" data-bind="appearance.citations" ${a.citations ? 'checked' : ''} /><i></i></span></label>
     ${debugRow('证据预算', `${Number(d.retrieval.contextChars || 0).toLocaleString()} 字`)}`)
   const caps = debugCard('capabilities', 'plug', `能力（已开启 ${enabledCaps.length} 个）`, goto('capabilities', '全部能力'), `<ul class="debug-cap-list">${CAPABILITIES.map(cap => {
     const on = isCapEnabled(cap.id)
