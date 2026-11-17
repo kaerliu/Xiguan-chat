@@ -454,13 +454,14 @@ function renderAppearanceConfig() {
   const enabled = apEnabledKeys(a)
   // 开了哪些入口，才有哪些入口的配置；关掉的入口不出现在下面（配置留着，再开时还在）
   if (a.entries[cfg.accOpen] && !a.entries[cfg.accOpen].enabled) cfg.accOpen = null
+  // 从上到下按配置频率排：已开启的入口 → 快捷按钮 → 对话窗口 → 官网侧边工具栏 → 显示设置 → 手机端入口
   const sections = [
     ...AP_ENTRIES.filter(item => a.entries[item.key].enabled).map(item => [item.key, item.name, enabled.length > 1 && a.mainEntry === item.key ? '主入口' : '']),
-    ['mobile', '手机端入口', '屏宽 760px 以下'],
-    ['toolbar', '官网侧边工具栏', a.toolbar.enabled ? `已开启 · ${a.toolbar.items.length} 个按钮` : '未开启'],
-    ['window', '对话窗口', ''],
     ['quick', '快捷按钮', `${a.quickButtons.length} / ${AP_LIMITS.quick} 个`],
-    ['display', '显示设置', '']
+    ['window', '对话窗口', ''],
+    ['toolbar', '官网侧边工具栏', a.toolbar.enabled ? `已开启 · ${a.toolbar.items.length} 个按钮` : '未开启'],
+    ['display', '显示设置', ''],
+    ['mobile', '手机端入口', '屏宽 760px 以下']
   ]
   const accordion = `<div class="cfg-accordion">${sections.map(([key, title, note]) => {
     const open = cfg.accOpen === key
