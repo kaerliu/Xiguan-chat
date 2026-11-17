@@ -222,7 +222,9 @@ function positionToolbarPanels() {
 
 function renderToolbarEditor() {
   const t = cfg.draft.appearance.toolbar
-  const capsuleOn = cfg.draft.appearance.sideCapsule
+  const a = cfg.draft.appearance
+  // 悬浮入口用胶囊样式并且贴右时，和工具栏在同一侧
+  const capsuleOn = a.entries.float.enabled && a.floatStyle === 'capsule' && a.entries.float.side === 'right'
   const block = t.variant === 'block'
   const templates = SITE_TOOLBAR_TEMPLATES.map(template => {
     const theme = toolbarThemeVars({ ...t, ...template.style })
@@ -239,7 +241,7 @@ function renderToolbarEditor() {
     ${cfgColorField(block ? '弹出面板底色' : '工具栏底色', 'appearance.toolbar.background_color', ['#FFFFFF', '#F5F8FF', '#FBF8F1', '#F4F1FA', '#1F2937'], block ? '' : '同时作为弹出面板底色。', { full: false })}
     ${cfgColorField('文字颜色', 'appearance.toolbar.text_color', ['#3A4352', '#2F3540', '#333333', '#102F2A', '#FFFFFF'], '按钮文字与弹出面板正文的颜色；图标会自动略浅一些。')}
     ${cfgField(`垂直位置 · <b data-range-label="appearance.toolbar.position">${t.position}</b>%`, `<input type="range" min="10" max="90" step="5" value="${t.position}" data-bind="appearance.toolbar.position" data-type="number" data-live="preview" />`, { help: '50% 为垂直居中；靠近 10% / 90% 时整条工具栏贴近顶部 / 底部且不会超出屏幕。' })}
-    ${cfgField(`距右侧 · <b data-range-label="appearance.toolbar.offset_right">${t.offset_right}</b>px`, `<input type="range" min="0" max="240" step="4" value="${t.offset_right}" data-bind="appearance.toolbar.offset_right" data-type="number" data-live="preview" />`, { help: capsuleOn ? '已开启「侧边咨询胶囊」，两者都在页面右侧，请在预览中确认没有重叠。' : '0 为紧贴浏览器右边缘。' })}
+    ${cfgField(`距右侧 · <b data-range-label="appearance.toolbar.offset_right">${t.offset_right}</b>px`, `<input type="range" min="0" max="240" step="4" value="${t.offset_right}" data-bind="appearance.toolbar.offset_right" data-type="number" data-live="preview" />`, { help: capsuleOn ? '悬浮入口的胶囊也贴在右侧，在预览里确认两者没有重叠。' : '0 为紧贴浏览器右边缘。' })}
     <div class="cfg-field full"><div class="notification-title"><strong>按钮（${t.items.length}/${TOOLBAR_LIMITS.items}）</strong><button type="button" class="cfg-btn sm outline" data-action="cfg-toolbar-add" ${t.items.length >= TOOLBAR_LIMITS.items ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加按钮</span></button></div>
       ${t.items.length ? '' : '<small>还没有按钮。选择上方模板快速开始，或点击「添加按钮」从空白开始。</small>'}
       <div class="site-toolbar-items">${items}</div></div>`
