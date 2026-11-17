@@ -131,8 +131,8 @@ const cfg = {
     { id: 2, question: '免费版每月包含多少次会话额度？', reason: 'self_test_no_kb', time: '11/11 14:16' },
     { id: 1, question: '你们产品能做什么？', reason: 'no_kb', time: '11/11 14:14' }
   ],
-  // 外观页：展开的配置分组、正在配置的入口、预览内容（site 桌面端 / mobile 手机端 / chat 对话窗口）
-  accOpen: 'entry', entryTab: cfgSavedDraft.appearance.mainEntry, previewSurface: 'site',
+  // 外观页：展开的配置分组（已开启的入口各一组，默认展开主入口）、预览内容（site 桌面端 / mobile 手机端 / chat 对话窗口）
+  accOpen: cfgSavedDraft.appearance.mainEntry, previewSurface: 'site',
   apChatOpen: false, apSim: '', apErrors: {}, apLeave: null,
   tbExpanded: null, tbPending: null, tbImageBusy: '', tbImageError: null, uploadBusy: '', uploadError: '',
   chat: [], chatStartedAt: nowClock(), typing: false, chatHistory: 0,
@@ -603,7 +603,6 @@ function handleConfigClick(event) {
     toast('已发布上线，访客将看到最新配置')
   } else if (name === 'cfg-discard') {
     cfg.draft = JSON.parse(cfg.saved)
-    cfg.entryTab = cfg.draft.appearance.mainEntry
     cfg.fullscreen = null
     toast('已放弃未保存的改动', 'info')
   } else if (name === 'cfg-fullscreen') {

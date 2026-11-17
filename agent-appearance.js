@@ -175,7 +175,9 @@ function apDiscard() {
   cfg.draft.appearance = JSON.parse(apSavedSnapshot())
   cfg.apErrors = {}
   cfg.uploadError = ''
-  if (!cfg.draft.appearance.entries[cfg.entryTab]) cfg.entryTab = cfg.draft.appearance.mainEntry
+  // 正展开的入口被撤回成未开启时，改为展开主入口
+  const a = cfg.draft.appearance
+  if (a.entries[cfg.accOpen] && !a.entries[cfg.accOpen].enabled) cfg.accOpen = a.mainEntry
 }
 
 function renderApPageActions() {
@@ -404,7 +406,9 @@ function apDisplayFields() {
 }
 
 function renderAccordionBody(key) {
-  if (key === 'entry') return cfg.entryTab === 'bar' ? apBarFields() : cfg.entryTab === 'human' ? apHumanFields() : apFloatFields()
+  if (key === 'float') return apFloatFields()
+  if (key === 'bar') return apBarFields()
+  if (key === 'human') return apHumanFields()
   if (key === 'mobile') return apMobileFields()
   if (key === 'toolbar') return renderToolbarEditor()
   if (key === 'window') return apWindowFields()
@@ -426,7 +430,7 @@ function renderEntryPicker() {
   const rows = AP_ENTRIES.map(item => {
     const entry = a.entries[item.key]
     const main = entry.enabled && a.mainEntry === item.key && enabled.length > 1
-    return `<div class="ap-entry-row ${cfg.entryTab === item.key ? 'is-current' : ''}" data-entry-pick="${item.key}" role="button" tabindex="0" aria-label="配置${item.name}">
+    return `<div class="ap-entry-row ${entry.enabled ? 'is-on' : ''}">
       <span class="ap-entry-icon">${icon(item.icon, 'sm')}</span>
       <span class="ap-entry-copy"><strong>${item.name}${main ? '<span class="cfg-badge success">主入口</span>' : ''}${item.key === 'human' ? '<span class="cfg-badge warning">配置待定</span>' : ''}</strong><small>${apEntrySummary(item.key, a)}</small></span>
       <button type="button" class="cfg-switch ${entry.enabled ? 'on' : ''}" role="switch" aria-checked="${entry.enabled}" aria-label="开启${item.name}" data-ap-entry-toggle="${item.key}"></button>
@@ -441,13 +445,15 @@ function renderEntryPicker() {
   </section>`
 }
 
-const AP_SECTION_SURFACE = { entry: 'site', mobile: 'mobile', toolbar: 'site', window: 'chat', quick: 'chat', display: 'chat' }
+const AP_SECTION_SURFACE = { human: 'site', float: 'site', bar: 'site', mobile: 'mobile', toolbar: 'site', window: 'chat', quick: 'chat', display: 'chat' }
 
 function renderAppearanceConfig() {
   const a = apA()
-  const current = a.entries[cfg.entryTab]
+  const enabled = apEnabledKeys(a)
+  // 开了哪些入口，才有哪些入口的配置；关掉的入口不出现在下面（配置留着，再开时还在）
+  if (a.entries[cfg.accOpen] && !a.entries[cfg.accOpen].enabled) cfg.accOpen = null
   const sections = [
-    ['entry', `${apEntryName(cfg.entryTab)}`, current.enabled ? (a.mainEntry === cfg.entryTab && apEnabledKeys(a).length > 1 ? '已开启 · 主入口' : '已开启') : '未开启，配置会保留'],
+    ...AP_ENTRIES.filter(item => a.entries[item.key].enabled).map(item => [item.key, item.name, enabled.length > 1 && a.mainEntry === item.key ? '主入口' : '']),
     ['mobile', '手机端入口', '屏宽 760px 以下'],
     ['toolbar', '官网侧边工具栏', a.toolbar.enabled ? `已开启 · ${a.toolbar.items.length} 个按钮` : '未开启'],
     ['window', '对话窗口', ''],
@@ -547,7 +553,7 @@ function apEntryHtml(key, a) {
   const side = key === 'bar' ? 'center' : entry.side
   const level = entry.y > 66 ? 'is-low' : entry.y < 34 ? 'is-high' : 'is-mid'
   const shape = key === 'float' ? `--xg-radius-launcher:${shapeRadius[a.bubbleShape]};` : ''
-  return `<div class="ap-entry is-${side} ${level} ${entry.enabled ? '' : 'is-ghost'}" data-ap-entry="${key}" style="--ap-off:${entry.offset || 0}px;--ap-y:${entry.y / 100};${shape}${apAccentVars(entry.accent)}">${core}${aside}${entry.enabled ? '' : '<span class="ap-ghost-tag">未开启</span>'}</div>`
+  return `<div class="ap-entry is-${side} ${level}" data-ap-entry="${key}" style="--ap-off:${entry.offset || 0}px;--ap-y:${entry.y / 100};${shape}${apAccentVars(entry.accent)}">${core}${aside}</div>`
 }
 
 function apChatHtml(a, device) {
@@ -559,8 +565,8 @@ const AP_SITE_SKELETON = '<div class="cfg-lp-site"><div class="cfg-lp-site-nav">
 
 function renderSitePreview() {
   const a = apA()
-  // 已开启的入口都显示；正在配置但还没开启的入口半透明显示，方便先调好再开
-  const keys = AP_ENTRIES.map(item => item.key).filter(key => a.entries[key].enabled || (cfg.accOpen === 'entry' && cfg.entryTab === key))
+  // 预览只显示已开启的入口
+  const keys = AP_ENTRIES.map(item => item.key).filter(key => a.entries[key].enabled)
   return `<div class="cfg-lp is-bare"><div class="cfg-lp-browser"><div class="cfg-lp-chrome"><i></i><i></i><i></i><span>www.example.com</span></div>
     <div class="cfg-lp-viewport"><div class="cfg-lp-page" data-ap-page="desktop" data-ap-margin="${AP_PAGE.desktop.margin}" style="--ap-m:${AP_PAGE.desktop.margin}px;${apPageVars(a)}">${AP_SITE_SKELETON}${keys.map(key => apEntryHtml(key, a)).join('')}${renderToolbarPreview(a.toolbar)}${apChatHtml(a, 'desktop')}</div></div></div></div>`
 }
@@ -585,7 +591,7 @@ function renderPreviewCanvas() {
 function apCheckOverlap() {
   const node = document.querySelector('#ap-overlap')
   if (!node) return
-  const entries = [...document.querySelectorAll('[data-ap-page="desktop"] .ap-entry:not(.is-ghost)')].map(el => ({ key: el.dataset.apEntry, rect: el.getBoundingClientRect() }))
+  const entries = [...document.querySelectorAll('[data-ap-page="desktop"] .ap-entry')].map(el => ({ key: el.dataset.apEntry, rect: el.getBoundingClientRect() }))
   const pairs = []
   entries.forEach((one, index) => entries.slice(index + 1).forEach(other => {
     const hit = one.rect.left < other.rect.right && other.rect.left < one.rect.right && one.rect.top < other.rect.bottom && other.rect.top < one.rect.bottom
@@ -740,11 +746,11 @@ function apHandleClick(event) {
     apLeaveProceed()
     return true
   }
-  if ((el = pick('[data-ap-entry-toggle]'))) { apToggleEntry(el.dataset.apEntryToggle); renderApp(); return true }
-  if ((el = pick('[data-entry-pick]'))) {
-    cfg.entryTab = el.dataset.entryPick
-    cfg.accOpen = 'entry'
-    cfg.previewSurface = 'site'
+  if ((el = pick('[data-ap-entry-toggle]'))) {
+    const key = el.dataset.apEntryToggle
+    apToggleEntry(key)
+    // 刚开启的入口，直接展开它的配置并切到桌面端预览
+    if (apA().entries[key].enabled) { cfg.accOpen = key; cfg.previewSurface = 'site' }
     cfg.uploadError = ''
     renderApp()
     return true
@@ -786,7 +792,6 @@ function apHandleClick(event) {
   if ((el = pick('[data-ap-bar-submit]'))) { const input = el.closest('.cfg-lp-prompt').querySelector('[data-ap-bar-input]'); apOpenChatWith(input.value.trim()); return true }
   if (pick('[data-ap-bar-input]')) return true
   if ((el = pick('.ap-entry'))) {
-    if (el.classList.contains('is-ghost')) { toast('这个入口还没开启，先在左侧打开开关', 'info'); return true }
     if (pick('.ap-aside')) return true
     cfg.apChatOpen = !cfg.apChatOpen
     refreshAppearancePreview()
@@ -843,7 +848,6 @@ function apHandleKeydown(event) {
     apOpenChatWith(event.target.value.trim())
     return true
   }
-  if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('.ap-entry-row')) { event.preventDefault(); event.target.click(); return true }
   if (event.key === 'Escape' && cfg.apLeave) { cfg.apLeave = null; renderApp(); return true }
   return false
 }
