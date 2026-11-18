@@ -222,7 +222,9 @@ function positionToolbarPanels() {
 
 function renderToolbarEditor() {
   const t = cfg.draft.appearance.toolbar
-  const capsuleOn = cfg.draft.appearance.sideCapsule
+  const a = cfg.draft.appearance
+  // 悬浮入口用胶囊样式并且贴右时，和工具栏在同一侧
+  const capsuleOn = a.entries.float.enabled && a.floatStyle === 'capsule' && a.entries.float.side === 'right'
   const block = t.variant === 'block'
   const templates = SITE_TOOLBAR_TEMPLATES.map(template => {
     const theme = toolbarThemeVars({ ...t, ...template.style })
@@ -239,7 +241,7 @@ function renderToolbarEditor() {
     ${cfgColorField(block ? '弹出面板底色' : '工具栏底色', 'appearance.toolbar.background_color', ['#FFFFFF', '#F5F8FF', '#FBF8F1', '#F4F1FA', '#1F2937'], block ? '' : '同时作为弹出面板底色。', { full: false })}
     ${cfgColorField('文字颜色', 'appearance.toolbar.text_color', ['#3A4352', '#2F3540', '#333333', '#102F2A', '#FFFFFF'], '按钮文字与弹出面板正文的颜色；图标会自动略浅一些。')}
     ${cfgField(`垂直位置 · <b data-range-label="appearance.toolbar.position">${t.position}</b>%`, `<input type="range" min="10" max="90" step="5" value="${t.position}" data-bind="appearance.toolbar.position" data-type="number" data-live="preview" />`, { help: '50% 为垂直居中；靠近 10% / 90% 时整条工具栏贴近顶部 / 底部且不会超出屏幕。' })}
-    ${cfgField(`距右侧 · <b data-range-label="appearance.toolbar.offset_right">${t.offset_right}</b>px`, `<input type="range" min="0" max="240" step="4" value="${t.offset_right}" data-bind="appearance.toolbar.offset_right" data-type="number" data-live="preview" />`, { help: capsuleOn ? '已开启「侧边咨询胶囊」，两者都在页面右侧，请在预览中确认没有重叠。' : '0 为紧贴浏览器右边缘。' })}
+    ${cfgField(`距右侧 · <b data-range-label="appearance.toolbar.offset_right">${t.offset_right}</b>px`, `<input type="range" min="0" max="240" step="4" value="${t.offset_right}" data-bind="appearance.toolbar.offset_right" data-type="number" data-live="preview" />`, { help: capsuleOn ? '悬浮入口的胶囊也贴在右侧，在预览里确认两者没有重叠。' : '0 为紧贴浏览器右边缘。' })}
     <div class="cfg-field full"><div class="notification-title"><strong>按钮（${t.items.length}/${TOOLBAR_LIMITS.items}）</strong><button type="button" class="cfg-btn sm outline" data-action="cfg-toolbar-add" ${t.items.length >= TOOLBAR_LIMITS.items ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加按钮</span></button></div>
       ${t.items.length ? '' : '<small>还没有按钮。选择上方模板快速开始，或点击「添加按钮」从空白开始。</small>'}
       <div class="site-toolbar-items">${items}</div></div>`
@@ -265,7 +267,7 @@ function renderToolbarItem(t, item, index) {
       ${cfgField('面板标题', `<input value="${esc(item.panel.title)}" maxlength="${TOOLBAR_LIMITS.title}" placeholder="${esc(item.label)}" data-bind="${base}.panel.title" data-live="preview" />`)}
       ${cfgField('说明文字', `<textarea rows="2" maxlength="${TOOLBAR_LIMITS.text}" placeholder="扫码添加**专属顾问**" data-bind="${base}.panel.text" data-live="preview">${esc(item.panel.text)}</textarea>`, { help: '可换行；用 **两个星号** 包住的文字会以强调色加粗显示。' })}
       <div class="cfg-field"><div class="notification-title"><label>信息行</label><button type="button" class="cfg-btn sm ghost" data-tb-row-add="${index}" ${item.panel.rows.length >= TOOLBAR_LIMITS.rows ? 'disabled' : ''}>${icon('plus', 'xs')}<span>添加一行</span></button></div>${rowsHtml}<small>例如“电话热线：400-000-0000”。填写链接后内容以强调色显示并可点击，电话用 tel:、邮箱用 mailto:。</small></div>
-      <div class="cfg-field"><label>二维码 / 图片</label><div class="site-toolbar-image"><span class="site-toolbar-image-preview">${item.panel.image ? `<img src="${esc(item.panel.image)}" alt="" />` : toolbarIconSvg('qrcode', 22)}</span><div>
+      <div class="cfg-field"><label>二维码 / 图片<em>个人微信、企微活码、公众号都可以</em></label><div class="site-toolbar-image"><span class="site-toolbar-image-preview">${item.panel.image ? `<img src="${esc(item.panel.image)}" alt="" />` : toolbarIconSvg('qrcode', 22)}</span><div>
         <div class="cfg-avatar-actions"><label class="cfg-btn sm outline ${busy ? 'is-disabled' : ''}"><span>${busy ? '正在处理…' : item.panel.image ? '更换图片' : '上传图片'}</span><input class="cfg-file" type="file" accept="image/png,image/jpeg,image/webp" data-upload="toolbar:${item.id}" ${busy ? 'disabled' : ''} /></label>${item.panel.image ? `<button type="button" class="cfg-btn sm ghost" data-tb-image-clear="${index}">移除</button>` : ''}</div>
         <input aria-label="图片说明" value="${esc(item.panel.image_caption)}" maxlength="${TOOLBAR_LIMITS.caption}" placeholder="图片下方说明，例如“微信扫一扫”" data-bind="${base}.panel.image_caption" data-live="preview" /></div></div>
         ${cfg.tbImageError?.id === item.id ? `<small class="site-toolbar-error" role="alert">${esc(cfg.tbImageError.message)}</small>` : ''}<small>自动居中裁切为方形，显示在面板右侧；适合微信、公众号等二维码。</small></div></div>` : ''

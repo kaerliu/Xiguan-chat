@@ -312,6 +312,7 @@ function renderAgent() {
     ${operationSection ? '' : renderAgentTop()}
     <section class="agent-editor ${operationSection ? 'agent-operation-editor' : ''} ${configSection ? 'agent-config-editor' : ''}"><div class="editor-body">${renderAgentSection()}</div></section>
     ${showDebug ? `<aside class="preview-pane">${renderPreview(!overviewSection, overviewSection)}</aside>` : ''}
+    ${operationSection ? '' : renderCfgPublishModal()}
   </div>`
 }
 
@@ -349,7 +350,6 @@ function renderDebugConfigTab() {
   const knowledge = debugCard('knowledge', 'book', '知识库', goto('knowledge', '管理知识库'), `
     <div class="debug-stats"><div><strong>${docs}</strong><span>份资料</span></div><div><strong>${qas}</strong><span>条问答</span></div><div><strong>${cfg.unanswered.length}</strong><span>个未答问题</span></div></div>
     <label class="debug-line"><span>参考的对话轮数</span><select data-bind="retrieval.turns" data-type="number">${[1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${Number(d.retrieval.turns) === n ? 'selected' : ''}>${n} 轮</option>`).join('')}</select></label>
-    <label class="debug-line"><span>向访客显示引用来源</span><span class="cfg-toggle-control"><input type="checkbox" role="switch" data-bind="appearance.citations" ${a.citations ? 'checked' : ''} /><i></i></span></label>
     ${debugRow('证据预算', `${Number(d.retrieval.contextChars || 0).toLocaleString()} 字`)}`)
   const caps = debugCard('capabilities', 'plug', `能力（已开启 ${enabledCaps.length} 个）`, goto('capabilities', '全部能力'), `<ul class="debug-cap-list">${CAPABILITIES.map(cap => {
     const on = isCapEnabled(cap.id)
@@ -359,7 +359,7 @@ function renderDebugConfigTab() {
     <div class="cfg-field"><label for="debug-name">助手名称</label><input id="debug-name" value="${escapeHtml(a.name)}" data-bind="appearance.name" data-live="widget" maxlength="20" /></div>
     <div class="cfg-field"><label for="debug-welcome">欢迎语</label><textarea id="debug-welcome" rows="3" data-bind="appearance.welcome" data-live="widget">${escapeHtml(a.welcome)}</textarea></div>
     ${debugRow('主色', `<span class="debug-swatch" style="background:${escapeHtml(a.primary)}"></span>${escapeHtml(String(a.primary).toUpperCase())}`)}
-    ${debugRow('官网入口', escapeHtml(entryLabel(a.entry)))}
+    ${debugRow('官网入口', escapeHtml(apEnabledKeys(a).map(apEntryName).join('、')))}
     ${debugRow('快捷问题', `${a.quickButtons.filter(item => item.text.trim()).length} 个`)}`)
   const cards = { prompt, knowledge, capabilities: caps, appearance }
   const activeTab = cards[state.debugConfigTab] ? state.debugConfigTab : 'prompt'
@@ -460,7 +460,7 @@ function renderOverviewPreview() {
   const mode = state.previewMode === 'conversation' ? 'conversation' : 'website'
   const tabs = [['website', 'globe', '官网页面'], ['conversation', 'chat', '对话窗口']]
   const content = mode === 'website'
-    ? `<div class="website-preview-stage"><div class="website-preview-browser"><div class="website-preview-bar"><span></span><span></span><span></span><div class="website-preview-url">${escapeHtml(website)}</div>${icon('external')}</div><div class="website-preview-frame"><iframe title="用户官网预览" src="${escapeHtml(website)}" sandbox="allow-forms allow-popups allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe>${state.websiteChatOpen ? `<div class="website-chat-window"><div class="cfg-widget-root" data-widget-root data-widget-close-action="close-website-chat" data-widget-reset-action="cfg-chat-reset">${renderCfgWidget({ closeAction: 'close-website-chat', resetAction: 'cfg-chat-reset' })}</div></div>` : `<div class="ai-entry-guide"><span>AI 客服入口</span><strong>访客从这里唤起客服</strong></div><button class="ai-entry-trigger" style="--preview-brand:${escapeHtml(a.accent || a.primary)}" data-action="open-website-chat" aria-label="打开对话窗口" aria-expanded="false"><i></i>${icon('chat')}</button>`}</div></div></div>`
+    ? `<div class="website-preview-stage"><div class="website-preview-browser"><div class="website-preview-bar"><span></span><span></span><span></span><div class="website-preview-url">${escapeHtml(website)}</div>${icon('external')}</div><div class="website-preview-frame"><iframe title="用户官网预览" src="${escapeHtml(website)}" sandbox="allow-forms allow-popups allow-same-origin allow-scripts" referrerpolicy="no-referrer"></iframe>${state.websiteChatOpen ? `<div class="website-chat-window"><div class="cfg-widget-root" data-widget-root data-widget-close-action="close-website-chat" data-widget-reset-action="cfg-chat-reset">${renderCfgWidget({ closeAction: 'close-website-chat', resetAction: 'cfg-chat-reset' })}</div></div>` : `<div class="ai-entry-guide"><span>AI 客服入口</span><strong>访客从这里唤起客服</strong></div><button class="ai-entry-trigger" style="--preview-brand:${escapeHtml(apMainAccent(a))}" data-action="open-website-chat" aria-label="打开对话窗口" aria-expanded="false"><i></i>${icon('chat')}</button>`}</div></div></div>`
     : `<div class="overview-conversation-debug"><div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root data-widget-reset-action="cfg-chat-reset">${renderCfgWidget({ resetAction: 'cfg-chat-reset' })}</div></div></div>`
   return `<div class="embedded-debug overview-preview debug-preview">
     <div class="debug-preview-bar"><div class="debug-preview-heading"><strong class="debug-preview-title">调试台</strong><span class="debug-preview-description">可调试当前草稿中所有已开启的能力。</span></div>
@@ -561,6 +561,9 @@ function completeOnboarding() {
 }
 
 document.addEventListener('click', event => {
+  // 外观页有未保存的改动时，离开前先问：保存、放弃或留在本页
+  if (apLeaveGuard(event)) return
+
   const route = event.target.closest('[data-route]')
   if (route) return routeTo(route.dataset.route)
 
