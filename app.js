@@ -124,7 +124,6 @@ const state = {
 const pageMeta = {
   conversations: ['会话运营', '实时接待与人工协作'],
   leads: ['访客线索', '从会话中识别高意向客户'],
-  qna: ['Q&A 洞察', '发现访客最关心的问题'],
   agent: ['智能体管理', 'AI 接待'],
   enterprise: ['企业管理', state.company]
 }
@@ -165,7 +164,7 @@ function renderApp() {
 }
 
 function renderRoute() {
-  if (['conversations', 'leads', 'qna'].includes(state.route)) return renderOperationsFrame()
+  if (['conversations', 'leads'].includes(state.route)) return renderOperationsFrame()
   if (state.route === 'agent') return renderAgent()
   return renderEnterprise()
 }
@@ -177,7 +176,6 @@ function renderOperationsFrame() {
       <div class="tabs">
         <button class="tab ${state.route === 'conversations' ? 'active' : ''}" data-route="conversations">信息</button>
         <button class="tab ${state.route === 'leads' ? 'active' : ''}" data-route="leads">线索</button>
-        <button class="tab ${state.route === 'qna' ? 'active' : ''}" data-route="qna">Q&A</button>
       </div>
       <div></div>
     </header>
@@ -187,8 +185,7 @@ function renderOperationsFrame() {
 
 function renderOperationsContent(section, embedded = false) {
   if (section === 'conversations') return renderConversations(embedded)
-  if (section === 'leads') return renderLeads()
-  return renderQna()
+  return renderLeads()
 }
 
 function renderContextProfile() {
@@ -271,27 +268,19 @@ function renderLeads() {
   </div></div>`
 }
 
-function renderQna() {
-  return `<div class="content"><div class="data-page"><div class="page-head"><div><h2>Q&A 洞察</h2><p>了解访客问题分布，并持续优化 AI 的回答质量</p></div></div>
-    <div class="stat-grid">${[['本周问题','126','↑ 21%'],['知识命中率','83%','↑ 6.4%'],['转人工率','11%','↓ 2.1%'],['待人工确认',String(cfg.unanswered.length),'需要处理']].map(x => `<div class="card stat-card"><div class="label"><span>${x[0]}</span>${icon('spark')}</div><div class="value">${x[1]}</div><div class="trend">${x[2]}</div></div>`).join('')}</div>
-    <div class="card filter-bar"><div class="search" style="flex:1">${icon('search')}<input placeholder="搜索问题或答案" /></div><select class="select"><option>全部状态</option><option>待人工确认</option><option>已命中知识库</option></select><select class="select"><option>最近 7 天</option><option>最近 30 天</option></select></div>
-    <div class="qna-unanswered-panel">${renderKbUnanswered()}</div>
-  </div>${renderKbOverlay()}</div>`
-}
-
 const agentNavItems = [
   ['overview','概览','spark'],
   ['prompt','角色与提示词','bot'],
   ['capabilities','能力','plug'],
   ['knowledge','知识库','book'],
   ['appearance','外观','sliders'],
-  ['channels','渠道','link']
+  ['channels','渠道','link'],
+  ['notifications','通知','bell']
 ]
 
 const agentOperationItems = [
   ['conversations','会话','chat'],
-  ['leads','线索','users'],
-  ['qna','Q&A','spark']
+  ['leads','线索','users']
 ]
 
 function isAgentOperationSection() {
@@ -299,6 +288,8 @@ function isAgentOperationSection() {
 }
 
 function renderAgentTop() {
+  const cap = state.agentSection === 'capabilities' ? CAPABILITIES.find(item => item.id === cfg.capDetail) : null
+  if (cap) return renderCapabilityTop(cap)
   return `<header class="editor-top"><div class="editor-context"><strong>AI 接待</strong>${renderCfgStatus()}</div>
     <div class="editor-actions cfg-editor-actions" id="cfg-actions">${renderCfgDraftActions()}</div></header>`
 }
@@ -307,7 +298,7 @@ function renderAgent() {
   const operationSection = isAgentOperationSection()
   const configSection = isConfigSection()
   const overviewSection = state.agentSection === 'overview'
-  const showDebug = overviewSection || (state.agentSection !== 'channels' && !operationSection && !configSection && state.debugOpen)
+  const showDebug = overviewSection || (!['channels', 'notifications'].includes(state.agentSection) && !operationSection && !configSection && state.debugOpen)
   return `<div class="agent-layout ${showDebug ? 'debug-open' : ''} ${overviewSection ? 'overview-section' : ''} ${operationSection ? 'operation-section' : ''} ${configSection ? 'config-section' : ''}">
     <aside class="agent-nav"><div class="agent-nav-title"><strong>吸管 · AI 接待</strong><a class="product-logic-link" href="./product-logic.html" target="_blank" rel="noopener">产品逻辑</a></div>
       <button class="nav-item ${state.agentSection === 'overview' ? 'active' : ''}" data-agent-section="overview">${icon('spark')}<span>概览</span></button>
@@ -332,6 +323,7 @@ function renderAgentSection() {
   if (state.agentSection === 'capabilities') return renderCapabilitiesConfig()
   if (state.agentSection === 'knowledge') return renderKnowledgeConfig()
   if (state.agentSection === 'channels') return renderChannels()
+  if (state.agentSection === 'notifications') return renderNotifications()
   return renderAppearanceConfig()
 }
 
@@ -440,6 +432,12 @@ function renderChannels() {
     </button>`).join('')}</div>`
 }
 
+function renderNotifications() {
+  return `${renderEditorHeading('通知', '设置需要团队及时跟进的内部消息通知。', false)}
+    <div class="card channel-card"><div class="channel-head"><strong>转人工通知</strong><span class="badge gray">未配置</span></div><p class="channel-card-description">访客请求人工服务时，通知相应团队及时接管会话。</p></div>
+    <div class="card channel-card"><div class="channel-head"><strong>线索通知</strong><span class="badge gray">未配置</span></div><p class="channel-card-description">获取新线索或线索推送失败时，通知相应团队跟进处理。</p></div>`
+}
+
 function renderWebsiteChannel() {
   const channels = cfg.draft.channels
   const deployCode = `<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${channels.siteKey}" defer></script>`
@@ -466,8 +464,7 @@ function renderOverviewPreview() {
     : `<div class="overview-conversation-debug"><div class="cfg-debug-canvas"><div class="cfg-widget-root" data-widget-root>${renderCfgWidget()}</div></div></div>`
   return `<div class="embedded-debug overview-preview debug-preview">
     <div class="debug-preview-bar"><div class="debug-preview-heading"><strong class="debug-preview-title">调试台</strong><span class="debug-preview-description">可调试当前草稿中所有已开启的能力。</span></div>
-      <div class="debug-preview-tabs" role="tablist">${tabs.map(([key, iconName, label]) => `<button type="button" role="tab" aria-selected="${mode === key}" class="${mode === key ? 'active' : ''}" data-preview-mode="${key}">${icon(iconName, 'xs')}<span>${label}</span></button>`).join('')}</div>
-      <button type="button" class="cfg-btn sm outline debug-new-session" data-action="cfg-chat-reset">${icon('refresh', 'xs')}<span>新会话</span></button></div>
+      <div class="debug-preview-tabs" role="tablist">${tabs.map(([key, iconName, label]) => `<button type="button" role="tab" aria-selected="${mode === key}" class="${mode === key ? 'active' : ''}" data-preview-mode="${key}">${icon(iconName, 'xs')}<span>${label}</span></button>`).join('')}</div></div>
     <div class="overview-preview-body">${content}</div></div>`
 }
 
@@ -595,7 +592,7 @@ document.addEventListener('click', event => {
       state.debugOpen = false
       state.previewMode = 'website'
       state.websiteChatOpen = false
-    } else state.debugOpen = state.agentSection !== 'channels' && !isAgentOperationSection()
+    } else state.debugOpen = !['channels', 'notifications'].includes(state.agentSection) && !isAgentOperationSection()
     return renderApp()
   }
 
