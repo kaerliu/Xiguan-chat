@@ -337,7 +337,7 @@ const WIDGET_HISTORY = [
  * 所有入口打开的是同一个对话窗口：标题栏（头像、名称、状态、重新开始、关闭）、
  * 消息区（查看历史消息、欢迎语、带时间的消息、回答引用、快捷按钮）、输入区、技术支持标识。
  */
-function renderCfgWidget({ closeAction = '' } = {}) {
+function renderCfgWidget({ closeAction = '', resetAction = '' } = {}) {
   const a = cfg.draft.appearance
   const handoff = cfg.draft.actions.human_handoff.enabled
   const name = a.name.trim() || 'AI 助手'
@@ -356,7 +356,7 @@ function renderCfgWidget({ closeAction = '' } = {}) {
     : ''
   return `<div class="cfg-widget ${human ? 'is-human' : ''}" style="--w-primary:${a.primary};--w-on-primary:${readableOn(a.primary)};--w-paper:${a.paper};--w-ink:${ink};--w-on-paper:${dark ? ink : a.primary}">
     <header class="cfg-widget-head"><div class="cfg-widget-identity"><span class="cfg-widget-avatar ${human ? 'is-human' : ''}">${human ? '林' : a.avatarImage ? `<img src="${esc(a.avatarImage)}" alt="" />` : esc(Array.from(name)[0])}</span><div><strong>${esc(name)}</strong><small><i></i>${human ? '人工客服 小林 为你服务' : cfg.typing ? '对方正在输入…' : handoff ? '人工在线' : '在线'}</small></div></div>
-      <div class="cfg-widget-head-actions"><button type="button" class="cfg-widget-close is-refresh" aria-label="重新开始对话" title="清空聊天记录，重新开一个对话" data-action="cfg-chat-reset">${icon('rotate', 'sm')}</button><button type="button" class="cfg-widget-close" aria-label="关闭" ${closeAction ? `data-action="${esc(closeAction)}"` : 'tabindex="-1"'}>×</button></div></header>
+      <div class="cfg-widget-head-actions">${resetAction ? `<button type="button" class="cfg-widget-reset" data-action="${esc(resetAction)}">${icon('refresh', 'xs')}<span>新会话</span></button>` : ''}<button type="button" class="cfg-widget-close" aria-label="关闭" ${closeAction ? `data-action="${esc(closeAction)}"` : 'tabindex="-1"'}>×</button></div></header>
     <section class="cfg-widget-stage" data-widget-stage>
       ${history}
       <div class="cfg-widget-meta"><span>${esc(name)}</span><time>${cfg.chatStartedAt}</time></div>
