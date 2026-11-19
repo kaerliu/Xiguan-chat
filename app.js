@@ -9,7 +9,13 @@ const conversations = [
     time: '11:57',
     status: 'human',
     preview: '咱们这边主要是哪个行业，想解决什么业务场景呢？',
+    channel: 'website',
+    daysAgo: 0,
+    ended: false,
     source: '官网产品页',
+    sourceUrl: 'https://www.fanruan.com/',
+    landingPage: 'https://www.fanruan.com/products',
+    experiment: 'control',
     location: '上海',
     device: 'Mac · Chrome',
     visits: 4,
@@ -28,7 +34,13 @@ const conversations = [
     time: '14:28',
     status: 'ai',
     preview: '您好！请问您是想了解帆软的哪方面内容？',
+    channel: 'blog',
+    daysAgo: 0,
+    ended: false,
     source: '博客文章',
+    sourceUrl: 'https://www.fanruan.com/blog',
+    landingPage: 'https://www.fanruan.com/blog/finereport-vs-finebi',
+    experiment: 'control',
     location: '杭州',
     device: 'Windows · Edge',
     visits: 2,
@@ -45,7 +57,13 @@ const conversations = [
     time: '昨天',
     status: 'ai',
     preview: '个人试用版是否支持多人同时访问？',
+    channel: 'campaign',
+    daysAgo: 1,
+    ended: false,
     source: '活动落地页',
+    sourceUrl: 'https://events.fanruan.com/',
+    landingPage: 'https://events.fanruan.com/trial',
+    experiment: 'trial-page-b',
     location: '深圳',
     device: 'iPhone · Safari',
     visits: 6,
@@ -84,6 +102,12 @@ const state = {
   profileOpen: false,
   company: '帆软软件',
   conversationMode: 'all',
+  conversationFilters: {
+    agent: 'all',
+    channel: 'all',
+    period: '7',
+    visibility: 'visible'
+  },
   activeConversation: 1,
   takeover: false,
   agentSection: 'overview',
@@ -196,8 +220,24 @@ function renderContextProfile() {
 }
 
 function filteredConversations() {
-  if (state.conversationMode === 'all') return conversations
-  return conversations.filter(item => item.status === state.conversationMode)
+  return conversations.filter(item => {
+    if (state.conversationMode !== 'all' && item.status !== state.conversationMode) return false
+    if (state.conversationFilters.channel !== 'all' && item.channel !== state.conversationFilters.channel) return false
+    if (state.conversationFilters.period !== 'all' && item.daysAgo > Number(state.conversationFilters.period)) return false
+    if (state.conversationFilters.visibility === 'visible' && item.ended) return false
+    if (state.conversationFilters.visibility === 'ended' && !item.ended) return false
+    return true
+  })
+}
+
+function renderConversationFilter(field, label, options) {
+  return `<label class="conversation-filter">
+    <span class="sr-only">${label}</span>
+    <select data-conversation-filter="${field}" aria-label="${label}">
+      ${options.map(([value, text]) => `<option value="${value}" ${state.conversationFilters[field] === value ? 'selected' : ''}>${text}</option>`).join('')}
+    </select>
+    ${icon('chevron-down')}
+  </label>`
 }
 
 function renderConversations(embedded = false) {
@@ -207,15 +247,28 @@ function renderConversations(embedded = false) {
       <div class="context-agent"><span>智能体</span><button class="context-agent-button">${icon('spark')} AI 接待的 agent</button></div>
       <div class="list-head">
         <div class="list-head-row"><strong>全部会话</strong><span class="badge green"><span class="dot"></span>在线</span></div>
+        <div class="conversation-filters">
+          ${renderConversationFilter('agent', '智能体筛选', [['all','全部智能体'],['reception','AI 接待的 agent']])}
+          ${renderConversationFilter('channel', '渠道筛选', [['all','全部渠道'],['website','官网'],['blog','博客'],['campaign','活动页']])}
+          ${renderConversationFilter('period', '时间范围', [['0','今天'],['7','近 7 天'],['30','近 30 天'],['all','全部时间']])}
+          ${renderConversationFilter('visibility', '会话状态', [['visible','显示中的会话'],['ended','已结束的会话'],['all','全部会话']])}
+        </div>
+        <div class="conversation-options" aria-label="会话附加选项">
+          <label class="conversation-option"><input type="checkbox" /><span>包含调试</span></label>
+          <label class="conversation-option"><input type="checkbox" /><span>包含空白</span></label>
+        </div>
         <div class="segmented">
           ${[['all','全部'],['ai','AI'],['human','人工']].map(([key,label]) => `<button class="${state.conversationMode === key ? 'active' : ''}" data-conversation-mode="${key}">${label}</button>`).join('')}
         </div>
         <div class="search" style="margin-top:10px">${icon('search')}<input placeholder="搜索访客或会话内容" /></div>
+        ${state.conversationMode === 'ai' ? `<div class="request-human-option">
+          <label class="conversation-option"><input type="checkbox" /><span>请求人工</span></label>
+        </div>` : ''}
       </div>
       <div class="conversation-scroll">${filteredConversations().map(item => `<button class="conversation-item ${item.id === current.id ? 'active' : ''}" data-conversation="${item.id}">
         <div class="row"><strong>${item.name}</strong><time>${item.time}</time></div>
         <p>${item.preview}</p><div class="tag-row"><span class="tiny-tag">默认智能体</span><span class="tiny-tag ${item.status}">${item.status === 'ai' ? '● AI' : '● 人工中'}</span></div>
-      </button>`).join('')}</div>
+      </button>`).join('') || `<div class="conversation-empty">${icon('filter')}<span>没有符合条件的会话</span><button data-action="reset-conversation-filters">清空筛选</button></div>`}</div>
       ${embedded ? '' : `<div class="context-bottom"><button class="context-manage" data-route="agent">${icon('grid')} 智能体管理</button>${renderContextProfile()}</div>`}
     </section>
     <section class="chat-pane">
@@ -232,10 +285,22 @@ function renderConversations(embedded = false) {
     </section>
     <aside class="visitor-pane">
       <div class="visitor-head">访客与意图</div>
-      <div class="visitor-section"><h4>访客标识</h4><dl class="meta-grid"><dt>访客 ID</dt><dd>${current.name}</dd><dt>来源</dt><dd>${current.source}</dd><dt>地区</dt><dd>${current.location}</dd><dt>设备</dt><dd>${current.device}</dd><dt>访问次数</dt><dd>${current.visits} 次</dd></dl></div>
-      <div class="visitor-section"><h4>AI 识别</h4><div class="tag-row">${current.tags.map(tag => `<span class="badge green">${tag}</span>`).join('')}</div></div>
-      <div class="visitor-section"><h4>质量判断</h4><label class="quality-check"><input type="checkbox" /> 技术回答正确</label><label class="quality-check"><input type="checkbox" /> 存在幻觉</label><textarea class="note-box" placeholder="添加内部备注（访客不可见）"></textarea><button class="btn small" style="width:100%;margin-top:8px" data-action="save-note">保存判断</button></div>
-      <div class="visitor-section"><button class="btn small ghost" data-action="copy-id">${icon('code')} 复制会话 ID</button><button class="btn small danger" style="margin-top:8px;width:100%">隐私删除</button></div>
+      <div class="visitor-attribution">
+        <dl class="attribution-grid">
+          <dt>访客标识</dt><dd class="visitor-id-value"><span>${current.name}</span><button class="copy-visitor-id" data-action="copy-id" aria-label="复制会话 ID" title="复制会话 ID">${icon('clipboard')}</button></dd>
+          <dt>来源</dt><dd>${current.sourceUrl}</dd>
+          <dt>落地点</dt><dd>${current.landingPage}</dd>
+          <dt>设备</dt><dd>${current.device}</dd>
+          <dt>访问次数</dt><dd>${current.visits} 次</dd>
+          <dt>实验标签</dt><dd>${current.experiment}</dd>
+          <dt>事件数</dt><dd>${current.messages.length}</dd>
+        </dl>
+        <p class="privacy-hint">为保护访客隐私，不展示 IP 地区；缺失的设备与访问次数不会用推断值填充。</p>
+      </div>
+      <div class="privacy-actions">
+        <button class="privacy-delete">${icon('trash')}<span>隐私删除</span></button>
+        <p>出于权限保护，会话仅在当前登录状态下查看。</p>
+      </div>
     </aside>
   </div>`
 }
@@ -681,6 +746,12 @@ document.addEventListener('click', event => {
   if (!action) return
   const name = action.dataset.action
   if (name === 'toggle-profile') { state.profileOpen = !state.profileOpen; return renderApp() }
+  if (name === 'reset-conversation-filters') {
+    state.conversationMode = 'all'
+    state.conversationFilters = { agent: 'all', channel: 'all', period: '7', visibility: 'visible' }
+    state.activeConversation = conversations[0].id
+    return renderApp()
+  }
   if (name === 'return-agent-overview') { enterAgentOverview(); return renderApp() }
   if (name === 'takeover') { state.takeover = true; conversations.find(item => item.id === state.activeConversation).status = 'human'; toast('已接管会话，AI 自动回复已暂停'); return renderApp() }
   if (name === 'return-ai') { state.takeover = false; conversations.find(item => item.id === state.activeConversation).status = 'ai'; toast('会话已交还 AI 接待'); return renderApp() }
@@ -728,6 +799,13 @@ document.addEventListener('input', event => {
 })
 
 document.addEventListener('change', event => {
+  const conversationFilter = event.target.closest('[data-conversation-filter]')
+  if (conversationFilter) {
+    state.conversationFilters[conversationFilter.dataset.conversationFilter] = conversationFilter.value
+    const visible = filteredConversations()
+    if (!visible.find(item => item.id === state.activeConversation) && visible[0]) state.activeConversation = visible[0].id
+    return renderApp()
+  }
   handleConfigChange(event)
 })
 
