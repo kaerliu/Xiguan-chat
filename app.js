@@ -337,6 +337,7 @@ const agentNavItems = [
   ['overview','概览','spark'],
   ['prompt','角色与提示词','bot'],
   ['capabilities','能力','plug'],
+  ['acquisition','主动获客','megaphone'],
   ['knowledge','知识库','book'],
   ['appearance','外观','sliders'],
   ['channels','渠道','link'],
@@ -353,7 +354,7 @@ function isAgentOperationSection() {
 }
 
 function renderAgentTop() {
-  const cap = state.agentSection === 'capabilities' ? CAPABILITIES.find(item => item.id === cfg.capDetail) : null
+  const cap = ['capabilities', 'acquisition'].includes(state.agentSection) ? CAPABILITIES.find(item => item.id === cfg.capDetail) : null
   if (cap) return renderCapabilityTop(cap)
   return `<header class="editor-top"><div class="editor-context"><strong>AI 接待</strong>${renderCfgStatus()}</div>
     <div class="editor-actions cfg-editor-actions" id="cfg-actions">${renderCfgDraftActions()}</div></header>`
@@ -386,6 +387,7 @@ function renderAgentSection() {
   if (state.agentSection === 'overview') return renderAgentOverview()
   if (state.agentSection === 'prompt') return renderPersonaConfig()
   if (state.agentSection === 'capabilities') return renderCapabilitiesConfig()
+  if (state.agentSection === 'acquisition') return renderAcquisitionConfig()
   if (state.agentSection === 'knowledge') return renderKnowledgeConfig()
   if (state.agentSection === 'channels') return renderChannels()
   if (state.agentSection === 'notifications') return renderNotifications()
@@ -669,9 +671,9 @@ document.addEventListener('click', event => {
 
   const debugCap = event.target.closest('[data-debug-cap]')
   if (debugCap) {
-    state.agentSection = 'capabilities'
-    state.debugOpen = false
     cfg.capDetail = debugCap.dataset.debugCap
+    state.agentSection = isAcquisitionCap(cfg.capDetail) ? 'acquisition' : 'capabilities'
+    state.debugOpen = false
     loadCapabilityDebugSession(cfg.capDetail)
     return renderApp()
   }

@@ -6,14 +6,17 @@
  * 对 cfg、esc、cfgField、icon、state、toast、renderApp 等的引用都在调用时才访问。
  */
 
+// animated：带动作素材的形象，可以在「主动获客 · 形象引导」里配什么时候出来、说什么
 const mascotOptions = [
+  { key: 'xiaoxi', name: '小吸', img: './assets/mascot/xiaoxi-figure.webp', animated: true },
   { key: 'headset', name: '耳麦顾问', svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200"><ellipse cx="80" cy="193" rx="46" ry="6" fill="#000" opacity=".12"/><path d="M28 196c0-38 23-60 52-60s52 22 52 60z" fill="@C"/><path d="M64 138l16 22 16-22z" fill="#fff"/><rect x="70" y="114" width="20" height="26" rx="9" fill="#EDBE9C"/><circle cx="80" cy="84" r="40" fill="#F7D3B5"/><path d="M40 88C40 57 58 42 80 42s40 15 40 46c-8-16-22-25-40-25-16 0-30 8-40 25z" fill="#2B2A33"/><ellipse cx="66" cy="90" rx="4.5" ry="5.5" fill="#2B2A33"/><ellipse cx="94" cy="90" rx="4.5" ry="5.5" fill="#2B2A33"/><circle cx="58" cy="102" r="6" fill="#FF9C8A" opacity=".5"/><circle cx="102" cy="102" r="6" fill="#FF9C8A" opacity=".5"/><path d="M70 105q10 9 20 0" stroke="#2B2A33" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M37 90a43 43 0 0 1 86 0" stroke="#2B2A33" stroke-width="5" fill="none"/><rect x="31" y="80" width="13" height="24" rx="6.5" fill="@C"/><rect x="116" y="80" width="13" height="24" rx="6.5" fill="@C"/><path d="M37 102q2 18 25 18" stroke="#2B2A33" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="64" cy="120" r="4.5" fill="@C"/></svg>` },
   { key: 'robot', name: '智能机器人', svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200"><ellipse cx="80" cy="193" rx="44" ry="6" fill="#000" opacity=".12"/><line x1="80" y1="24" x2="80" y2="42" stroke="#2B2A33" stroke-width="4" stroke-linecap="round"/><circle cx="80" cy="19" r="7" fill="@C"/><rect x="24" y="136" width="16" height="38" rx="8" fill="@C" opacity=".8"/><rect x="120" y="136" width="16" height="38" rx="8" fill="@C" opacity=".8"/><rect x="42" y="126" width="76" height="64" rx="24" fill="@C"/><circle cx="80" cy="157" r="10" fill="#fff" opacity=".85"/><rect x="20" y="70" width="10" height="26" rx="5" fill="@C"/><rect x="130" y="70" width="10" height="26" rx="5" fill="@C"/><rect x="28" y="40" width="104" height="86" rx="34" fill="#EEF1F5"/><rect x="40" y="54" width="80" height="56" rx="24" fill="#22262F"/><rect x="58" y="70" width="12" height="16" rx="6" fill="#7CF0D4"/><rect x="90" y="70" width="12" height="16" rx="6" fill="#7CF0D4"/><path d="M70 95q10 6 20 0" stroke="#7CF0D4" stroke-width="3" fill="none" stroke-linecap="round"/></svg>` },
   { key: 'buddy', name: '萌趣伙伴', svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 200"><ellipse cx="80" cy="193" rx="50" ry="6" fill="#000" opacity=".12"/><path d="M42 78 38 30l38 28z" fill="@C"/><path d="M118 78l4-48-38 28z" fill="@C"/><path d="M80 50c40 0 62 30 62 74s-26 64-62 64-62-20-62-64 22-74 62-74z" fill="@C"/><ellipse cx="80" cy="152" rx="36" ry="30" fill="#fff" opacity=".9"/><circle cx="62" cy="104" r="7" fill="#22262F"/><circle cx="98" cy="104" r="7" fill="#22262F"/><circle cx="64.5" cy="101.5" r="2.4" fill="#fff"/><circle cx="100.5" cy="101.5" r="2.4" fill="#fff"/><circle cx="49" cy="120" r="7" fill="#FF9C8A" opacity=".6"/><circle cx="111" cy="120" r="7" fill="#FF9C8A" opacity=".6"/><path d="M72 118q8 7 16 0" stroke="#22262F" stroke-width="3" fill="none" stroke-linecap="round"/></svg>` }
 ]
 const mascotSrc = (key, color) => {
   if (key === 'custom') return cfg.draft.appearance.mascotImage
-  const item = mascotOptions.find(option => option.key === key) || mascotOptions[0]
+  const item = mascotOptions.find(option => option.key === key) || mascotOptions.find(option => option.svg)
+  if (item.img) return item.img
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(item.svg.replaceAll('@C', color))}`
 }
 
@@ -351,12 +354,12 @@ function apBarFields() {
 function apHumanFields() {
   const a = apA()
   const accent = a.entries.human.accent
-  const cards = mascotOptions.map(item => `<button type="button" class="cfg-mascot-option" role="radio" aria-checked="${a.mascot === item.key}" data-mascot="${item.key}" title="${item.name}"><img alt="" src="${mascotSrc(item.key, accent)}" /><span>${item.name}</span></button>`).join('')
+  const cards = mascotOptions.map(item => `<button type="button" class="cfg-mascot-option" role="radio" aria-checked="${a.mascot === item.key}" data-mascot="${item.key}" title="${item.name}"><img alt="" src="${mascotSrc(item.key, accent)}" /><span>${item.name}${item.animated ? ' · 带动作' : ''}</span></button>`).join('')
   const custom = a.mascotImage
   const busy = cfg.uploadBusy === 'mascot'
   const upload = `<label class="cfg-mascot-option is-upload" role="radio" aria-checked="${a.mascot === 'custom'}" aria-disabled="${busy}">${custom ? `<img src="${esc(custom)}" alt="" />` : `<span class="cfg-mascot-upload-icon">${icon('upload')}</span>`}<span>${busy ? '处理中…' : custom ? '自定义形象' : '上传形象'}</span><input class="cfg-file" type="file" accept="image/png,image/jpeg,image/webp" data-upload="mascot" ${busy ? 'disabled' : ''} /></label>`
   const customActions = a.mascot === 'custom' && custom ? '<div class="cfg-mascot-custom-actions"><button type="button" class="cfg-btn sm ghost" data-action="cfg-mascot-reset">移除自定义形象</button></div>' : ''
-  return `<div class="cfg-notice info full"><span class="cfg-notice-icon">${icon('clock', 'sm')}</span><div>数字人（含卡通形象）和留资弹窗另开专项评审（11 月 19 日）。一期做动作动画加状态机，每个动作配一句气泡台词；这里先保留现有的形象设置。</div></div>
+  return `<div class="cfg-notice info full"><span class="cfg-notice-icon">${icon('clock', 'sm')}</span><div>这里只选形象和它待在哪。带动作的形象什么时候出来、做什么动作、说什么，在「主动获客 · 形象引导」里配。</div><div class="cfg-notice-actions"><button type="button" class="cfg-btn sm outline" data-agent-section="acquisition">去主动获客</button></div></div>
     ${cfgField('形象', `<div class="cfg-mascot-picker" role="radiogroup">${cards}${upload}</div>${customActions}${cfg.uploadError && !busy ? `<small class="cfg-error" role="alert">${esc(cfg.uploadError)}</small>` : ''}`, { full: true, help: '预设人物或动物形象；自定义形象建议用透明背景 PNG，原图不超过 4MB。' })}
     ${cfgField('招呼语', `<input value="${esc(a.mascotGreeting)}" maxlength="${AP_LIMITS.greeting}" placeholder="有问题随时问我" data-bind="appearance.mascotGreeting" data-live="preview" />`, { full: true, help: `${AP_LIMITS.greeting} 字以内；有主动消息时由主动消息替代。` })}
     ${cfgToggle('appearance.mascotFloat', '待机浮动', '', { live: 'preview' })}
