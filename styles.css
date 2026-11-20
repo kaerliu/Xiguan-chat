@@ -2759,3 +2759,35 @@ button.xg-powered { font: inherit; background: none; border: 0; cursor: pointer;
 .mg-block-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid var(--console-border, #e3e7ee); border-radius: 6px; color: var(--console-text-strong); background: #fff; }
 .mg-block-chip i { color: var(--console-muted); font-style: normal; font-size: 11px; }
 .mg-page-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+/* ---------- 形象引导：落点目录（11.20 评审后） ---------- */
+.mg-points { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; align-items: start; }
+.mg-rail { position: sticky; top: 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 10px 4px 0; border-right: 1px solid var(--console-border-soft); }
+.mg-rail-num { position: relative; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--console-border); border-radius: 50%; background: #fff; color: var(--console-text); font-size: 13px; font-weight: 600; cursor: pointer; }
+.mg-rail-num:hover { border-color: var(--console-brand); }
+.mg-rail-num.is-active { border-color: var(--console-brand); background: var(--console-brand); color: #fff; }
+.mg-rail-num.is-live::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border: 2px solid #fff; border-radius: 50%; background: #f27a1a; }
+.mg-rail-num.is-missing { border-style: dashed; color: #b45309; }
+.mg-rail-tip { position: absolute; top: 50%; left: calc(100% + 12px); z-index: 5; padding: 4px 8px; border-radius: 6px; background: #1f2933; color: #fff; font-size: 12px; font-style: normal; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transform: translateY(-50%); transition: opacity .12s; }
+.mg-rail-num:hover .mg-rail-tip, .mg-rail-num:focus-visible .mg-rail-tip { opacity: 1; }
+.mg-rail-add { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px dashed var(--console-border); border-radius: 50%; background: transparent; color: var(--console-muted); cursor: pointer; }
+.mg-rail-add:hover:not(:disabled) { border-color: var(--console-brand); color: var(--console-brand); }
+.mg-rail-add:disabled { opacity: .45; cursor: not-allowed; }
+.mg-point-form { display: grid; gap: 12px; min-width: 0; }
+.mg-point-head { display: flex; align-items: center; gap: 8px; }
+.mg-point-head .console-input { flex: 1; min-width: 0; font-weight: 600; }
+.mg-point-no { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--console-brand-soft); color: var(--console-brand); font-size: 12px; font-weight: 700; }
+.mg-pos-hint { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--console-muted); font-size: 12px; }
+.mg-pos-hint .cfg-btn { margin-left: auto; }
+.mg-checks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.mg-upload { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 1px dashed var(--console-border); border-radius: 9px; background: #fafbfb; color: var(--console-text); text-align: left; cursor: pointer; }
+.mg-upload > span { display: grid; gap: 2px; min-width: 0; }
+.mg-upload strong { font-size: 13px; font-weight: 600; }
+.mg-upload small { color: var(--console-muted); font-size: 11px; }
+.mg-upload:hover { border-color: var(--console-brand); }
+.mg-upload.is-done { border-style: solid; background: #fff; cursor: default; }
+.mg-upload.is-done > span { display: block; flex: 1; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.mg-button-note { grid-column: 1 / -1; margin: 0; color: var(--console-muted); font-size: 12px; }
+.mg-color { width: 36px; height: 30px; padding: 2px; border: 1px solid var(--console-border); border-radius: 6px; background: #fff; }
+.mg-points-foot, .mg-empty { margin: 12px 0 0; color: var(--console-muted); font-size: 12px; }
+.mg-empty { margin: 0; }

@@ -191,7 +191,7 @@ button,input{font:inherit;color:inherit}
 .cue.show,.res.show{opacity:1;transform:none;pointer-events:auto}
 .cue .cx{position:absolute;right:6px;top:4px;width:22px;height:22px;border:0;background:none;color:#8a94a3;font-size:16px;line-height:1;cursor:pointer;border-radius:6px}
 .cue.closable .ct{padding-right:18px}
-.cue .cgo{border:0;background:var(--brand);color:#fff;font-weight:600;font-size:13px;padding:6px 14px;border-radius:8px;cursor:pointer}
+.cue .cgo{border:0;background:var(--cta,var(--brand));color:#fff;font-weight:600;font-size:13px;padding:6px 14px;border-radius:8px;cursor:pointer}
 .cue .cchips{display:flex;flex-wrap:wrap;gap:6px}
 .cue .cchips span{border:1px solid #f3cda9;background:var(--brand-soft);color:var(--brand-dark);font-size:13px;padding:3px 10px;border-radius:999px}
 /* 资料卡：在气泡的位置原地展开表单 */
@@ -203,7 +203,7 @@ button,input{font:inherit;color:inherit}
 .res .row{display:flex;gap:8px}
 .res input{flex:1;min-width:0;height:38px;border:1px solid #cfd7e3;border-radius:9px;padding:0 11px;font-size:14px;background:#fff}
 .res input.focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(242,122,26,.16)}
-.res .btn{flex:none;height:38px;padding:0 14px;border-radius:9px;background:var(--brand);color:#fff;font-weight:600;font-size:14px;display:grid;place-items:center;white-space:nowrap}
+.res .btn{flex:none;height:38px;padding:0 14px;border-radius:9px;background:var(--cta,var(--brand));color:#fff;font-weight:600;font-size:14px;display:grid;place-items:center;white-space:nowrap}
 .res .btn.loading{opacity:.7}
 .res .fine{margin:0;display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
 .res .v-done{display:none;flex-direction:column;gap:10px}
@@ -217,6 +217,24 @@ button,input{font:inherit;color:inherit}
 .sep{height:1px;background:var(--line)}
 .follow{margin:0;font-size:14px;min-height:44px}
 .res .reply{height:36px;font-size:13px;flex:none;width:100%}
+.res .row.more input{height:34px;font-size:13px}
+.res.qrcard{width:300px}
+.res.noask .sep,.res.noask .follow,.res.noask .reply{display:none}
+.fab.off{opacity:0}
+.chatwin{position:absolute;right:24px;bottom:24px;width:372px;height:500px;z-index:8;display:flex;flex-direction:column;overflow:hidden;background:#fff;border-radius:16px;box-shadow:0 18px 50px rgba(17,32,64,.25);opacity:0;transform:translateY(16px) scale(.97);transform-origin:100% 100%;transition:opacity .25s,transform .25s;pointer-events:none}
+.chatwin.show{opacity:1;transform:none;pointer-events:auto}
+.chatwin .ch{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--cta,var(--brand));color:#fff}
+.chatwin .av{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.25);font-size:13px;font-weight:700}
+.chatwin .ch strong{display:block;font-size:15px}
+.chatwin .ch small{font-size:12px;opacity:.85}
+.chatwin .cb{flex:1;display:flex;flex-direction:column;gap:10px;overflow:auto;padding:14px;background:#f6f8fb}
+.chatwin .cm{align-self:flex-start;max-width:82%;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:14px;line-height:1.55}
+.chatwin .cm.me{align-self:flex-end;border-color:transparent;background:var(--cta,var(--brand));color:#fff}
+.chatwin .cm.typing{color:var(--muted);letter-spacing:2px}
+.chatwin .cnote{align-self:center;padding:3px 10px;border-radius:999px;background:#eef1f6;color:var(--muted);font-size:12px}
+.chatwin .cf{padding:10px 12px;border-top:1px solid var(--line)}
+.chatwin .cf span{display:block;height:38px;padding:0 11px;border:1px solid #cfd7e3;border-radius:9px;color:#8a94a3;font-size:13px;line-height:38px}
+.res.qrcard .qrimg{flex:none;width:92px;height:92px;border:1px solid var(--line);border-radius:8px;overflow:hidden;display:grid;place-items:center;background:#fff}
 
 .cursor{position:absolute;left:0;top:0;z-index:9;transition:transform .7s cubic-bezier(.3,.1,.2,1);pointer-events:none}
 .cursor.down svg{transform:scale(.86)}
@@ -313,6 +331,11 @@ button,input{font:inherit;color:inherit}
 
         <div class="fab" id="fab" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-5l-4.5 4v-4H7a3 3 0 0 1-3-3z"></path></svg></div>
 
+        <div class="chatwin" id="chatwin" hidden>
+          <div class="ch"><span class="av">AI</span><div><strong>AI 接待</strong><small>在线 · 通常立即回复</small></div></div>
+          <div class="cb" id="chatBody"></div>
+          <div class="cf"><span>输入你的问题…</span></div>
+        </div>
         <div class="slots" id="slots"></div>
         <button type="button" class="putbtn" id="putbtn" hidden>把小吸放到这里</button>
         <div class="loading" id="loading" hidden>正在读取页面…</div>
@@ -754,7 +777,7 @@ let scale = 1;
 const fit = () => { scale = viewport.clientWidth / 1200 || 1; stage.style.setProperty('--s', scale); };
 new ResizeObserver(fit).observe(viewport); fit();
 
-const OPT = { float: true, max: 3, leadFree: true };
+const OPT = { float: true, max: 3, leadFree: true, btnColor: '' };
 const corner = () => OPT.float ? [1030, 726] : [1112, 726];
 const M = makeMascot(ride, { mw: 124, cw: 260, side: 'l' });
 M.place(corner()[0], corner()[1]);
@@ -795,7 +818,10 @@ const syncScroll = () => {
   if (REAL) { ride.style.transition = 'none'; ride.style.transform = M.anchorS != null ? 'translateY(' + (M.anchorS - S) + 'px)' : ''; }
   if (typeof placePutBtn === 'function') placePutBtn();
 };
+let quietUntil = 0; // 程序自己在滚页面的这段时间，不当成访客在滚
+const quiet = () => { quietUntil = Date.now() + 450; };
 const setScroll = y => { // 不放动画，直接滚到
+  quiet();
   S = Math.max(0, Math.min(maxScroll(), y));
   if (REAL) { REAL.win.scrollTo(0, S); S = REAL.win.scrollY; }
   else { sitepage.style.transition = 'none'; sitepage.style.transform = 'translateY(' + (-S) + 'px)'; void sitepage.offsetWidth; sitepage.style.transition = ''; }
@@ -806,11 +832,11 @@ const scrollTo = async (y, t) => {
   y = Math.max(0, Math.min(maxScroll(), y));
   if (REAL) { // 真实页面：一帧一帧地滚，站在区块上的小吸跟着页面一起动
     const from = S;
-    await tween(900, t, u => { const e = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; REAL.win.scrollTo(0, from + (y - from) * e); S = REAL.win.scrollY; syncScroll(); });
+    await tween(900, t, u => { quiet(); const e = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; REAL.win.scrollTo(0, from + (y - from) * e); S = REAL.win.scrollY; syncScroll(); });
     await wait(120, t);
     return;
   }
-  S = y; sitepage.style.transform = 'translateY(' + (-y) + 'px)'; syncScroll();
+  quiet(); setTimeout(quiet, 900); S = y; sitepage.style.transform = 'translateY(' + (-y) + 'px)'; syncScroll();
   if (M.anchorS != null) { ride.style.transition = 'transform .9s cubic-bezier(.45,.05,.2,1)'; ride.style.transform = 'translateY(' + (M.anchorS - y) + 'px)'; }
   await wait(1000, t);
 };
@@ -838,20 +864,33 @@ const makeRes = (side, r) => {
   const node = $('#resTpl').content.firstElementChild.cloneNode(true); node.classList.add(side); if (lowOf(r)) node.classList.add('low');
   const cover = $('.cover', node);
   if (r.abil === 'doc') {
-    const mat = (r.cond === 'block' && SECTIONS[r.block] && MATERIAL[SECTIONS[r.block].kind]) || '资料包';
-    cover.textContent = mat; $('.rt', node).textContent = '《' + mat + '》'; $('.sub', node).textContent = '留个手机号，马上发你';
+    const mat = (r.file && r.file.replace(/\.[a-z0-9]+$/i, '')) || (SECTIONS[r.block] && MATERIAL[SECTIONS[r.block].kind]) || '资料包';
+    cover.textContent = mat; $('.rt', node).textContent = '《' + mat + '》'; $('.sub', node).textContent = r.gate === false ? '不用留信息，点了直接下载' : '留个手机号，马上发你';
     $('.submit', node).textContent = '发我资料'; $('.dt', node).textContent = mat + '已发到 138****1234';
   } else {
-    cover.remove(); $('.rt', node).textContent = '留个手机号'; $('.sub', node).textContent = '顾问 10 分钟内联系你';
-    $('.submit', node).textContent = '提交'; $('.dt', node).textContent = '已收到，顾问会联系 138****1234'; $('.open', node).remove();
+    const extra = (r.fields || []).filter(Boolean);
+    cover.remove(); $('.rt', node).textContent = extra.length ? '留个联系方式' : '留个手机号'; $('.sub', node).textContent = extra.length ? '手机号、' + extra.join('、') + '，顾问尽快联系你' : '顾问 10 分钟内联系你';
+    if (extra.length) { const more = document.createElement('div'); more.className = 'row more'; more.innerHTML = extra.map(f => '<input readonly tabindex="-1" placeholder="' + esc(f) + '">').join(''); $('.row', node).before(more); }
+    $('.submit', node).textContent = '提交'; $('.dt', node).textContent = r.done || '已收到，顾问会联系 138****1234'; $('.open', node).remove();
   }
   M.root.append(node);
   requestAnimationFrame(() => requestAnimationFrame(() => node.classList.add('show')));
   return { el: node, phone: $('.phone', node), submit: $('.submit', node), follow: $('.follow', node) };
 };
+// 二维码按钮：气泡原地换成一张二维码卡片（原型里的二维码是画出来的示意图）
+const QR_SVG = (() => { let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280; let cells = '';
+  const finder = (x, y) => '<rect x="' + x + '" y="' + y + '" width="7" height="7" fill="#1d2433"/><rect x="' + (x + 1) + '" y="' + (y + 1) + '" width="5" height="5" fill="#fff"/><rect x="' + (x + 2) + '" y="' + (y + 2) + '" width="3" height="3" fill="#1d2433"/>';
+  for (let y = 0; y < 25; y++) for (let x = 0; x < 25; x++) { const inF = (x < 8 && y < 8) || (x > 16 && y < 8) || (x < 8 && y > 16); if (!inF && rnd() > .52) cells += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="#1d2433"/>'; }
+  return '<svg viewBox="-1 -1 27 27" width="92" height="92" aria-hidden="true"><rect x="-1" y="-1" width="27" height="27" fill="#fff"/>' + cells + finder(0, 0) + finder(18, 0) + finder(0, 18) + '</svg>'; })();
+const makeQr = (side, r) => {
+  const node = document.createElement('div'); node.className = 'res qrcard ' + side + (lowOf(r) ? ' low' : '');
+  node.innerHTML = '<div class="rhead"><div class="qrimg">' + QR_SVG + '</div><div><strong>' + esc(r.qrNote || '扫码加顾问微信') + '</strong><span class="sub">用微信扫一扫' + (r.qr ? '' : '（还没上传二维码）') + '</span></div></div>';
+  M.root.append(node); requestAnimationFrame(() => requestAnimationFrame(() => node.classList.add('show')));
+  return node;
+};
 const resetStage = () => {
   M.anchorS = null; setScroll(0);
-  M.root.querySelectorAll('.res').forEach(n => n.remove());
+  M.root.querySelectorAll('.res').forEach(n => n.remove()); chatClose();
   M.hush(); M.place(corner()[0], corner()[1]); M.pokes = 0;
   post({ type: 'lead-clear' }); $('#dwell').classList.remove('show');
   cursor.style.transitionDuration = '0ms'; cursor.style.transform = 'translate(40px,720px)';
@@ -859,6 +898,13 @@ const resetStage = () => {
 };
 const FOLLOW_SAMPLE = '顺便问一句，你们大概有几条产线的数据要接？我按规模帮你估个区间。';
 const FOLLOW_REAL = '顺便问一句，你们大概多少人会用？我按规模帮你估个区间。';
+const VISITOR_REPLY = '大概 50 人左右';
+const AI_REPLY = '好的，记下了。50 人左右一般用专业版就够，我先把这个规模的报价区间发你，顾问稍后会联系你细聊。';
+// 对话窗：访客在卡片里回复、或点了「打开对话」按钮之后展开（原型里只演示，不能真的聊）
+const chatwin = $('#chatwin'), chatBody = $('#chatBody');
+const chatAdd = m => { const n = el('div', m.from === 'note' ? 'cnote' : 'cm' + (m.from === 'me' ? ' me' : '')); n.textContent = m.text; chatBody.append(n); chatBody.scrollTop = chatBody.scrollHeight; return n; };
+const chatOpen = items => { chatBody.innerHTML = ''; items.forEach(chatAdd); chatwin.hidden = false; $('#fab').classList.add('off'); setTimeout(() => chatwin.classList.add('show'), 30); };
+const chatClose = () => { chatwin.classList.remove('show'); chatwin.hidden = true; chatBody.innerHTML = ''; $('#fab').classList.remove('off'); };
 
 /* ---------- 规则：控制台里配的就是这份数据，预览完全按它来演 ---------- */
 const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -892,7 +938,8 @@ const RULES = [
   { id: 'r3', on: true, ai: true,  cond: 'block', sec: 8, block: 'cases', follow: true,  slot: 'br', act: 'point',   text: ALT.point[0],   btn: '要案例集',   abil: 'chat' },
   { id: 'r4', on: true, ai: true,  cond: 'block', sec: 8, block: 'price', follow: true,  slot: 'tr', act: 'offer',   text: ALT.offer[0],   btn: '领取报价单', abil: 'doc' }
 ];
-const condLabel = r => r.cond === 'block' ? '停在「' + (SECTIONS[r.block] ? SECTIONS[r.block].n : '找不到的区块') + '」' : '停留满 ' + r.sec + ' 秒';
+const nameOf = r => r.name || (SECTIONS[r.block] ? SECTIONS[r.block].n : '找不到的落点');
+const condLabel = r => '停在「' + nameOf(r) + '」满 ' + (r.sec || 2) + ' 秒';
 // 这条规则生效时页面滚到哪。手动位置可以定在区块的任意高度，所以多存一个相对区块的滚动偏移 so
 const ruleS = r => r.cond !== 'block' || !SECTIONS[r.block] ? (r.cond === 'dwell' ? 0 : S) : Math.max(0, Math.min(maxScroll(), SECTIONS[r.block].S + (r.slot === 'custom' ? (r.so || 0) : 0)));
 const ruleTitle = r => condLabel(r) + ' · ' + STATES[r.act].n;
@@ -910,7 +957,7 @@ const posOf = r => {
 const sideOf = r => { const p = posOf(r); return p ? p.side : 'l'; };
 const lowOf = r => { const p = posOf(r); return !!(p && p.low); };
 const isLead = r => (r.abil === 'form' || r.abil === 'doc') && !!r.btn;
-const describe = r => condLabel(r) + '，小吸' + (posOf(r) ? '跳到这块旁边' : '在右下角') + ACTV[r.act];
+const describe = r => (r.no ? r.no + ' 号落点：' : '') + '访客停在「' + nameOf(r) + '」，小吸' + (posOf(r) ? '跳过去' : '在右下角') + ACTV[r.act];
 const order = () => { // 访客一路往下看会依次遇到的顺序
   const rank = r => r.cond === 'dwell' ? 0 : r.cond === 'block' ? 1 + Object.keys(SECTIONS).indexOf(r.block) : 9;
   return RULES.filter(r => r.on).sort((a, b) => rank(a) - rank(b));
@@ -946,15 +993,47 @@ const convert = async (r, t, idx, path) => { // 访客点了带留资的按钮�
   say(idx, '提交手机号，小吸托着下巴等结果');
   await wait(1300, t);
   res.el.dataset.view = 'done';
-  post({ type: 'lead', id: r.id, from: condLabel(r), path, ability: r.abil });
+  post({ type: 'lead', id: r.id, from: (r.no ? r.no + ' 号落点 · ' : '') + nameOf(r), path, ability: r.abil });
   now('线索写入后台', 'note');
   say(idx, '提交成功，小吸把线索记下来，线索进到后台');
   await wait(2200, t);
   now('留资成功', 'cheer');
   await wait(2500, t);
+  // 提交后追问：留资按钮用控制台里配的那句（可以留空）；资料按钮沿用内置的一句
+  const ask = r.abil === 'form' ? (r.follow || '') : (REAL ? FOLLOW_REAL : FOLLOW_SAMPLE);
+  if (!ask) { // 没配追问：卡片停在「已收到」，不展开对话窗
+    res.el.classList.add('noask');
+    say(idx, '没配提交后追问：卡片停在「已收到」，不展开对话窗');
+    await wait(3600, t); return;
+  }
   now('等访客回复', 'listen');
-  say(idx, '资料先给到，再接一句追问，小吸留在卡片旁边等回复');
-  await stream(res.follow, REAL ? FOLLOW_REAL : FOLLOW_SAMPLE, t);
+  say(idx, '提交后小吸接着追问一句，留在卡片旁边等回复');
+  await stream(res.follow, ask, t);
+  await wait(1800, t);
+  // 访客在卡片里回了一句：卡片收起，展开对话窗，把这一问一答带进去接着聊
+  const reply = $('.reply', res.el);
+  await moveTo(reply, t); await click(reply, t);
+  now('访客在输入', 'listen'); say(idx, '访客直接在卡片里回复');
+  await typeInto(reply, VISITOR_REPLY, t);
+  await wait(500, t);
+  res.el.classList.remove('show'); setTimeout(() => res.el.remove(), 260);
+  say(idx, '访客一回复，卡片收起，展开对话窗，刚才的一问一答带进去接着聊');
+  now('展开对话窗', 'happy');
+  await hopTo(corner()[0], corner()[1], t, false);
+  chatOpen([
+    { from: 'note', text: '通过「' + r.btn + '」留了联系方式' },
+    { from: 'ai', text: r.abil === 'doc' ? '资料已经发到你的手机，注意查收。' : (r.done || '收到，顾问会尽快联系你') },
+    { from: 'ai', text: ask },
+    { from: 'me', text: VISITOR_REPLY }
+  ]);
+  M.state('idle');
+  await wait(900, t);
+  const typing = chatAdd({ from: 'ai', text: '…' }); typing.classList.add('typing');
+  now('AI 在回复', 'think');
+  await wait(1200, t);
+  typing.classList.remove('typing');
+  await stream(typing, AI_REPLY, t);
+  now('对话中', 'idle');
   await wait(4200, t);
 };
 
@@ -975,7 +1054,8 @@ async function journey(t) {
     else if (r.cond === 'block') {
       now('页面在滚动', 'idle'); say(idx, '访客往下滚，小吸先收起气泡');
       if (ruleS(r) !== S) await scrollTo(ruleS(r), t);
-      if (SECTIONS[r.block] && !path.includes(SECTIONS[r.block].n)) path.push(SECTIONS[r.block].n);
+      if (!path.includes(nameOf(r))) path.push(nameOf(r));
+      say(idx, '访客停在「' + nameOf(r) + '」'); await dwell(t, r.sec || 2);
     }
     if (over) {
       const c = corner();
@@ -996,7 +1076,7 @@ async function journey(t) {
 /* ---------- 只预览一条规则：在控制台里点开或改动时用 ---------- */
 const stopForPreview = () => {
   const t = ++token; running = false; paused = false; stage.classList.remove('paused');
-  M.root.querySelectorAll('.res').forEach(n => n.remove()); post({ type: 'lead-clear' }); $('#dwell').classList.remove('show');
+  M.root.querySelectorAll('.res').forEach(n => n.remove()); chatClose(); post({ type: 'lead-clear' }); $('#dwell').classList.remove('show');
   cursor.style.transitionDuration = '0ms'; cursor.style.transform = 'translate(40px,720px)';
   steps(0); setEdit(null);
   return t;
@@ -1012,10 +1092,12 @@ const touch = r => { if (!running && shownId === r.id && atPlace(r)) { fire(r); 
 async function tryButton(r) { // 预览时真的去点气泡里的按钮
   const t = stopForPreview();
   try {
-    if (isLead(r)) { await convert(r, t, 0, r.cond === 'block' && SECTIONS[r.block] ? SECTIONS[r.block].n : '首屏'); return; }
-    say(0, { chat: '点了之后直接打开对话窗', human: '点了之后打开对话窗，并转给人工', rec: '点了之后气泡里列出几个推荐问题，点一个就带着它进入对话' }[r.abil]);
+    if (isLead(r)) { await convert(r, t, 0, nameOf(r)); return; }
+    if (r.abil === 'qr') { M.hush(); makeQr(sideOf(r), r); shownId = null; now('访客点了「' + r.btn + '」', 'happy'); say(0, '点了之后，气泡原地换成二维码'); return; }
+    say(0, { chat: '点了之后打开对话窗，这句话术作为第一条消息带进去', human: '点了之后打开对话窗，并转给人工', rec: '点了之后气泡里列出几个推荐问题，点一个就带着它进入对话' }[r.abil] || '');
     now('访客点了「' + r.btn + '」', 'happy'); shownId = null;
-    if (r.abil === 'rec') M.say('想先了解哪个？', { side: sideOf(r), low: lowOf(r), chips: ['产品报价', '预约演示', '同行案例'] }); else M.hush();
+    if (r.abil === 'rec') M.say('想先了解哪个？', { side: sideOf(r), low: lowOf(r), chips: ['产品报价', '预约演示', '同行案例'] });
+    else { M.hush(); if (r.abil === 'chat') { M.state('idle'); chatOpen([{ from: 'ai', text: r.text }]); } }
   } catch (e) { if (e !== CANCEL) console.error(e); }
 }
 M.cueEl.addEventListener('click', e => {
@@ -1036,9 +1118,9 @@ async function dismiss(t) {
   M.hush(); now('页面在滚动', 'idle');
   await scrollTo(ruleS(first), t);
   const p = posOf(first);
-  say(1, '停在「' + sec.n + '」，小吸跳过来' + ACTV[first.act]);
+  say(1, '停在「' + nameOf(first) + '」，小吸跳过来' + ACTV[first.act]);
   await hopTo(p.pos[0], p.pos[1], t, true);
-  now('停在「' + sec.n + '」', first.act, p.side === 'l'); M.say(esc(first.text), { side: p.side, low: p.low, cta: first.btn ? esc(first.btn) : null, close: true });
+  now('停在「' + nameOf(first) + '」', first.act, p.side === 'l'); M.say(esc(first.text), { side: p.side, low: p.low, cta: first.btn ? esc(first.btn) : null, close: true });
   await wait(2400, t);
 
   const cx = $('.cx', M.cueEl);
@@ -1054,8 +1136,8 @@ async function dismiss(t) {
   await wait(1600, t);
 
   say(4, '之后停在别的区块，满足条件也不再跳出来');
-  for (const other of Object.values(SECTIONS).filter(x => x !== sec).slice(0, 2)) {
-    await scrollTo(other.S, t); $('#nowTrig').textContent = '停在「' + other.n + '」，规则已停用'; await wait(1500, t);
+  for (const other of order().filter(x => x !== first).slice(0, 2)) {
+    await scrollTo(ruleS(other), t); $('#nowTrig').textContent = '停在「' + nameOf(other) + '」，不再出现'; await wait(1500, t);
   }
 
   await moveTo(M.hit, t); await click(M.hit, t);
@@ -1077,6 +1159,7 @@ const renderSlots = near => {
   if (!r) { slotsEl.innerHTML = ''; placePutBtn(); return; }
   const sec = SECTIONS[r.block], cur = posOf(r).slot;
   slotsS = sec.S; // 点位按区块的标准滚动位置算，页面再滚时整层跟着平移
+  slotsEl.innerHTML = ''; syncScroll(); return; // 评审后不再给四个编号点位：位置靠直接拖
   slotsEl.innerHTML = SLOT_KEYS.map((k, i) => { const [x, y] = slotPos(sec, k), busy = sec.occ && sec.occ[k] >= 4;
     return '<button type="button" class="slot' + (k === cur && !drag ? ' on' : '') + (k === near ? ' near' : '') + (busy ? ' busy' : '') + '" data-slot="' + k + '" style="left:' + x + 'px;top:' + (y - 74) + 'px" title="' + (busy ? '站在这里会挡住内容' : SLOT_NAMES[k]) + '" aria-label="' + (i + 1) + ' 号位，' + SLOT_NAMES[k] + (busy ? '，会挡住内容' : '') + '">' + (i + 1) + '</button>'; }).join('');
   syncScroll();
@@ -1105,7 +1188,8 @@ const reportPlace = (r, slot) => {
   else { r.rx = r.ry = null; r.so = 0; }
   post({ type: 'place', id: r.id, block: r.block, slot: r.slot, rx: r.rx, ry: r.ry, so: r.so });
 };
-const nearestSlot = (r, x, y) => { // x、y 是屏幕坐标；点位按区块的标准滚动位置算，先换到当前滚动位置再比
+const nearestSlot = (r, x, y) => { return null; // 评审后不再吸附到编号点位，拖到哪就是哪
+  // x、y 是屏幕坐标；点位按区块的标准滚动位置算，先换到当前滚动位置再比
   const sec = SECTIONS[r.block], shift = S - sec.S; let best = null, bd = 1e9;
   SLOT_KEYS.forEach(k => { const [sx, sy] = slotPos(sec, k), d = Math.hypot(x - sx, y - (sy - shift)); if (d < bd) { bd = d; best = k; } });
   return bd < 70 ? best : null;
@@ -1244,7 +1328,7 @@ async function loadPage(url) {
   doc.addEventListener('click', e => { if (e.target.closest('a,button,input,label,summary')) e.preventDefault(); }, true); // 快照里的链接和按钮不跳转
   doc.addEventListener('submit', e => e.preventDefault(), true);
   REAL = { win, doc, max: 0 }; S = 0; M.anchorS = null;
-  win.addEventListener('scroll', () => { S = win.scrollY; syncScroll(); }, { passive: true });
+  win.addEventListener('scroll', () => { S = win.scrollY; syncScroll(); userScrolled(); }, { passive: true });
   const send = () => post({ type: 'blocks', asked: url, url: data.url, title: data.title, blocks: buildSections() });
   send();
   if (!complete) win.addEventListener('load', () => { buildSections(); renderSlots(); }); // 图片后到、排版变了：按新的排版重算一遍位置
@@ -1253,7 +1337,29 @@ async function loadPage(url) {
 }
 
 // 鼠标停在小吸、气泡这些盖在页面上面的东西上时，滚轮照样滚下面的真实页面
-stage.addEventListener('wheel', e => { if (!REAL || e.target === realFrame || e.target.closest('.res')) return; e.preventDefault(); REAL.win.scrollBy(0, e.deltaY); }, { passive: false });
+stage.addEventListener('wheel', e => {
+  if (e.target.closest('.res')) return;
+  if (!REAL) { if (running) return; e.preventDefault(); setScroll(S + e.deltaY); quietUntil = 0; userScrolled(); return; } // 示例官网也能用滚轮翻
+  if (e.target === realFrame) return; e.preventDefault(); REAL.win.scrollBy(0, e.deltaY);
+}, { passive: false });
+
+// 编辑时访客（这里是配置的人）自己滚页面：停下来后切到离当前位置最近的落点，并告诉外层，左边目录跟着高亮
+let inviewTimer = 0;
+function userScrolled() {
+  if (running || drag || Date.now() < quietUntil) return;
+  clearTimeout(inviewTimer); inviewTimer = setTimeout(pickInView, 260);
+}
+function pickInView() {
+  if (running || drag) return;
+  const list = order(); if (!list.length) return;
+  const r = list.reduce((best, x) => Math.abs(ruleS(x) - S) < Math.abs(ruleS(best) - S) ? x : best, list[0]);
+  if (r.id === editId) return;
+  stopForPreview(); M.hush(); M.state('idle');
+  const p = posOf(r);
+  if (p) { ride.style.transition = 'none'; M.anchorS = null; ride.style.transform = ''; M.place(p.pos[0], p.pos[1]); M.anchorS = ruleS(r); ride.style.transform = 'translateY(' + (M.anchorS - S) + 'px)'; syncScroll(); }
+  say(0, describe(r)); fire(r); setEdit(r);
+  post({ type: 'inview', id: r.id });
+}
 
 /* ---------- 和外层控制台通信 ---------- */
 // 外层发来：config（规则和选项；page.url 是要读的真实页面，空着用示例官网；可带 focus 预览某条，或 play 从头播放）
@@ -1282,6 +1388,7 @@ async function onConfig(m) {
   }
   RULES.length = 0; (m.rules || []).forEach(r => RULES.push(r));
   Object.assign(OPT, m.opt || {}); $('#fab').hidden = !OPT.float;
+  if (OPT.btnColor) document.documentElement.style.setProperty('--cta', OPT.btnColor); else document.documentElement.style.removeProperty('--cta');
   if (m.play) { start(m.play); return; }
   const r = RULES.find(x => x.id === m.focus);
   if (!r) { if (!running) start('follow'); return; }
