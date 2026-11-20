@@ -12,6 +12,27 @@ const KB_UNANSWERED_REASON = { no_kb: '知识未命中', self_test_no_kb: '自�
 const KB_MODE = { fixed: '固定答复', rewrite: 'AI 改写' }
 const KB_SITE_LIMIT = 30
 
+/* ---------- 文件类型图标（上传抽屉用）：缩略纸张 + 右下角彩色扩展名角标 ---------- */
+const KB_FILE_KINDS = {
+  pdf: ['lines', 'PDF', '#f5303d'], doc: ['lines', 'DOC', '#2f7cf6'], docx: ['lines', 'DOC', '#2f7cf6'], txt: ['lines', 'TXT', '#6b7280'],
+  md: ['md', 'MD', '#4a4a4a'], xls: ['table', 'XLS', '#0f9d63'], xlsx: ['table', 'XLS', '#0f9d63'], csv: ['table', 'CSV', '#0e7c6b'],
+  json: ['brace', 'JSON', '#eab308'], html: ['code', 'HTML', '#f2540b']
+}
+/** 拖拽区展示的格式（同类扩展名合并成一个图标）。 */
+const KB_FORMAT_ICONS = [['pdf', '.pdf'], ['docx', '.docx'], ['xlsx', '.xlsx / .xls'], ['csv', '.csv'], ['txt', '.txt'], ['md', '.md'], ['json', '.json'], ['html', '.html']]
+const KB_FI_BODY = {
+  lines: '<i class="t"></i><i></i><i></i><i></i><i></i>',
+  md: '<i class="t md"></i><i></i><i></i><i></i>',
+  table: '<i class="th"></i><i class="th"></i><i class="th"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>',
+  brace: '<em>{</em><i class="in"></i><i class="in"></i><i class="in"></i><em>}</em>',
+  code: '<i class="tag a"></i><i class="tag b"></i><i class="tag a"></i><i class="tag b"></i>'
+}
+function kbFileIcon(ext, { title = '' } = {}) {
+  const key = String(ext || '').toLowerCase()
+  const [kind, label, color] = KB_FILE_KINDS[key] || ['lines', (key || 'FILE').toUpperCase().slice(0, 4), '#6b7280']
+  return `<span class="kb-fi kb-fi--${kind}" style="--fi:${color}" ${title ? `title="${esc(title)}"` : ''} aria-hidden="true"><span class="kb-fi-page">${KB_FI_BODY[kind]}</span><b>${label}</b></span>`
+}
+
 const kbNorm = text => String(text || '').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '')
 const kbBigrams = text => { const t = kbNorm(text); const set = new Set(); for (let i = 0; i < t.length - 1; i++) set.add(t.slice(i, i + 2)); if (t.length === 1) set.add(t); return set }
 /** 字符二元组 Dice 系数，用来模拟「问法相似度」。 */
@@ -230,12 +251,12 @@ function renderKbSettings() {
 const kbExt = name => String(name).split('.').pop().toLowerCase()
 
 function renderKbUploadDrawer(d) {
-  const files = d.files.map((file, index) => `<li><span class="kb-file-ext">${esc(kbExt(file.name).toUpperCase())}</span><span class="kb-file-name">${esc(file.name)}</span><small>${esc(file.size)}</small>${file.error ? `<em class="kb-file-error">${esc(file.error)}</em>` : ''}<button type="button" class="cfg-icon-btn" data-kb-file-remove="${index}" aria-label="移除 ${esc(file.name)}">${icon('close', 'xs')}</button></li>`).join('')
+  const files = d.files.map((file, index) => `<li class="${file.error ? 'is-error' : ''}">${kbFileIcon(kbExt(file.name))}<span class="kb-file-name">${esc(file.name)}</span><small>${esc(file.size)}</small>${file.error ? `<em class="kb-file-error">${esc(file.error)}</em>` : ''}<button type="button" class="cfg-icon-btn" data-kb-file-remove="${index}" aria-label="移除 ${esc(file.name)}">${icon('close', 'xs')}</button></li>`).join('')
   const ok = d.files.filter(file => !file.error).length
   return kbDrawerShell('上传文件', '导入在后台进行，可以离开页面，在列表里看状态。', `
     <label class="kb-drop"><input type="file" multiple accept="${KB_FORMATS.map(ext => `.${ext}`).join(',')}" data-kb-file-input hidden />
       <span class="kb-drop-icon">${icon('upload')}</span><strong>点击或拖拽文件到这里上传</strong><small>可一次选择多份资料</small>
-      <span class="kb-formats">${KB_FORMATS.map(ext => `<span>.${ext}</span>`).join('')}</span></label>
+      <span class="kb-formats" role="img" aria-label="支持 ${KB_FORMATS.map(ext => `.${ext}`).join('、')}">${KB_FORMAT_ICONS.map(([ext, title]) => kbFileIcon(ext, { title })).join('')}</span></label>
     <button type="button" class="cfg-btn sm ghost kb-sample" data-action="kb-sample-files">${icon('plus', 'xs')}<span>没有文件？用示例资料试试</span></button>
     ${files ? `<ul class="kb-file-list" aria-label="待上传文件">${files}</ul>` : ''}
     <p class="kb-note">${icon('alert', 'xs')}<span>原文件会保留，先转成 Markdown 再切分；表格每行作为一条记录并保留列名；扫描版 PDF 自动走文字识别。图片暂不支持。</span></p>
