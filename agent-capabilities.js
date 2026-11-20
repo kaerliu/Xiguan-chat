@@ -75,14 +75,15 @@ function capIssues(id, d = C()) {
     else if (d.idle_follow_up.steps.some(step => !String(step.message || '').trim())) issues.push('沉默跟进：开启时话术不能为空')
   }
   if (id === 'mcp' && d.mcp.enabled && d.mcp.servers.some(server => !/^https:\/\//i.test(String(server.url || '').trim()))) issues.push('MCP 调用：服务地址只接受 HTTPS')
+  if (id === 'mascot_guide' && typeof mgIssues === 'function') issues.push(...mgIssues(d))
   return issues
 }
 
 /** 发布前的硬性校验；有问题返回提示文字。 */
 function capPublishError() {
-  const issue = ['proactive', 'idle_follow_up', 'mcp'].flatMap(id => capIssues(id))[0]
+  const issue = ['proactive', 'idle_follow_up', 'mcp', 'mascot_guide'].flatMap(id => capIssues(id))[0]
   if (issue) return `${issue}，否则不能发布`
-  if (!leadHasContactField(C().actions.lead_capture)) return '留资表单的手机号、微信号、邮箱至少启用一项，否则不能发布'
+  if (!leadHasContactField(C().actions.lead_capture)) return '「留资」的手机号、微信号、邮箱至少启用一项，否则不能发布'
   return ''
 }
 
@@ -94,19 +95,23 @@ const LEAD_POPUP_SUMMARY = '不同页面弹出不同营销资料，如白皮书�
 const RECOMMENDATIONS_SUMMARY = 'AI 在回答之后给出几个可以点的下一步问题，访客点一下就当作发了这句话。'
 const MCP_SUMMARY = '在对话时实时调用企业接入的 MCP 服务，查库存、实时价格、订单状态、可预约时段这类会变的数据。'
 
-/* testing: 一期不做的能力，原型里保留并标「测试」 */
+/* testing: 一期不做的能力，原型里保留并标「测试」。trigger 为 page 的几项、以及标了 acquisition 的几项显示在「主动获客」页，其余在「能力」页。
+   acquisition 只管放在哪一页，卡片上的触发方式仍按 trigger 显示。 */
 const CAPABILITIES = [
-  { id: 'lead_capture', name: '留资表单', icon: 'user-check', trigger: 'ai', summary: '收集访客的联系方式和需求，存成一条线索。AI 判断什么时候邀请，按你选的收集方式弹表单或在对话里问。', interaction: { kind: 'widget', label: '联系表单' } },
-  { id: 'assessment', name: '测评式营销', icon: 'circle-check', trigger: 'entry', summary: ASSESSMENT_SUMMARY, interaction: { kind: 'widget', label: '测评卡片' }, testing: true },
+  { id: 'lead_capture', name: '留资', icon: 'user-check', trigger: 'ai', summary: '收集访客的联系方式和需求，存成一条线索。AI 判断什么时候邀请，按你选的收集方式弹表单或在对话里问。', interaction: { kind: 'widget', label: '联系表单' } },
   { id: 'human_handoff', name: '转人工', icon: 'headset', trigger: 'ai', summary: '把对话加入控制台的人工列表，由销售或客服接管。', interaction: { kind: 'text', label: '纯文字' } },
-  { id: 'asset_delivery', name: '资料交付', icon: 'file', trigger: 'ai', summary: '把知识库中带链接的资料以卡片形式发给访客；与引用溯源是两条独立通道。', interaction: { kind: 'widget', label: '资料卡片' }, testing: true },
   { id: 'recommendations', name: '推荐消息', icon: 'messages', trigger: 'ai', summary: RECOMMENDATIONS_SUMMARY, interaction: { kind: 'widget', label: '回答下方的一排按钮' } },
   { id: 'mcp', name: 'MCP 调用', icon: 'plug', trigger: 'ai', summary: MCP_SUMMARY, interaction: { kind: 'text', label: '纯文字' } },
+  { id: 'mascot_guide', name: '形象引导', icon: 'pointer', trigger: 'page', summary: '卡通形象按访客在页面上的行为主动出现，招手、讲解或递资料，再用按钮把访客带到留资、资料或对话。', interaction: { kind: 'widget', label: '形象动作加气泡' }, isNew: true },
   { id: 'lead_popup', name: '留资弹窗', icon: 'book', trigger: 'page', summary: LEAD_POPUP_SUMMARY, interaction: { kind: 'widget', label: '资料弹窗' }, testing: true },
   { id: 'proactive', name: '主动弹窗', icon: 'spark', trigger: 'page', summary: '访客还没开口时，按页面自动打开对话窗，或者先在入口旁边弹一句主动消息。', interaction: { kind: 'text', label: '自动打开对话窗 / 主动消息气泡' } },
-  { id: 'idle_follow_up', name: '沉默跟进', icon: 'clock', trigger: 'page', summary: '访客开口、助手回复后访客迟迟不回，按顺序补发运营写好的跟进话术。', interaction: { kind: 'text', label: '纯文字' } }
+  { id: 'idle_follow_up', name: '沉默跟进', icon: 'clock', trigger: 'page', summary: '访客开口、助手回复后访客迟迟不回，按顺序补发运营写好的跟进话术。', interaction: { kind: 'text', label: '纯文字' } },
+  { id: 'assessment', name: '测评式营销', icon: 'circle-check', trigger: 'entry', summary: ASSESSMENT_SUMMARY, interaction: { kind: 'widget', label: '测评卡片' }, testing: true, acquisition: true },
+  { id: 'asset_delivery', name: '资料交付', icon: 'file', trigger: 'ai', summary: '把知识库中带链接的资料以卡片形式发给访客；与引用溯源是两条独立通道。', interaction: { kind: 'widget', label: '资料卡片' }, testing: true, acquisition: true }
 ]
-const DEDICATED_DEMO_CAPABILITIES = new Set(['lead_popup', 'proactive', 'idle_follow_up'])
+/** 这项能力放在「主动获客」页还是「能力」页 */
+const capInAcquisition = item => item.trigger === 'page' || Boolean(item.acquisition)
+const DEDICATED_DEMO_CAPABILITIES = new Set(['mascot_guide', 'lead_popup', 'proactive', 'idle_follow_up'])
 const usesUnifiedDebug = id => Boolean(id) && !DEDICATED_DEMO_CAPABILITIES.has(id)
 const testingBadge = cap => cap.testing ? '<span class="cfg-badge warning" title="一期不做，原型里保留供测试">测试</span>' : ''
 
@@ -125,7 +130,7 @@ const DEFAULT_ASSESSMENT = {
     { id: 'q_team', title: '有几位销售或客服在跟进线索？', multiple: false, options: [{ id: 'o1', label: '1 – 2 人', score: 5 }, { id: 'o2', label: '3 – 10 人', score: 10 }, { id: 'o3', label: '10 人以上', score: 20 }] }
   ],
   results: [
-    { id: 'r_start', name: '起步型', min_score: 0, max_score: 39, headline: '先把咨询接住', diagnosis: '访客量和咨询链路都还在早期，现在最大的损失是“有人来了，没人接”。', plan: ['上线 AI 客服，7×24 小时接待，夜间和周末也不漏咨询', '导入官网和产品资料，常见问题由 AI 直接回答', '开启留资表单，有意向的访客一个都不错过'], cta_label: '免费开通', cta_url: 'https://xiguan.cn/signup' },
+    { id: 'r_start', name: '起步型', min_score: 0, max_score: 39, headline: '先把咨询接住', diagnosis: '访客量和咨询链路都还在早期，现在最大的损失是“有人来了，没人接”。', plan: ['上线 AI 客服，7×24 小时接待，夜间和周末也不漏咨询', '导入官网和产品资料，常见问题由 AI 直接回答', '开启留资，有意向的访客一个都不错过'], cta_label: '免费开通', cta_url: 'https://xiguan.cn/signup' },
     { id: 'r_grow', name: '成长型', min_score: 40, max_score: 69, headline: '把流量变成线索', diagnosis: '已经有稳定流量，但大部分访客看完就走了，留资率还有很大提升空间。', plan: ['用快捷问题和主动弹窗，让更多访客愿意开口', 'AI 识别购买意向，在合适时机邀请留资，并自动给线索评级', '新线索实时推送到企业微信，销售 5 分钟内跟进'], cta_label: '预约产品演示', cta_url: 'https://xiguan.cn/demo' },
     { id: 'r_scale', name: '进阶型', min_score: 70, max_score: 100, headline: '打通线索到成交', diagnosis: '流量和团队都已成规模，关键是让每条线索被正确的人、在正确的时间跟进。', plan: ['按产品线配置多个智能体，各自回答、分别统计', '复杂需求一键转人工并生成工单，销售无缝接手', '线索与 CRM 打通，按渠道归因每一笔成交'], cta_label: '联系专属顾问', cta_url: 'https://xiguan.cn/contact' }
   ],
@@ -251,6 +256,7 @@ function capabilityDefaults() {
     idle_follow_up: { enabled: false, instructions: '访客回复跟进时，先帮他把上一个问题问清楚。', steps: [{ idle_seconds: 60, message: '还在吗？如果方便，可以告诉我你们现在最想解决的问题，我帮你看看适合哪个方案。' }, { idle_seconds: 300, message: '先不打扰了。想了解价格、部署或数据安全的话随时问我；也可以留个联系方式，顾问会把资料发给你。' }] },
     assessment: JSON.parse(JSON.stringify(DEFAULT_ASSESSMENT)),
     lead_popup: JSON.parse(JSON.stringify(DEFAULT_LEAD_POPUP)),
+    mascot_guide: JSON.parse(JSON.stringify(DEFAULT_MASCOT_GUIDE)),
     recommendations: JSON.parse(JSON.stringify(DEFAULT_RECOMMENDATIONS)),
     mcp: JSON.parse(JSON.stringify(DEFAULT_MCP))
   }
@@ -429,7 +435,7 @@ function playgroundTurn(message, session, scope) {
   if (ignored) Object.assign(session, { asking: null, queue: [] })
   if (ignored) meta.note = '访客没有回答这一项，AI 先回答问题，这一轮不再追问。'
 
-  // 转人工：一次会话只发起一次；有人在线发排队消息，没人在线时留资表单开着就接着邀请（不占邀请次数）
+  // 转人工：一次会话只发起一次；有人在线发排队消息，没人在线时「留资」开着就接着邀请（不占邀请次数）
   if (handoff.enabled && has(HANDOFF_WORDS)) {
     const queue = session.handoffQueue
     if (session.handoffRequested) {
@@ -545,7 +551,7 @@ function capNotice(text, action = '') {
 function capNotices(selected) {
   const a = C().actions
   let html = ''
-  if (a.asset_delivery.enabled && a.asset_delivery.mode === 'contact_required' && !a.lead_capture.enabled && (!selected || selected === 'asset_delivery' || selected === 'lead_capture')) html += capNotice('资料设置为“收集联系方式后交付”，但留资表单未开启，链接将一直被隐藏。')
+  if (a.asset_delivery.enabled && a.asset_delivery.mode === 'contact_required' && !a.lead_capture.enabled && (!selected || selected === 'asset_delivery' || selected === 'lead_capture')) html += capNotice('资料设置为“收集联系方式后交付”，但「留资」未开启，链接将一直被隐藏。')
   return html
 }
 
@@ -558,7 +564,7 @@ function renderCapabilityTopActions(cap) {
 
 function renderCapabilityTop(cap) {
   return `<header class="editor-top capability-top">
-    <div class="capability-top-context"><button type="button" class="cfg-btn sm ghost capability-top-back" data-action="cfg-cap-back" aria-label="返回能力列表" title="返回能力列表">${icon('chevron', 'sm')}</button>
+    <div class="capability-top-context"><button type="button" class="cfg-btn sm ghost capability-top-back" data-action="cfg-cap-back" aria-label="返回${capInAcquisition(cap) ? '主动获客' : '能力'}列表" title="返回${capInAcquisition(cap) ? '主动获客' : '能力'}列表">${icon('chevron', 'sm')}</button>
       <span class="capability-top-title"><span class="capability-top-icon">${icon(cap.icon, 'sm')}</span><strong>${cap.name}</strong>${cap.isNew ? '<span class="cfg-badge info">新</span>' : ''}${testingBadge(cap)}</span></div>
     <div class="capability-top-actions" id="cfg-cap-actions">${renderCapabilityTopActions(cap)}</div>
   </header>`
@@ -629,9 +635,12 @@ const badge = (tone, text) => `<span class="cfg-badge ${tone}">${text}</span>`
 
 /* ---------- 能力列表 ---------- */
 
-function renderCapabilityListCards() {
-  const keyword = cfg.capSearch.trim().toLowerCase()
-  const rows = CAPABILITIES.filter(item => (cfg.capTrigger === 'all' || item.trigger === cfg.capTrigger) && (!keyword || `${item.name}${item.summary}`.toLowerCase().includes(keyword)))
+/** scope：capabilities = 「能力」页（不含按页面规则触发的）；acquisition = 「主动获客」页（只有按页面规则触发的，不走搜索和筛选）。 */
+function renderCapabilityListCards(scope = 'capabilities') {
+  const keyword = scope === 'acquisition' ? '' : cfg.capSearch.trim().toLowerCase()
+  const rows = CAPABILITIES.filter(item => scope === 'acquisition'
+    ? capInAcquisition(item)
+    : !capInAcquisition(item) && (cfg.capTrigger === 'all' || item.trigger === cfg.capTrigger) && (!keyword || `${item.name}${item.summary}`.toLowerCase().includes(keyword)))
   if (!rows.length) return '<div class="cfg-empty">没有匹配的能力，换个关键词或触发方式再试试。</div>'
   return rows.map(item => {
     const on = isCapEnabled(item.id)
@@ -650,6 +659,7 @@ function renderCapabilitiesConfig() {
   if (cap) {
     if (cap.id === 'lead_capture') return renderLeadCaptureDetail(cap)
     if (cap.id === 'assessment') return renderAssessmentDetail(cap)
+    if (cap.id === 'mascot_guide') return renderMascotGuideDetail(cap)
     if (cap.id === 'lead_popup') return renderLeadPopupDetail(cap)
     if (cap.id === 'recommendations') return renderRecommendationsDetail(cap)
     if (cap.id === 'mcp') return renderMcpDetail(cap)
@@ -661,7 +671,7 @@ function renderCapabilitiesConfig() {
   return cfgPage('capabilities', `${renderCfgHeader({ title: '能力', desc: '按需打开智能体能做的事。关闭后，对应提示、工具、回执和会话状态都不会进入运行时。' })}
     <section class="cfg-body">${capNotices(null)}
       <div class="cfg-toolbar"><div class="cfg-search">${icon('search', 'sm')}<input id="cfg-cap-search" type="search" placeholder="搜索能力" aria-label="搜索能力" value="${esc(cfg.capSearch)}" /></div>
-        <select id="cfg-cap-trigger" class="cfg-select" aria-label="按触发方式筛选"><option value="all">全部触发方式</option>${Object.entries(TRIGGER_LABELS).map(([key, label]) => `<option value="${key}" ${cfg.capTrigger === key ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
+        <select id="cfg-cap-trigger" class="cfg-select" aria-label="按触发方式筛选"><option value="all">全部触发方式</option>${Object.entries(TRIGGER_LABELS).filter(([key]) => CAPABILITIES.some(item => !capInAcquisition(item) && item.trigger === key)).map(([key, label]) => `<option value="${key}" ${cfg.capTrigger === key ? 'selected' : ''}>${label}</option>`).join('')}</select></div>
       <div class="cfg-cap-grid" id="cfg-cap-grid">${renderCapabilityListCards()}</div>
     </section>`)
 }
@@ -695,7 +705,7 @@ function renderCapabilityDetail(cap) {
   const widget = capSection(sec('widget'), '小组件', true, false, `${widgetBody}<div class="capability-planned-row">${icon('spark', 'xs')}<span>用 AI 编辑小组件的内容与样式</span>${badge('', '即将上线')}</div>`)
 
   const fields = capSection(sec('fields'), '需要访客提供的字段', true, false, id === 'asset_delivery'
-    ? '<p class="capability-readonly">默认无需访客提供字段。交付条件为“收集联系方式后交付”时，依赖「留资表单」先收集联系方式。</p>'
+    ? '<p class="capability-readonly">默认无需访客提供字段。交付条件为“收集联系方式后交付”时，依赖「留资」先收集联系方式。</p>'
     : '<p class="capability-readonly">无需访客提供字段。</p>')
 
   let more = ''
@@ -708,7 +718,7 @@ function renderCapabilityDetail(cap) {
     capNotices(id))
 }
 
-/* ---------- 留资表单详情：通用 / 收集方式 / 字段 / 表单样式 / 消息 / 次数 ---------- */
+/* ---------- 留资详情：通用 / 收集方式 / 字段 / 表单样式 / 消息 / 次数 ---------- */
 
 const LEAD_MODES = [
   { value: 'widget', title: '表单', sees: 'AI 回复下方出现联系表单，一次填完提交', fit: '要的字段多，想一次拿全' },
@@ -819,7 +829,7 @@ function renderHandoffDetail(cap) {
       ${field('有人在线时的消息', capTextarea('actions.human_handoff.online_message', 2, `maxlength="200" placeholder="${HANDOFF_DEFAULT_MESSAGES.online}" data-demo-sync="1"`), { full: true })}
       ${field('没人在线时的消息', capTextarea('actions.human_handoff.offline_message', 2, `maxlength="200" placeholder="${HANDOFF_DEFAULT_MESSAGES.offline}" data-demo-sync="1"`), { full: true })}
     </div><small class="capability-hint">在线话术可插入 {排队人数} 和 {分钟}。</small>
-    <small class="capability-hint">${lead.enabled ? '留资表单已开启。无人在线或暂时无法转接时，邀请访客留下联系方式。' : '留资表单未开启。无人在线或暂时无法转接时，只告知访客当前没有同事在线。'}</small>
+    <small class="capability-hint">${lead.enabled ? '「留资」已开启。无人在线或暂时无法转接时，邀请访客留下联系方式。' : '「留资」未开启。无人在线或暂时无法转接时，只告知访客当前没有同事在线。'}</small>
     ${capNotice('转人工通知未配置。访客的申请仍会进入人工列表。', '<button type="button" class="cfg-btn sm outline" data-action="cfg-handoff-notification">查看转人工通知配置</button>')}`)
   return capDetailPage(cap, enabled, [general, messages], renderDemoPanel('human_handoff', enabled))
 }
@@ -1151,7 +1161,7 @@ function renderIdleDemo(demo) {
   return renderDemoWidget(demo)
 }
 
-/** 留资相关的系统消息与决策说明（留资表单、资料交付两个演示共用）。 */
+/** 留资相关的系统消息与决策说明（留资、资料交付两个演示共用）。 */
 function applyLeadMeta(demo, meta) {
   const lead = debugLead()
   const names = keys => keys.map(key => fieldLabel(key, lead)).join('、')
@@ -1161,7 +1171,7 @@ function applyLeadMeta(demo, meta) {
   else if (meta.leadMerged) notes.push(`访客补充了${names(meta.got)}，合并进同一条线索。`)
   else if (meta.got.length && !meta.leadSaveFailed) notes.push(`记下了${names(meta.got)}；还没有联系方式，暂不生成线索，拿到后合并进同一条。`)
   if (meta.refused) notes.push('访客明确拒绝了，本次会话不再邀请。')
-  if (meta.handoffInvite) notes.push('转人工时没人在线，留资表单开着，接着邀请留资；不占留资表单的邀请次数。')
+  if (meta.handoffInvite) notes.push('转人工时没人在线，「留资」开着，接着邀请留资；不占「留资」的邀请次数。')
   else if (meta.invited) notes.push(meta.selfRequest ? '访客自己说要留联系方式，不受邀请次数限制。' : `AI 判断这一轮适合邀请（第 ${demo.session.invites} / ${lead.max_invites} 次）。`)
   if (meta.asked) { const hint = leadFieldsOf(lead).find(item => item.key === meta.asked)?.ai_hint?.trim(); notes.push(`在对话里问「${fieldLabel(meta.asked, lead)}」${hint ? `，按「给 AI 的说明」：${hint}` : ''}。`) }
   if (meta.note) notes.push(meta.note)
@@ -1381,7 +1391,7 @@ function renderAssessmentDetail(cap) {
   </div>`)
 
   const gate = capSection(sec('gate'), '留资与线索', !needsLead, false, `<div class="assess-gates" role="radiogroup" aria-label="留资时机">${ASSESSMENT_GATES.map(item => `<button type="button" role="radio" aria-checked="${s.gate === item.value}" class="${s.gate === item.value ? 'is-current' : ''}" data-assess-gate="${item.value}"><strong>${item.label}${item.recommended ? badge('success', '推荐') : ''}</strong><small>${item.description}</small></button>`).join('')}</div>
-    <small class="capability-hint">表单字段沿用「留资表单」能力里的设置，访客至少要留一种联系方式。</small>
+    <small class="capability-hint">表单字段沿用「留资」能力里的设置，访客至少要留一种联系方式。</small>
     ${capCheck('assessment.attach_to_lead', '把答题记录和测评结果写入线索，销售跟进时直接可见')}`)
 
   const banner = `<div class="assess-banner"><div class="assess-banner-copy"><strong>把“要电话”变成“送方案”</strong><p>访客更愿意为一份“专门给我的方案”留下联系方式。答题过程本身就是需求调研，每条线索都带着规模、现状和痛点。</p><small>适合需要诊断、有多个版本或套餐的业务：SaaS 选型、教育课程、装修、保险、医美、企业服务…</small></div>
@@ -1390,7 +1400,7 @@ function renderAssessmentDetail(cap) {
   return renderCapabilityWorkbench('cap-assessment', cap, s.enabled,
     `${banner}<div class="capability-sections">${entry}${questions}${results}${gate}</div>`,
     renderCapabilityDebugPanel(cap, '可以直接点选作答，体验访客从测评到留资的完整过程；显示当前草稿。', `<div data-assess-root>${renderAssessPreview()}</div>`, { title: '访客体验预览', restart: false }),
-    `${capNotices('assessment')}${needsLead ? capNotice('<strong>留资表单未开启。</strong>测评会直接给出完整方案，不会收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}`)
+    `${capNotices('assessment')}${needsLead ? capNotice('<strong>「留资」未开启。</strong>测评会直接给出完整方案，不会收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资</button>') : ''}`)
 }
 
 function assessDemo() {
@@ -1509,7 +1519,7 @@ function renderLeadPopupDetail(cap) {
   return renderCapabilityWorkbench('cap-lead_popup', cap, p.enabled,
     `${valueBanner('proto', '用一份好资料，换一个联系方式', '访客在价格页、博客、案例页停留时，最关心的东西不一样。按页面送上对口的资料，比统一弹“留个电话”更自然；领了什么资料，也说明了对方在意什么。', '适合内容型获客：有白皮书、案例集、报价单、测算工具等可下载资料的 B2B 业务。', [['globe', '按页面匹配', '不同页面配置不同资料'], ['clock', '合适时机弹出', '停留、滚动或准备离开时'], ['download', '留资领取', '提交后下载 / 发邮箱 / 顾问发送']])}<div class="capability-sections">${rules}${freq}</div>`,
     renderCapabilityDebugPanel(cap, '切换页面看不同资料；可以直接填写提交，体验访客领取的完整过程。', `<div data-popup-root>${renderPopupPreview()}</div>`, { title: '官网效果预览', restart: false }),
-    `${capNotices('lead_popup')}${!d.actions.lead_capture.enabled ? capNotice('<strong>留资表单未开启。</strong>弹窗的表单字段沿用「留资表单」的设置，开启后才能收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资表单</button>') : ''}`)
+    `${capNotices('lead_popup')}${!d.actions.lead_capture.enabled ? capNotice('<strong>「留资」未开启。</strong>弹窗的表单字段沿用「留资」的设置，开启后才能收集联系方式。', '<button type="button" class="cfg-btn sm outline" data-cap-config="lead_capture">去开启留资</button>') : ''}`)
 }
 
 function popupDemo() {
@@ -1582,7 +1592,7 @@ function recommend(config, question, answer, asked, { fail = false } = {}) {
     if (Array.from(value).length > REC_MAX_CHARS) { dropped.push(value); continue }
     items.push(value)
   }
-  // 可以推荐引向已开启能力的说法，比如留资表单开着时推“我想预约演示”
+  // 可以推荐引向已开启能力的说法，比如「留资」开着时推“我想预约演示”
   const leadItem = '我想预约演示'
   if (C().actions.lead_capture.enabled && topic && !seen.has(leadItem)) { if (items.length >= max) items.pop(); items.push(leadItem) }
   return { items, dropped, reason: topic ? `AI 按当前话题（${topic.keywords[0]}）生成了 ${items.length} 条。` : '没有明确话题，按「每轮都给」给了通用的下一步问题。' }
@@ -1820,6 +1830,7 @@ function capLiveRefresh(target) {
   if (target.dataset.live === 'popup') refreshPopup()
   if (target.dataset.live === 'rec') refreshRec()
   if (target.dataset.demoSync) refreshDemo()
+  if (typeof mgLiveRefresh === 'function') mgLiveRefresh(target)
 }
 
 function capHandleChange(event) {
@@ -1982,6 +1993,7 @@ function capHandleClick(event) {
   if ((el = pick('[data-cap-config]'))) {
     saveCapabilityDebugSession(cfg.capDetail)
     cfg.capDetail = el.dataset.capConfig
+    state.agentSection = isAcquisitionCap(cfg.capDetail) ? 'acquisition' : 'capabilities'
     loadCapabilityDebugSession(cfg.capDetail)
     renderApp()
     return true
