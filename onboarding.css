@@ -157,47 +157,73 @@
 .ob-modal-note{font-size:11px;line-height:18px;color:var(--muted)}
 .ob-dialog:focus-visible{outline:none}
 
-/* —— 首次设置：占用工作台左侧的概览栏（宽 320–400px），右侧调试台随进度实时变化。 —— */
-.ob-setup-panel{display:flex;flex-direction:column;block-size:100%;padding:20px;overflow:auto;color:var(--ink)}
-#ob-setup-head h1{font-size:20px;line-height:30px;letter-spacing:-.2px;font-weight:600;margin:0 0 16px;color:var(--ink)}
-#ob-setup-head p{font-size:13px;line-height:20px;color:var(--muted);margin:-10px 0 16px}
-#ob-setup-head>*{animation:ob-rise 320ms var(--ob-ease) both}
+/* —— 首次设置：工作台上的一个弹窗。输入、读取、确认都在里面；读取时放动画、文案和读到的真实结果，确认后才生效。 —— */
+#ob-setup-card{inset-block-start:max(20px,4vh);margin-block:0 auto;padding:28px 28px 20px;border:1px solid var(--line);border-radius:16px;inline-size:min(460px,calc(100vw - 48px));max-block-size:calc(100dvh - 2 * max(20px,4vh));overflow:auto;overscroll-behavior:contain;background:var(--panel);color:var(--ink);box-shadow:0 24px 64px rgba(12,20,16,.24);font-family:inherit;opacity:0;transform:translateY(12px) scale(.98);transition:opacity 260ms var(--ob-ease),transform 260ms var(--ob-ease)}
+#ob-setup-card[open]{display:flex;flex-direction:column;opacity:1;transform:none}
+@starting-style{#ob-setup-card[open]{opacity:0;transform:translateY(12px) scale(.98)}}
+#ob-setup-card::backdrop{background:var(--ob-scrim)}
+/* 弹窗内使用产品的陶土色：只在这里覆盖品牌色变量，按钮、对号、进度线、刮刮卡都跟着变，工作台其余部分不受影响。 */
+#ob-setup-card{--brand:#c8561f;--brand-strong:#a9461a;--brand-soft:#fbede3;--ob-brand:#c8561f;--ob-brand-hover:#a9461a;--ob-brand-pressed:#a9461a;--ob-brand-subtle:#fbede3}
+#ob-setup-card:focus-visible{outline:none}
+/* 弹窗内容不被压扁：放不下时由弹窗自己滚动。 */
+#ob-setup-card>*{flex:none}
+#ob-setup-head h1{font-size:22px;line-height:32px;letter-spacing:-.3px;font-weight:600;margin:0 0 18px;color:var(--ink);animation:ob-rise 320ms var(--ob-ease) both}
 .ob-url-bar{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;padding:4px 6px 4px 12px;border:1px solid var(--line-strong);border-radius:12px;background:var(--panel);box-shadow:var(--shadow-sm);transition:background-color 200ms var(--ob-ease),border-color 200ms var(--ob-ease),box-shadow 200ms var(--ob-ease)}
 .ob-url-bar>.icon{width:16px;height:16px;color:var(--muted-2)}
-.ob-url-bar input{flex:1;min-inline-size:0;height:36px;padding:0;border:0;outline:0;background:transparent;font-size:13px;color:var(--ink);text-overflow:ellipsis}
+.ob-url-bar input{flex:1;min-inline-size:0;height:38px;padding:0;border:0;outline:0;background:transparent;font-size:14px;color:var(--ink);text-overflow:ellipsis}
 .ob-url-bar:focus-within{border-color:var(--brand)}
 .ob-url-bar .btn{flex:none}
-#ob-setup-submit{flex:1 0 100%;height:36px;margin:2px 0 4px -6px}
-.ob-url-bar [data-ob="edit-url"]{display:none;color:var(--muted)}
+#ob-setup-submit{flex:1 0 100%;height:40px;margin:2px 0 4px -6px;font-size:14px}
+.ob-url-bar [data-ob="cancel-read"]{display:none;color:var(--muted)}
 .ob-setup:is([data-step="reading"],[data-step="done"]) .ob-url-bar{background:var(--canvas);border-color:var(--line);box-shadow:none}
 .ob-setup:is([data-step="reading"],[data-step="done"]) .ob-url-bar input{color:var(--muted);cursor:default}
 .ob-setup:is([data-step="reading"],[data-step="done"]) #ob-setup-submit{display:none}
-.ob-setup:is([data-step="reading"],[data-step="done"]) .ob-url-bar [data-ob="edit-url"]{display:inline-flex}
-.ob-setup[data-step="failed"] .ob-url-bar{border-color:var(--red)}
-.ob-setup:is([data-step="reading"],[data-step="done"]) [data-ob="skip"]{display:none}
-/* 进度只有这一处：一条进度线加一句当前在做什么；其余状态下同一行用来放说明或错误。 */
-/* 进度只有这一条线；这一行另外只用来放输入校验的错误。 */
-.ob-setup-status{padding:10px 2px 14px}
+.ob-setup[data-step="reading"] .ob-url-bar [data-ob="cancel-read"]{display:inline-flex}
+#ob-setup-note{display:block;margin:8px 2px 0;font-size:12px;line-height:18px;color:var(--red)}
+#ob-setup-note:empty{display:none}
+/* 读取时的示意图：一个不可操作的迷你对话窗口，扫描线上下移动；读到的图标、名称、品牌色、常用问题依次填上。 */
+.ob-scene{position:relative;display:grid;place-items:center;margin-top:14px;padding:18px 14px;border-radius:12px;overflow:hidden;background:#f3f5f4;--ob-scene-color:#d5dad7;--ob-scene-on:var(--ink)}
+/* 背景是 WebGL 画的流动渐变；画不出来时保持透明，露出上面的浅灰底色。 */
+.ob-scene-shader{position:absolute;inset:0;inline-size:100%;block-size:100%;opacity:0;transition:opacity 600ms var(--ob-ease)}
+.ob-scene-shader[data-ready]{opacity:1}
+.ob-scene-widget{position:relative;z-index:1;inline-size:230px;border-radius:12px;overflow:hidden;background:var(--panel);box-shadow:0 0 0 2px rgba(255,255,255,.9),0 12px 32px rgba(12,20,16,.26)}
+.ob-scene-head{display:flex;align-items:center;gap:8px;block-size:36px;padding:0 12px;background:var(--ob-scene-color);transition:background-color 700ms var(--ob-ease)}
+.ob-scene-avatar{display:grid;place-items:center;flex:none;inline-size:24px;block-size:24px;border-radius:50% 50% 50% 4px;background:var(--panel);color:var(--ob-scene-text,var(--ob-scene-color));font-size:12px;font-weight:700;overflow:hidden;transition:color 700ms var(--ob-ease)}
+.ob-scene-avatar img{inline-size:100%;block-size:100%;padding:4px;object-fit:contain;animation:ob-pop 280ms var(--ob-ease) both}
+.ob-scene-name{min-inline-size:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px;line-height:18px;font-weight:600;color:var(--ob-scene-on);transition:color 700ms var(--ob-ease)}
+/* 品牌色来自用户的官网，可能是任何颜色：迷你窗口外有一圈白边（见上），标题文字按品牌色深浅取黑或白。 */
+.ob-scene-name:empty{inline-size:84px;block-size:8px;border-radius:4px;background:rgba(255,255,255,.7)}
+.ob-scene-name:not(:empty){animation:ob-rise 320ms var(--ob-ease) both}
+.ob-scene-body{display:flex;flex-direction:column;gap:6px;min-block-size:66px;padding:10px 12px}
+.ob-scene-body>i{display:block;block-size:8px;border-radius:4px;background:#e6eae7}
+.ob-scene-body>i:first-child{inline-size:78%}
+.ob-scene-body>i:nth-child(2){inline-size:52%}
+.ob-scene-quick{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.ob-scene-quick span{max-inline-size:100%;padding:2px 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:1px solid color-mix(in srgb,var(--ob-scene-text,var(--ob-scene-color)) 40%,transparent);border-radius:999px;font-size:10px;line-height:16px;color:var(--ob-scene-text,var(--ob-scene-color));animation:ob-rise 320ms var(--ob-ease) both}
+.ob-scene-quick span:nth-child(2){animation-delay:90ms}
+.ob-scene-quick span:nth-child(3){animation-delay:180ms}
+.ob-scene-scan{position:absolute;inset-inline:0;inset-block-start:0;block-size:36px;background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--brand) 16%,transparent));border-block-end:1.5px solid var(--brand);opacity:0;pointer-events:none}
+.ob-setup[data-step="reading"] .ob-scene-scan{opacity:1;animation:ob-scan 1.8s ease-in-out infinite alternate}
+/* 进度线下面这一句说正在做什么；读完后同一行提醒确认才生效。 */
+.ob-setup-status{display:none;padding:12px 2px 12px}
+.ob-setup[data-step="reading"] .ob-setup-status{display:block}
+.ob-setup[data-step="done"] .ob-findings{margin-top:14px}
 .ob-setup-status .ob-progress-track{opacity:0;transition:opacity 200ms var(--ob-ease)}
 .ob-setup-status .ob-progress-track i{transition:width 900ms linear}
 .ob-setup[data-step="reading"] .ob-setup-status .ob-progress-track{opacity:1}
-#ob-setup-note{display:block;margin-top:6px;font-size:12px;line-height:18px;color:var(--red)}
-#ob-setup-note:empty{display:none}
-.ob-findings-label{display:none;margin:0 2px 8px;font-size:12px;line-height:18px;color:var(--muted)}
-.ob-setup:is([data-step="website"],[data-step="failed"]) .ob-findings-label{display:block}
+#ob-setup-step{display:block;margin-top:8px;font-size:12px;line-height:18px;color:var(--muted)}
+.ob-findings-label{display:none;margin:18px 2px 8px;font-size:12px;line-height:18px;color:var(--muted)}
+.ob-setup[data-step="website"] .ob-findings-label{display:block}
 .ob-findings{list-style:none;margin:0;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
-.ob-findings>li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}
+.ob-findings>li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:start;padding:11px 0;border-bottom:1px solid var(--line)}
 .ob-findings>li:last-child{border-bottom:0}
 .ob-findings strong{display:block;font-size:13px;line-height:22px;font-weight:600;color:var(--ink)}
 .ob-findings p{margin:2px 0 0;font-size:12px;line-height:20px;color:var(--muted)}
-.ob-findings>li.pending strong{color:var(--muted);font-weight:500}
-.ob-findings>li.pending p{color:var(--muted-2)}
+.ob-findings>li:is(.pending,.active) strong{color:var(--muted);font-weight:500}
 .ob-mark{position:relative;display:grid;place-items:center;inline-size:28px;block-size:28px;border-radius:50%;background:var(--canvas);color:var(--muted-2)}
 .ob-mark .icon{width:14px;height:14px}
 .ob-findings>li.active .ob-mark{background:var(--brand-soft);color:var(--brand)}
 .ob-findings>li.active .ob-mark::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid transparent;border-top-color:var(--brand);animation:ob-spin 800ms linear infinite}
-.ob-findings>li.done .ob-mark{background:var(--ob-success-bg);color:var(--ob-success)}
-.ob-findings>li.done .ob-mark .icon{animation:ob-pop 280ms var(--ob-ease) both}
 /* 完成态对号：一条线从圆角方框流成对号。静止状态就是最终的对号，动画只负责出现过程，关闭动效时仍然显示对号。 */
 .ob-findings>li.done .ob-mark.ob-check{background:none;color:var(--brand)}
 .ob-check svg{inline-size:24px;block-size:24px;overflow:visible}
@@ -206,43 +232,45 @@
 .ob-find-body{align-self:center;min-inline-size:0}
 .ob-findings>li.done .ob-find-body{animation:ob-rise 320ms var(--ob-ease) both}
 .ob-findings .ob-color-swatch{inline-size:20px;block-size:20px;margin-top:4px;border-radius:50%;border-color:rgba(0,0,0,.08);animation:ob-pop 280ms var(--ob-ease) both}
-.ob-name-edit{display:flex;align-items:center;gap:8px;min-inline-size:0}
+.ob-who{display:flex;align-items:center;gap:8px;min-inline-size:0}
 .ob-site-icon{flex:none;inline-size:18px;block-size:18px;border-radius:4px;object-fit:contain;animation:ob-pop 280ms var(--ob-ease) both}
 /* 从官网读到的图标用作对话窗口头像时完整显示、四周留白，不像上传的头像那样铺满裁切。 */
 :is(.cfg-widget-avatar,.cfg-avatar-preview) img[src$="#site-icon"]{object-fit:contain;padding:8px}
-.ob-name-edit input{flex:0 1 auto;field-sizing:content;min-inline-size:2em;max-inline-size:100%;padding:0;border:0;border-bottom:1px dashed transparent;outline:0;background:transparent;font:inherit;font-size:13px;line-height:21px;font-weight:600;color:var(--ink)}
-@supports not (field-sizing:content){.ob-name-edit input{flex:1}}
-.ob-name-edit span{display:none;flex:none;font-size:11px;color:var(--muted-2)}
-.ob-setup[data-step="done"] .ob-name-edit input{border-bottom-color:var(--line-strong);cursor:text}
-.ob-setup[data-step="done"] .ob-name-edit input:is(:hover,:focus){border-bottom-color:var(--brand)}
-.ob-setup[data-step="done"] .ob-name-edit span{display:inline}
-.ob-pages{margin-top:2px;font-size:12px;line-height:20px}
-.ob-pages summary{display:inline-flex;align-items:center;gap:2px;color:var(--brand);cursor:pointer;list-style:none;border-radius:4px}
-.ob-pages summary::-webkit-details-marker{display:none}
-.ob-pages summary .icon{width:12px;height:12px;transition:transform 160ms var(--ob-ease)}
-.ob-pages[open] summary .icon{transform:rotate(180deg)}
-.ob-pages summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-.ob-pages ul{list-style:none;margin:6px 0 0;padding:0;color:var(--muted)}
-.ob-pages li{display:flex;align-items:center;gap:6px;block-size:24px}
-.ob-pages li .icon{width:12px;height:12px;color:var(--muted-2)}
-/* 读完后才出现的主操作：切到「对话窗口」开始试问。 */
-.ob-setup-actions{display:none;margin-top:14px}
-.ob-setup[data-step="done"] .ob-setup-actions{display:block;animation:ob-rise 320ms var(--ob-ease) both}
-.ob-setup-actions .btn{inline-size:100%;height:40px;font-size:14px}
-.ob-setup-panel[data-still],.ob-setup-panel[data-still] *{animation:none!important}
-.ob-setup-skip{align-self:center;margin-top:14px;padding:4px 8px;border:0;border-radius:6px;background:none;color:var(--muted-2);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
+/* 等待时的刮刮卡：读取中、第一行结果出来之后滑入；读完时没碰过就收起，已经动手刮了或者刮开了就留到确认页。 */
+.ob-scratch{display:none;position:relative;margin-top:12px}
+.ob-setup[data-step="reading"][data-wait] .ob-scratch,.ob-setup[data-step="done"] .ob-scratch:not([data-state="idle"]){display:block}
+/* 读完时刮刮卡还留着的话，上面的示意图让位，保证确认按钮和二维码都在一屏之内。 */
+.ob-setup[data-step="done"]:has(.ob-scratch:not([data-state="idle"])) .ob-scene{display:none}
+.ob-setup[data-step="reading"][data-wait] .ob-scratch{animation:ob-rise 420ms var(--ob-ease) both}
+.ob-scratch-card{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;block-size:118px;padding:13px 13px 13px 18px;border-radius:12px;background:var(--brand);color:#fdf1e0;box-shadow:inset 0 1px 0 rgba(253,241,224,.3),inset 0 0 0 1px rgba(253,241,224,.1),0 2px 3px rgba(12,20,16,.18),0 12px 20px -8px rgba(12,20,16,.32);user-select:none;-webkit-user-select:none;cursor:default;touch-action:pan-y}
+.ob-scratch[data-coin] .ob-scratch-card{cursor:none}
+.ob-scratch-copy{display:flex;flex-direction:column;min-inline-size:0}
+.ob-scratch-copy span{font-size:12px;line-height:18px;font-weight:600}
+.ob-scratch-copy strong{margin:2px 0 0 -2px;font-family:"Helvetica Neue","Arial Narrow","PingFang SC","Noto Sans SC",Impact,sans-serif;font-size:44px;line-height:48px;font-weight:900;letter-spacing:-.03em;white-space:nowrap}
+.ob-scratch-copy em{font-style:normal;font-size:13px;line-height:20px;color:color-mix(in srgb,var(--brand) 42%,#fdf1e0)}
+.ob-scratch-panel{position:relative;flex:none;inline-size:92px;block-size:92px;border-radius:8px;overflow:hidden;background:#faf4ec;touch-action:none}
+.ob-scratch-panel:focus{outline:none}
+.ob-scratch-panel[role="button"]:focus-visible{box-shadow:0 0 0 2px var(--brand),0 0 0 4px rgba(253,241,224,.95)}
+.ob-scratch-panel .ob-qr{inline-size:100%;block-size:100%;margin:0;padding:7px;border:0;border-radius:0}
+.ob-scratch-panel .ob-qr>span{padding:2px;border-width:2px;border-color:#faf4ec;border-radius:5px}
+.ob-scratch-panel .ob-qr>span .icon{width:12px;height:12px}
+.ob-scratch-foil{position:absolute;inset:0;inline-size:100%;block-size:100%;display:block}
+.ob-scratch-flakes{position:absolute;inset:0;inline-size:100%;block-size:100%;pointer-events:none}
+.ob-scratch-coin{position:absolute;inset-block-start:0;inset-inline-start:0;inline-size:36px;block-size:36px;opacity:0;visibility:hidden;pointer-events:none;will-change:transform,opacity;filter:drop-shadow(1px 2px 2px rgba(60,48,12,.42))}
+.ob-scratch-coin svg{display:block}
+.ob-scratch-hint{margin:8px 0 0;text-align:center;font-size:12px;line-height:18px;color:var(--muted)}
+.ob-scratch-hint:empty{display:none}
+/* 读完后的确认：主按钮让配置生效，下面是换一个网址。 */
+/* 放不下时内容区滚动，这一块吸在弹窗底部，确认按钮始终可见。 */
+.ob-setup-actions{display:none;flex-direction:column;position:sticky;inset-block-end:-20px;z-index:2;margin:4px -28px -20px;padding:14px 28px 20px;background:linear-gradient(to bottom,rgba(255,255,255,0),var(--panel) 14px)}
+.ob-setup[data-step="done"] .ob-setup-actions{display:flex}
+.ob-setup-actions .btn{inline-size:100%;height:42px;font-size:14px;font-weight:600;transition-property:background-color,border-color,box-shadow,transform}
+.ob-setup-skip{align-self:center;margin-top:12px;padding:4px 8px;border:0;border-radius:6px;background:none;color:var(--muted-2);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
 .ob-setup-skip:hover{color:var(--ink)}
-/* 右侧官网上的真实对话窗口：认出公司后弹出（带名称与欢迎语），随后染上主题色，读完出现常用问题。 */
-.website-chat-window[data-ob-stage] .cfg-widget :is(.cfg-widget-head,.cfg-widget-avatar,.cfg-widget-send){transition:background-color 700ms var(--ob-ease),color 700ms var(--ob-ease)}
-.website-chat-window[data-ob-stage="0"]{visibility:hidden}
-.website-chat-window[data-ob-stage="1"]{animation:ob-chat-pop 420ms var(--ob-ease) both}
-.website-chat-window[data-ob-stage="1"] .cfg-widget-msg.assistant{animation:ob-rise 360ms 280ms var(--ob-ease) both}
-.website-chat-window[data-ob-stage="3"] .cfg-widget-quick button{animation:ob-rise 320ms var(--ob-ease) both}
-.website-chat-window[data-ob-stage="3"] .cfg-widget-quick button:nth-child(2){animation-delay:90ms}
-.website-chat-window[data-ob-stage="3"] .cfg-widget-quick button:nth-child(3){animation-delay:180ms}
+.ob-setup:is([data-step="reading"],[data-step="done"]) [data-ob="skip"]{display:none}
 @keyframes ob-rise{from{opacity:0;transform:translateY(6px)}}
 @keyframes ob-pop{from{opacity:0;transform:scale(.5)}}
 @keyframes ob-spin{to{transform:rotate(360deg)}}
-@keyframes ob-chat-pop{from{opacity:0;transform:translateY(16px) scale(.96)}}
+@keyframes ob-scan{from{transform:translateY(-36px)}to{transform:translateY(102px)}}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:240ms}
-@media(prefers-reduced-motion:reduce){.ob-setup,.ob-setup *,.ob-setup *::after,.website-chat-window[data-ob-stage],.website-chat-window[data-ob-stage] *{animation:none!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.ob-setup,.ob-setup *,.ob-setup *::after{animation:none!important;transition:none!important}.ob-scene-scan{display:none}}
