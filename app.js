@@ -354,7 +354,7 @@ function isAgentOperationSection() {
 }
 
 function renderAgentTop() {
-  const cap = state.agentSection === 'capabilities' ? CAPABILITIES.find(item => item.id === cfg.capDetail) : null
+  const cap = ['capabilities', 'acquisition'].includes(state.agentSection) ? CAPABILITIES.find(item => item.id === cfg.capDetail) : null
   if (cap) return renderCapabilityTop(cap)
   return `<header class="editor-top"><div class="editor-context"><strong>AI 接待</strong>${renderCfgStatus()}</div>
     <div class="editor-actions cfg-editor-actions" id="cfg-actions">${renderCfgDraftActions()}</div></header>`

@@ -206,7 +206,6 @@ function renderMascotGuideDetail(cap) {
     </div>`
   return cfgPage('cap-mascot_guide', `<div class="capability-workbench mg-workbench">
     <section class="capability-workbench-main">
-      ${capHeader(cap, mgGuide().enabled)}
       <div class="capability-workbench-scroll" data-keep-scroll="cfg-cap-mascot_guide-scroll">
         <section class="cfg-body">${capIssueNotices('mascot_guide')}<div class="capability-sections" data-mg-main>${mgSections()}</div></section>
       </div>
