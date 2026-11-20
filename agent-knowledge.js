@@ -39,7 +39,7 @@ function kbSeedSources() {
       id: 1, type: 'file', name: '吸管Chat产品介绍.md', format: 'md', size: '12 KB', created: '11/11 14:16', status: 'ready', importAs: 'doc', tags: ['产品'],
       entries: [
         { id: 11, title: '产品概述', body: '吸管 Chat 是一款嵌入企业官网的 AI 智能客服与获客助手，基于企业自己的资料回答访客问题，并在合适的时机收集联系方式、转给人工。' },
-        { id: 12, title: '核心功能', body: '实时问答、留资表单、转人工、资料交付、推荐消息和主动弹窗。所有能力都可以在控制台按需开关。' },
+        { id: 12, title: '核心功能', body: '实时问答、留资、转人工、资料交付、推荐消息和主动弹窗。所有能力都可以在控制台按需开关。' },
         { id: 13, title: '知识库', body: '支持上传 TXT、Markdown、CSV、JSON、Word、Excel、PDF、HTML 文件，也可以抓取官网页面、直接写文本片段或配置 Q&A。' },
         { id: 14, title: '部署方式', body: '在官网 </body> 前粘贴一行 Widget 脚本即可上线，无需改动现有页面；支持设置允许嵌入的域名，防止脚本被盗用。' },
         { id: 15, title: '数据安全', body: '所有数据按工作区隔离存储，传输全程 HTTPS 加密；访客联系方式的查看会记录审计日志。' }

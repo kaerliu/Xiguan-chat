@@ -283,6 +283,7 @@ const agentNavItems = [
   ['overview','概览','spark'],
   ['prompt','角色与提示词','bot'],
   ['capabilities','能力','plug'],
+  ['acquisition','主动获客','megaphone'],
   ['knowledge','知识库','book'],
   ['appearance','外观','sliders'],
   ['channels','渠道','link']
@@ -330,6 +331,7 @@ function renderAgentSection() {
   if (state.agentSection === 'overview') return renderAgentOverview()
   if (state.agentSection === 'prompt') return renderPersonaConfig()
   if (state.agentSection === 'capabilities') return renderCapabilitiesConfig()
+  if (state.agentSection === 'acquisition') return renderAcquisitionConfig()
   if (state.agentSection === 'knowledge') return renderKnowledgeConfig()
   if (state.agentSection === 'channels') return renderChannels()
   return renderAppearanceConfig()
@@ -607,9 +609,9 @@ document.addEventListener('click', event => {
 
   const debugCap = event.target.closest('[data-debug-cap]')
   if (debugCap) {
-    state.agentSection = 'capabilities'
-    state.debugOpen = false
     cfg.capDetail = debugCap.dataset.debugCap
+    state.agentSection = isAcquisitionCap(cfg.capDetail) ? 'acquisition' : 'capabilities'
+    state.debugOpen = false
     loadCapabilityDebugSession(cfg.capDetail)
     return renderApp()
   }

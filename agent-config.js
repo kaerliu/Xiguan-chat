@@ -6,7 +6,7 @@
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]))
 
-const configSections = ['prompt', 'capabilities', 'knowledge', 'appearance']
+const configSections = ['prompt', 'capabilities', 'acquisition', 'knowledge', 'appearance']
 function isConfigSection() { return configSections.includes(state.agentSection) }
 
 // 指令模板（与参考文件内置模板一致）
@@ -164,7 +164,7 @@ function cfgDiffItems() {
     if (!paths.some(differs)) return
     const before = Boolean(cfgPick(online, paths[0])?.enabled)
     const after = Boolean(cfgPick(draft, paths[0])?.enabled)
-    items.push({ group: '能力', label: cap.name, detail: before !== after ? (after ? '关 → 开' : '开 → 关') : '配置有改动', paths })
+    items.push({ group: capInAcquisition(cap) ? '主动获客' : '能力', label: cap.name, detail: before !== after ? (after ? '关 → 开' : '开 → 关') : '配置有改动', paths })
   })
   apDiffItems(online.appearance, draft.appearance).forEach(item => items.push({ group: '外观', ...item }))
   if (differs(['retrieval'])) items.push({ group: '其他', label: '知识库检索设置', detail: '配置有改动', paths: [['retrieval']] })
@@ -218,7 +218,7 @@ function renderCfgDraftActions() {
 function renderCfgPublishModal() {
   if (!cfg.publishOpen) return ''
   const items = cfgDiffItems().map((item, index) => ({ ...item, index }))
-  const groups = ['提示词', '能力', '外观', '其他'].map(group => [group, items.filter(item => item.group === group)]).filter(([, list]) => list.length)
+  const groups = ['提示词', '能力', '主动获客', '外观', '其他'].map(group => [group, items.filter(item => item.group === group)]).filter(([, list]) => list.length)
   const first = !cfg.everPublished
   const body = first
     ? '<p class="cfg-publish-empty">这是第一次发布，整份配置一起上线。</p>'
@@ -506,6 +506,7 @@ function handleConfigChange(event) {
   const target = event.target
   if (target.matches('[data-upload]')) { handleUpload(target); return }
   if (apHandleChange(event)) return
+  if (typeof mgHandleChange === 'function' && mgHandleChange(event)) return
   if (capHandleChange(event)) return
   if (target.matches('[data-tb-validate]')) { renderApp(); return }
   if (target.matches('[data-cfg-color]')) return applyCfgColor(target.dataset.cfgColor, target.value, { rerender: true })
@@ -543,6 +544,7 @@ function handleConfigClick(event) {
   const pick = selector => event.target.closest(selector)
   let el
   if (tbHandleClick(event)) return true
+  if (typeof mgHandleClick === 'function' && mgHandleClick(event)) return true
   if ((el = pick('[data-cfg-publish-drop]'))) { cfgDropDiff(Number(el.dataset.cfgPublishDrop)); renderApp(); return true }
   if (event.target.matches('[data-cfg-publish-backdrop]')) { cfg.publishOpen = false; renderApp(); return true }
 

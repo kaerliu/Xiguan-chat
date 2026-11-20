@@ -2673,3 +2673,31 @@ button.xg-powered { font: inherit; background: none; border: 0; cursor: pointer;
 .cfg-toggle:has(input:disabled) { cursor: default; }
 .cfg-toggle:has(input:disabled) .cfg-toggle-control i { opacity: .55; }
 .cfg-toggle strong .cfg-badge { height: 18px; margin-left: 6px; padding: 0 6px; font-size: 11px; font-weight: 500; vertical-align: 1px; }
+
+/* ---------- 主动获客 · 形象引导（agent-acquisition.js）：左边配置收窄，右边预览加宽 ---------- */
+.capability-workbench.mg-workbench { grid-template-columns: minmax(460px, 520px) minmax(0, 1fr); }
+.mg-preview { display: grid; gap: 10px; align-content: start; }
+.mg-frame { display: block; width: 100%; height: 420px; border: 0; background: transparent; }
+.mg-mascot-row { display: flex; align-items: center; gap: 12px; }
+.mg-mascot-row img { flex: none; width: auto; height: 56px; max-width: 56px; object-fit: contain; }
+.mg-mascot-row > div { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.mg-mascot-row strong { color: var(--console-text-strong); font-size: 13px; font-weight: 600; }
+.mg-mascot-row small { color: var(--console-muted); font-size: 12px; }
+.mg-workbench .capability-section-body > .cfg-notice { margin-top: 10px; }
+.mg-rule-summary { margin: 0; overflow: hidden; color: var(--console-muted); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.mg-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mg-tools small { color: var(--console-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.proto-item[data-mg-focus]:not(.is-active) { cursor: pointer; }
+/* 右边预览正在演的那条规则 */
+.proto-item.is-live { box-shadow: inset 3px 0 0 #f27a1a; }
+.proto-item.is-active.is-live { box-shadow: inset 3px 0 0 #f27a1a, 0 0 0 3px #1e5b4b14; }
+
+/* 主动获客 · 形象引导：官网页面一节 */
+.mg-url-row { display: flex; gap: 8px; }
+.mg-url-row input { flex: 1; min-width: 0; }
+.mg-url-row .cfg-btn { flex: none; }
+.mg-page-state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--console-muted); font-size: 12px; line-height: 1.6; }
+.mg-page-state strong { flex-basis: 100%; color: var(--console-text-strong); font-size: 13px; font-weight: 600; }
+.mg-block-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid var(--console-border, #e3e7ee); border-radius: 6px; color: var(--console-text-strong); background: #fff; }
+.mg-block-chip i { color: var(--console-muted); font-style: normal; font-size: 11px; }
+.mg-page-actions { display: flex; gap: 8px; margin-top: 12px; }
