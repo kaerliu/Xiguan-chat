@@ -1,0 +1,248 @@
+/* 取值来自 xg-design/references/tokens.md。原型为原生 CSS，复用语义 token。 */
+/* 只定义 onboarding 自身变量，工作台和访客组件直接使用原仓库样式。 */
+:root {
+  --ob-brand:var(--brand); --ob-brand-hover:var(--brand-strong); --ob-brand-pressed:var(--brand-strong); --ob-brand-subtle:var(--brand-soft);
+  --ob-base:var(--panel); --ob-lightest:var(--panel-soft); --ob-subtle:var(--canvas); --ob-canvas:var(--canvas);
+  --ob-ink:var(--ink); --ob-secondary:var(--muted); --ob-placeholder:var(--muted-2);
+  --ob-border:var(--line-strong); --ob-border-subtle:var(--line); --ob-success:#197a43; --ob-success-bg:#edf8f0;
+  --ob-scrim:rgba(12,20,16,.32); --ob-shadow:var(--shadow-sm); --ob-shadow-upper:var(--shadow-md); --ob-ease:cubic-bezier(.2,0,0,1);
+}
+.ob-btn {border:1px solid var(--ob-border);border-radius:8px;min-height:36px;padding:0 16px;background:var(--ob-base);display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;font-size:12px;font-weight:500;white-space:nowrap;transition:background 120ms var(--ob-ease),border-color 120ms var(--ob-ease);text-decoration:none}
+.ob-btn:hover {background:var(--ob-subtle)}
+.ob-btn:active {background:var(--ob-canvas)}
+.ob-btn.primary {background:var(--ob-brand);border-color:var(--ob-brand);color:var(--ob-base)}
+.ob-btn.primary:hover {background:var(--ob-brand-hover);border-color:var(--ob-brand-hover)}
+.ob-btn.primary:active {background:var(--ob-brand-pressed)}
+.ob-btn.quiet {background:transparent;border-color:transparent;color:var(--ob-secondary);padding:0 10px}
+.ob-btn.square {width:32px;min-height:32px;padding:0}
+.ob-btn:disabled {cursor:default;background:var(--ob-canvas);color:var(--ob-placeholder);border-color:var(--ob-border)}
+.ob-btn:focus-visible, [data-ob]:focus-visible {outline:2px solid var(--ob-brand);outline-offset:3px}
+.ob-logo {display:inline-grid;place-items:center;width:32px;height:32px;background:var(--ob-ink);color:var(--ob-base);border-radius:8px;flex-shrink:0}
+.ob-logo .icon {width:22px;height:22px;stroke:var(--ob-base)}
+.ob-wordmark {display:flex;gap:10px;align-items:center;color:var(--ob-ink);text-decoration:none;font-size:16px}
+.ob-wordmark strong,.ob-dialog-brand strong {font-weight:600}
+.ob-wordmark strong span,.ob-dialog-brand strong span {font-weight:400}
+.ob-landing {min-height:100vh;background:var(--ob-lightest);color:var(--ob-ink)}
+.ob-site-header {height:88px;max-width:1400px;margin:auto;padding:0 64px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.ob-site-header nav {display:flex;align-items:center;gap:12px;font-size:12px}
+.ob-site-header nav>span {color:var(--ob-secondary);margin-right:24px}
+.ob-hero {max-width:1400px;margin:auto;padding:64px 64px 80px;display:grid;grid-template-columns:1.05fr 1fr;gap:64px;align-items:center;min-height:calc(100vh - 220px)}
+.ob-kicker {display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ob-secondary);line-height:18px}
+.ob-kicker i,.ob-art-label i {width:6px;height:6px;border-radius:50%;background:var(--ob-brand)}
+.ob-hero h1 {font-size:clamp(32px,3.6vw,52px);font-weight:600;line-height:1.4;letter-spacing:-1.8px;margin:24px 0}
+.ob-hero h1 span {color:var(--ob-brand)}
+.ob-hero-copy>p {font-size:16px;line-height:28px;color:var(--ob-secondary);margin:0 0 40px}
+.ob-entry-form {padding:16px;border:1px solid var(--ob-border);border-radius:12px;background:var(--ob-base);box-shadow:var(--ob-shadow);max-width:600px}
+.ob-entry-form label {display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ob-secondary);margin-bottom:12px}
+.ob-entry-form label .icon {width:14px;height:14px}
+.ob-entry-form>div {display:flex;gap:8px}
+.ob-entry-form input {width:100%;min-width:0;border:none;background:transparent;outline:none;font-size:14px;color:var(--ob-ink)}
+.ob-entry-form:focus-within {border-color:var(--ob-brand)}
+.ob-entry-form .primary {min-height:40px;padding:0 12px}
+.ob-entry-form small:empty {display:none}
+.ob-entry-form small {display:block;color:var(--red);font-size:12px;margin-top:8px}
+.ob-hero-notes {display:flex;gap:24px;margin-top:20px;color:var(--ob-secondary);font-size:12px}
+.ob-hero-notes span {display:flex;align-items:center;gap:6px}
+.ob-hero-notes .icon {width:14px;height:14px;color:var(--ob-brand)}
+.ob-hero-art {min-width:0;padding-top:16px}
+.ob-art-label {display:flex;align-items:center;gap:8px;color:var(--ob-secondary);font-size:12px;margin-bottom:16px}
+.ob-art-browser {position:relative;border:1px solid var(--ob-border);border-radius:12px;background:var(--ob-base);height:400px;margin-right:32px;box-shadow:var(--ob-shadow-upper)}
+.ob-browser-bar {height:40px;display:flex;align-items:center;gap:5px;border-bottom:1px solid var(--ob-border-subtle);padding:0 12px;background:var(--ob-lightest);border-radius:12px 12px 0 0}
+.ob-browser-bar>i {width:6px;height:6px;background:var(--ob-border);border-radius:50%}
+.ob-browser-bar>span {flex:1;min-width:0;text-align:center;font-size:11px;color:var(--ob-placeholder);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-browser-bar .icon {width:14px;height:14px;color:var(--ob-placeholder)}
+.ob-art-site {padding:24px;overflow:hidden;height:calc(100% - 40px);background:var(--ob-subtle);border-radius:0 0 12px 12px}
+.ob-art-nav {display:flex;align-items:center;justify-content:space-between;font-size:11px;white-space:nowrap;color:var(--ob-placeholder)}
+.ob-art-nav b {font-weight:600;color:var(--ob-secondary);letter-spacing:1px}
+.ob-art-title {font-size:24px;line-height:36px;font-weight:600;margin:44px 0 20px}
+.ob-art-line {height:6px;width:160px;border-radius:4px;background:var(--ob-border);margin:10px 0}
+.ob-art-line.short {width:116px}
+.ob-art-blocks {display:flex;gap:12px;margin-top:32px}
+.ob-art-blocks i {height:72px;flex:1;background:var(--ob-base);border:1px solid var(--ob-border-subtle);border-radius:8px}
+.ob-art-chat {position:absolute;width:280px;right:-32px;top:104px;padding:16px;background:var(--ob-base);border:1px solid var(--ob-border);border-radius:16px;box-shadow:var(--ob-shadow-upper)}
+.ob-art-chat-head {display:flex;align-items:center;gap:8px;margin-bottom:20px;font-size:12px}
+.ob-art-chat-head b {font-weight:600}.ob-art-chat-head small {display:block;color:var(--ob-secondary);font-size:11px;margin-top:4px}
+.ob-art-chat-head small i {display:inline-block;background:var(--ob-success);width:5px;height:5px;border-radius:50%;margin-right:4px}
+.ob-art-bubble {background:var(--ob-subtle);border-radius:4px 12px 12px 12px;font-size:12px;line-height:20px;padding:12px;color:var(--ob-secondary);margin-bottom:12px}
+.ob-art-question {background:var(--ob-brand-subtle);color:var(--ob-brand-pressed);border-radius:12px 4px 12px 12px;font-size:12px;padding:10px;margin:0 0 12px 56px}
+.ob-art-compose {margin-top:20px;display:flex;align-items:center;justify-content:space-between;color:var(--ob-placeholder);font-size:12px;border:1px solid var(--ob-border);border-radius:8px;padding:8px}
+.ob-art-compose span {display:grid;place-items:center;background:var(--ob-brand);color:var(--ob-base);width:24px;height:24px;border-radius:6px}
+.ob-art-caption {font-size:12px;text-align:center;color:var(--ob-placeholder);margin-top:56px}
+.ob-landing-footer {max-width:1272px;margin:auto;border-top:1px solid var(--ob-border-subtle);padding:24px 0;display:flex;gap:24px;justify-content:space-between;align-items:center;font-size:12px;color:var(--ob-placeholder)}
+.ob-landing-footer>div {display:flex;gap:20px;align-items:center}.ob-landing-footer i {width:32px;height:1px;background:var(--ob-border)}
+.ob-dialog {padding:32px;border:1px solid var(--ob-border);border-radius:16px;width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;background:var(--ob-base);color:var(--ob-ink);box-shadow:var(--ob-shadow-upper);opacity:0;transition-property:opacity,display,overlay;transition-duration:180ms;transition-behavior:allow-discrete}
+.ob-dialog[open] {opacity:1}
+@starting-style {.ob-dialog[open] {opacity:0}}
+.ob-dialog:modal {overscroll-behavior:contain}
+.ob-dialog::backdrop {background:var(--ob-scrim);overflow:hidden;overscroll-behavior:contain;transition-property:background-color,display,overlay;transition-duration:180ms;transition-behavior:allow-discrete}
+.ob-dialog-brand {display:flex;gap:8px;align-items:center;font-size:14px}
+.ob-dialog-brand .ob-logo {width:28px;height:28px}.ob-dialog-brand .icon {width:20px;height:20px}
+.ob-dialog-close {position:absolute;right:16px;top:16px;display:grid;place-items:center;border:0;background:transparent;width:28px;height:28px;cursor:pointer;color:var(--ob-secondary);border-radius:6px}
+.ob-dialog-close:hover {background:var(--ob-subtle)}
+.ob-dialog h2 {font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.5px;margin:0 0 12px}
+.ob-dialog p {font-size:14px;line-height:24px;color:var(--ob-secondary);margin:0 0 24px}
+.ob-dialog-login {width:400px;text-align:center;padding:32px}
+.ob-login-copy {margin-top:32px}.ob-dialog-login h2 {font-size:20px;line-height:28px}
+.ob-dialog-login .ob-dialog-brand {justify-content:center}
+.ob-qr {width:192px;height:192px;padding:12px;border:1px solid var(--ob-border);border-radius:12px;margin:0 auto;position:relative}
+.ob-qr>svg {width:100%;height:100%;fill:var(--ob-ink)}
+.ob-qr>span {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:6px;border:4px solid var(--ob-base);background:var(--ob-brand);color:var(--ob-base);border-radius:8px;display:grid;place-items:center}
+.ob-qr-caption {font-size:12px;color:var(--ob-secondary);margin:12px 0 24px}
+.ob-carried-url {padding:12px;background:var(--ob-subtle);border:1px solid var(--ob-border-subtle);border-radius:8px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ob-secondary);text-align:left}
+.ob-carried-url span {flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-carried-url .icon:last-child {color:var(--ob-success);width:14px}
+.ob-dialog .ob-dialog-note {font-size:12px;line-height:20px;margin:12px 0 0;color:var(--ob-placeholder)}
+.ob-demo-auth {margin-top:20px;font-size:12px}
+.ob-dialog-step {display:flex;justify-content:space-between;font-size:12px;color:var(--ob-secondary);border-top:1px solid var(--ob-border-subtle);padding-top:24px;margin-top:24px}
+.ob-dialog-step span {color:var(--ob-placeholder)}
+.ob-dialog-icon {width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:var(--ob-brand-subtle);color:var(--ob-brand);margin:24px 0}
+.ob-dialog-icon .icon {width:24px;height:24px}
+.ob-dialog label {display:block;font-size:12px;font-weight:600;margin-bottom:8px}
+.ob-dialog input {height:48px;border:1px solid var(--ob-border);border-radius:8px;padding:0 12px;font-size:14px;outline:none;width:100%;color:var(--ob-ink);background:var(--ob-base)}
+.ob-dialog input:focus {border-color:var(--ob-brand)}
+.ob-progress-track {height:4px;border-radius:4px;background:var(--ob-canvas);overflow:hidden}.ob-progress-track i {display:block;height:100%;background:var(--ob-brand);border-radius:4px;transition:width 220ms var(--ob-ease)}
+.ob-color-swatch {width:16px;height:16px;border-radius:4px;background:var(--ob-site-color);border:1px solid var(--ob-border)}
+
+/* onboarding 只增加状态与操作，不改变上游控制台的布局、颜色和组件。 */
+.ob-debug-actions{display:flex;align-items:center;justify-self:end;gap:6px;min-inline-size:0}
+.ob-debug-actions .cfg-btn{gap:5px;font-size:12px}
+.ob-debug-actions .cfg-icon-btn{width:28px;height:28px;color:var(--muted)}
+.ob-site-hint{position:absolute;inset-inline-start:16px;inset-block-end:16px;z-index:3;max-inline-size:220px;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;background:var(--panel);padding:6px 9px;border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow-sm)}
+.ob-site-hint[hidden]{display:none}
+.ob-site-hint button{padding:0;color:var(--muted);font:inherit;background:none;border:0;cursor:pointer}
+.ob-site-hint button:hover{color:var(--brand)}
+.ob-unavailable{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;block-size:100%;padding:32px;color:var(--muted);background:var(--canvas);text-align:center}
+.ob-unavailable>.icon{width:32px;height:32px;color:var(--muted-2)}
+.ob-unavailable h3{margin:0;font-size:14px;font-weight:600;color:var(--ink)}
+.ob-unavailable p{font-size:12px;line-height:20px;margin:0;max-width:320px}
+.ob-unavailable>div{display:flex;gap:8px;margin-top:8px}
+.ob-unavailable a{text-decoration:none}
+.ob-expanded .agent-layout.overview-section>.preview-pane{position:fixed;inset:16px;z-index:80;grid-area:auto;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-md)}
+.ob-entry-preview{min-inline-size:0;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm);background:#f3f5f4;padding:16px 24px 24px}
+.ob-entry-preview-label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:16px}
+.ob-entry-preview-label>.icon{width:14px;height:14px}.ob-entry-preview-label>span{margin-inline-start:auto;color:var(--muted-2);font-size:11px}
+.ob-entry-widget{width:min(380px,100%);height:480px;margin:auto}.ob-entry-widget>.cfg-widget{height:100%;width:100%}
+.ob-entry-footer{max-inline-size:1272px;margin:auto;padding:24px 32px;border-top:1px solid var(--line);text-align:center;color:var(--muted-2);font-size:12px}
+.ob-hero{min-block-size:calc(100dvh - 156px);gap:80px;padding-block:40px}
+.ob-hero h1{font-size:38px;line-height:1.5;letter-spacing:-1px;color:var(--ink)}
+.ob-hero-copy>p{font-size:14px;line-height:26px}
+.ob-entry-form>div{align-items:center;gap:12px}
+.ob-entry-form input{height:36px}
+.ob-entry-form .btn{flex:none}
+.ob-dialog{padding:0;border:1px solid var(--line);border-radius:12px;width:min(560px,calc(100vw - 40px));box-shadow:var(--shadow-md);font-family:inherit}
+.ob-dialog .modal-head{padding:24px 24px 16px;border-bottom:1px solid var(--line)}
+.ob-dialog .modal-body{padding:20px 24px 24px}
+.ob-dialog .modal-foot{padding:16px 24px;background:var(--panel-soft)}
+.ob-dialog h2{font-size:20px;line-height:28px;letter-spacing:0;margin:0 0 6px}
+.ob-dialog .modal-head p{font-size:12px;line-height:20px;margin:0;color:var(--muted)}
+.ob-dialog p{font-size:12px;line-height:20px}
+.ob-dialog label{font-size:12px;font-weight:600}
+.ob-dialog input{height:36px;border:1px solid var(--line-strong);border-radius:6px;font-size:13px;padding:0 11px}
+.ob-dialog-login{width:400px;text-align:center}
+.ob-dialog-login .modal-head{display:block;border:0;padding-bottom:0}
+.ob-dialog-login .modal-head p{margin-top:8px}
+.ob-dialog-login .modal-body{padding-top:24px}
+.ob-dialog-login .modal-foot{justify-content:center;background:var(--panel);padding:12px 24px}
+.ob-dialog-login .ob-qr{width:180px;height:180px;border-radius:8px}
+.ob-dialog-login .ob-qr-caption{margin-bottom:20px}
+.ob-dialog-login .ob-dialog-brand{justify-content:center;margin-bottom:24px}
+.ob-dialog-login .ob-demo-auth{margin:0;font-size:12px}
+.ob-share-permission{display:flex;align-items:center;gap:8px;padding:12px;border:1px solid var(--line);border-radius:8px;font-size:12px;color:var(--muted);background:var(--panel-soft);margin:0 0 20px}
+.ob-share-permission>.icon{color:var(--brand);width:14px;height:14px}.ob-share-permission>span{margin-inline-start:auto;font-size:11px;color:var(--muted-2)}
+.ob-share-input{display:flex;gap:8px}.ob-share-input input{min-inline-size:0;flex:1;font-size:12px}.ob-share-input>.btn{flex:none}
+.ob-share-open{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--brand);margin-top:14px;text-decoration:none}.ob-share-open>.icon{width:12px;height:12px}
+.ob-shared{min-height:100vh;background:var(--canvas)}.ob-shared>section{width:min(420px,calc(100% - 40px));margin:20px auto}.ob-shared h1{font-size:20px;margin:12px 0}.ob-shared p{font-size:13px;color:var(--muted)}.ob-shared .cfg-widget-root{width:100%;height:600px;margin:24px auto 16px}.ob-shared .cfg-widget{height:100%;width:100%}.ob-shared section>small{color:var(--muted-2);font-size:11px}
+@media(max-width:1350px){.ob-hero{gap:40px;padding-inline:48px}.ob-hero h1{font-size:32px}.ob-debug-actions .cfg-btn{padding-inline:6px}.ob-entry-preview{padding-inline:16px}}
+@media(prefers-reduced-motion:reduce){.ob-dialog{transition-duration:120ms}.ob-progress-track i{transition:none}}
+.ob-modal-note{font-size:11px;line-height:18px;color:var(--muted)}
+.ob-dialog:focus-visible{outline:none}
+
+/* —— 首次设置：占用工作台左侧的概览栏（宽 320–400px），右侧调试台随进度实时变化。 —— */
+.ob-setup-panel{display:flex;flex-direction:column;block-size:100%;padding:20px;overflow:auto;color:var(--ink)}
+#ob-setup-head h1{font-size:20px;line-height:30px;letter-spacing:-.2px;font-weight:600;margin:0 0 16px;color:var(--ink)}
+#ob-setup-head p{font-size:13px;line-height:20px;color:var(--muted);margin:-10px 0 16px}
+#ob-setup-head>*{animation:ob-rise 320ms var(--ob-ease) both}
+.ob-url-bar{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;padding:4px 6px 4px 12px;border:1px solid var(--line-strong);border-radius:12px;background:var(--panel);box-shadow:var(--shadow-sm);transition:background-color 200ms var(--ob-ease),border-color 200ms var(--ob-ease),box-shadow 200ms var(--ob-ease)}
+.ob-url-bar>.icon{width:16px;height:16px;color:var(--muted-2)}
+.ob-url-bar input{flex:1;min-inline-size:0;height:36px;padding:0;border:0;outline:0;background:transparent;font-size:13px;color:var(--ink);text-overflow:ellipsis}
+.ob-url-bar:focus-within{border-color:var(--brand)}
+.ob-url-bar .btn{flex:none}
+#ob-setup-submit{flex:1 0 100%;height:36px;margin:2px 0 4px -6px}
+.ob-url-bar [data-ob="edit-url"]{display:none;color:var(--muted)}
+.ob-setup:is([data-step="reading"],[data-step="done"]) .ob-url-bar{background:var(--canvas);border-color:var(--line);box-shadow:none}
+.ob-setup:is([data-step="reading"],[data-step="done"]) .ob-url-bar input{color:var(--muted);cursor:default}
+.ob-setup:is([data-step="reading"],[data-step="done"]) #ob-setup-submit{display:none}
+.ob-setup:is([data-step="reading"],[data-step="done"]) .ob-url-bar [data-ob="edit-url"]{display:inline-flex}
+.ob-setup[data-step="failed"] .ob-url-bar{border-color:var(--red)}
+.ob-setup:is([data-step="reading"],[data-step="done"]) [data-ob="skip"]{display:none}
+/* 进度只有这一处：一条进度线加一句当前在做什么；其余状态下同一行用来放说明或错误。 */
+/* 进度只有这一条线；这一行另外只用来放输入校验的错误。 */
+.ob-setup-status{padding:10px 2px 14px}
+.ob-setup-status .ob-progress-track{opacity:0;transition:opacity 200ms var(--ob-ease)}
+.ob-setup-status .ob-progress-track i{transition:width 900ms linear}
+.ob-setup[data-step="reading"] .ob-setup-status .ob-progress-track{opacity:1}
+#ob-setup-note{display:block;margin-top:6px;font-size:12px;line-height:18px;color:var(--red)}
+#ob-setup-note:empty{display:none}
+.ob-findings-label{display:none;margin:0 2px 8px;font-size:12px;line-height:18px;color:var(--muted)}
+.ob-setup:is([data-step="website"],[data-step="failed"]) .ob-findings-label{display:block}
+.ob-findings{list-style:none;margin:0;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.ob-findings>li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}
+.ob-findings>li:last-child{border-bottom:0}
+.ob-findings strong{display:block;font-size:13px;line-height:22px;font-weight:600;color:var(--ink)}
+.ob-findings p{margin:2px 0 0;font-size:12px;line-height:20px;color:var(--muted)}
+.ob-findings>li.pending strong{color:var(--muted);font-weight:500}
+.ob-findings>li.pending p{color:var(--muted-2)}
+.ob-mark{position:relative;display:grid;place-items:center;inline-size:28px;block-size:28px;border-radius:50%;background:var(--canvas);color:var(--muted-2)}
+.ob-mark .icon{width:14px;height:14px}
+.ob-findings>li.active .ob-mark{background:var(--brand-soft);color:var(--brand)}
+.ob-findings>li.active .ob-mark::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid transparent;border-top-color:var(--brand);animation:ob-spin 800ms linear infinite}
+.ob-findings>li.done .ob-mark{background:var(--ob-success-bg);color:var(--ob-success)}
+.ob-findings>li.done .ob-mark .icon{animation:ob-pop 280ms var(--ob-ease) both}
+/* 完成态对号：一条线从圆角方框流成对号。静止状态就是最终的对号，动画只负责出现过程，关闭动效时仍然显示对号。 */
+.ob-findings>li.done .ob-mark.ob-check{background:none;color:var(--brand)}
+.ob-check svg{inline-size:24px;block-size:24px;overflow:visible}
+.ob-check path{stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-dasharray:150;stroke-dashoffset:-134;animation:ob-check-flow 1s ease-in-out both}
+@keyframes ob-check-flow{from{stroke-dasharray:132;stroke-dashoffset:0}}
+.ob-find-body{align-self:center;min-inline-size:0}
+.ob-findings>li.done .ob-find-body{animation:ob-rise 320ms var(--ob-ease) both}
+.ob-findings .ob-color-swatch{inline-size:20px;block-size:20px;margin-top:4px;border-radius:50%;border-color:rgba(0,0,0,.08);animation:ob-pop 280ms var(--ob-ease) both}
+.ob-name-edit{display:flex;align-items:center;gap:8px;min-inline-size:0}
+.ob-site-icon{flex:none;inline-size:18px;block-size:18px;border-radius:4px;object-fit:contain;animation:ob-pop 280ms var(--ob-ease) both}
+/* 从官网读到的图标用作对话窗口头像时完整显示、四周留白，不像上传的头像那样铺满裁切。 */
+:is(.cfg-widget-avatar,.cfg-avatar-preview) img[src$="#site-icon"]{object-fit:contain;padding:8px}
+.ob-name-edit input{flex:0 1 auto;field-sizing:content;min-inline-size:2em;max-inline-size:100%;padding:0;border:0;border-bottom:1px dashed transparent;outline:0;background:transparent;font:inherit;font-size:13px;line-height:21px;font-weight:600;color:var(--ink)}
+@supports not (field-sizing:content){.ob-name-edit input{flex:1}}
+.ob-name-edit span{display:none;flex:none;font-size:11px;color:var(--muted-2)}
+.ob-setup[data-step="done"] .ob-name-edit input{border-bottom-color:var(--line-strong);cursor:text}
+.ob-setup[data-step="done"] .ob-name-edit input:is(:hover,:focus){border-bottom-color:var(--brand)}
+.ob-setup[data-step="done"] .ob-name-edit span{display:inline}
+.ob-pages{margin-top:2px;font-size:12px;line-height:20px}
+.ob-pages summary{display:inline-flex;align-items:center;gap:2px;color:var(--brand);cursor:pointer;list-style:none;border-radius:4px}
+.ob-pages summary::-webkit-details-marker{display:none}
+.ob-pages summary .icon{width:12px;height:12px;transition:transform 160ms var(--ob-ease)}
+.ob-pages[open] summary .icon{transform:rotate(180deg)}
+.ob-pages summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.ob-pages ul{list-style:none;margin:6px 0 0;padding:0;color:var(--muted)}
+.ob-pages li{display:flex;align-items:center;gap:6px;block-size:24px}
+.ob-pages li .icon{width:12px;height:12px;color:var(--muted-2)}
+/* 读完后才出现的主操作：切到「对话窗口」开始试问。 */
+.ob-setup-actions{display:none;margin-top:14px}
+.ob-setup[data-step="done"] .ob-setup-actions{display:block;animation:ob-rise 320ms var(--ob-ease) both}
+.ob-setup-actions .btn{inline-size:100%;height:40px;font-size:14px}
+.ob-setup-panel[data-still],.ob-setup-panel[data-still] *{animation:none!important}
+.ob-setup-skip{align-self:center;margin-top:14px;padding:4px 8px;border:0;border-radius:6px;background:none;color:var(--muted-2);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
+.ob-setup-skip:hover{color:var(--ink)}
+/* 右侧官网上的真实对话窗口：认出公司后弹出（带名称与欢迎语），随后染上主题色，读完出现常用问题。 */
+.website-chat-window[data-ob-stage] .cfg-widget :is(.cfg-widget-head,.cfg-widget-avatar,.cfg-widget-send){transition:background-color 700ms var(--ob-ease),color 700ms var(--ob-ease)}
+.website-chat-window[data-ob-stage="0"]{visibility:hidden}
+.website-chat-window[data-ob-stage="1"]{animation:ob-chat-pop 420ms var(--ob-ease) both}
+.website-chat-window[data-ob-stage="1"] .cfg-widget-msg.assistant{animation:ob-rise 360ms 280ms var(--ob-ease) both}
+.website-chat-window[data-ob-stage="3"] .cfg-widget-quick button{animation:ob-rise 320ms var(--ob-ease) both}
+.website-chat-window[data-ob-stage="3"] .cfg-widget-quick button:nth-child(2){animation-delay:90ms}
+.website-chat-window[data-ob-stage="3"] .cfg-widget-quick button:nth-child(3){animation-delay:180ms}
+@keyframes ob-rise{from{opacity:0;transform:translateY(6px)}}
+@keyframes ob-pop{from{opacity:0;transform:scale(.5)}}
+@keyframes ob-spin{to{transform:rotate(360deg)}}
+@keyframes ob-chat-pop{from{opacity:0;transform:translateY(16px) scale(.96)}}
+::view-transition-old(root),::view-transition-new(root){animation-duration:240ms}
+@media(prefers-reduced-motion:reduce){.ob-setup,.ob-setup *,.ob-setup *::after,.website-chat-window[data-ob-stage],.website-chat-window[data-ob-stage] *{animation:none!important;transition:none!important}}
