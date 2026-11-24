@@ -6,7 +6,9 @@
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]))
 
-const configSections = ['prompt', 'capabilities', 'acquisition', 'knowledge', 'appearance']
+const configSections = ['prompt', 'capabilities', 'acquisition', 'knowledge', 'appearance', 'notifications']
+/** 自己带保存按钮的页面：顶栏不显示「保存草稿 / 放弃改动」和「有未保存的改动」。 */
+const pageSaveSections = ['appearance', 'channels', 'notifications']
 function isConfigSection() { return configSections.includes(state.agentSection) }
 
 // 指令模板（与参考文件内置模板一致）
@@ -47,10 +49,6 @@ function defaultConfigDraft() {
     guardrails: base.guardrails,
     ...capabilityDefaults(),
     retrieval: { turns: 3, chunkChars: 600, contextChars: 2400, keywordLimit: 30, taxonomy: '', aliases: '', allSources: true, sensitive: true },
-    channels: {
-      allowedDomains: 'www.fanruan.com, events.fanruan.com',
-      siteKey: 'site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF'
-    },
     appearance: defaultAppearance()
   }
 }
@@ -88,13 +86,12 @@ function mergeConfigDraft(stored) {
   mergedCaps.recommendations = normalizeRecommendations(stored.recommendations || mergedCaps.recommendations)
   // 沉默跟进：话术最多 3 条；主动弹窗：旧版没有「访客回应后怎么接」
   mergedCaps.idle_follow_up.steps = (mergedCaps.idle_follow_up.steps || []).slice(0, IDLE_MAX_PER_SESSION)
-  const { capabilities: _legacyCapabilities, capabilityWhen: _legacyWhen, ...rest } = stored
+  const { capabilities: _legacyCapabilities, capabilityWhen: _legacyWhen, channels: _legacyChannels, ...rest } = stored
   return {
     ...base,
     ...rest,
     ...mergedCaps,
     retrieval: { ...base.retrieval, ...(stored.retrieval || {}) },
-    channels: { ...base.channels, ...(stored.channels || {}) },
     // 外观的默认值和旧草稿迁移见 agent-appearance.js
     appearance: normalizeAppearance(stored.appearance)
   }
@@ -171,7 +168,6 @@ function cfgDiffItems() {
   })
   apDiffItems(online.appearance, draft.appearance).forEach(item => items.push({ group: '外观', ...item }))
   if (differs(['retrieval'])) items.push({ group: '其他', label: '知识库检索设置', detail: '配置有改动', paths: [['retrieval']] })
-  if (differs(['channels'])) items.push({ group: '其他', label: '渠道', detail: '配置有改动', paths: [['channels']] })
   Object.keys({ ...online, ...draft }).filter(key => !covered.has(key) && differs([key])).forEach(key => items.push({ group: '其他', label: key, detail: '配置有改动', paths: [[key]] }))
   cfgDiffMemo = { saved: cfg.saved, published: cfg.published, items }
   return items
@@ -203,16 +199,16 @@ function cfgAgentStatus() {
 
 function renderCfgStatus() {
   const [tone, label] = cfgAgentStatus()
-  // 外观页自己显示「已保存 / 有未保存的改动」，顶栏不重复
-  const unsaved = state.agentSection !== 'appearance' && cfgUnsaved()
+  // 外观页、通知推送自己显示「已保存 / 有未保存的改动」，顶栏不重复
+  const unsaved = !pageSaveSections.includes(state.agentSection) && cfgUnsaved()
   return `<span id="cfg-status" class="cfg-status"><span class="cfg-badge ${tone}"><i class="cfg-dot"></i>${label}</span>${unsaved ? '<span class="cfg-badge warning">有未保存的改动</span>' : ''}</span>`
 }
 
 function renderCfgDraftActions() {
   const unsaved = cfgUnsaved()
   const canPublish = !cfg.everPublished || unsaved || cfgDiffItems().length > 0
-  // 外观页整页一个保存按钮，在页面标题右侧；其他页面沿用顶栏的保存
-  const pageSave = state.agentSection === 'appearance' ? '' : `<button class="cfg-btn ghost" data-action="cfg-discard" ${unsaved ? '' : 'disabled'}>放弃改动</button>
+  // 外观页、通知推送整页一个保存按钮，在页面标题右侧；其他页面沿用顶栏的保存
+  const pageSave = pageSaveSections.includes(state.agentSection) ? '' : `<button class="cfg-btn ghost" data-action="cfg-discard" ${unsaved ? '' : 'disabled'}>放弃改动</button>
     <button class="cfg-btn outline" data-action="cfg-save" ${unsaved ? '' : 'disabled'}>${icon('save', 'sm')}<span>保存草稿</span></button>`
   return `${pageSave}<button class="cfg-btn primary" data-action="cfg-publish" ${canPublish ? '' : 'disabled'}>${icon('upload', 'sm')}<span>发布上线</span></button>`
 }
