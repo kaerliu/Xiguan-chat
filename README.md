@@ -41,7 +41,7 @@ npm run dev
 - `dev-server.js`：零依赖本地服务，静态托管原型并将产品逻辑保存回仓库文件。
 - `assets/xiguan-logo-fill.png`：对话窗口底部「吸管 提供技术支持」的图标。
 
-概览与五个配置页共用同一套顶部草稿状态和发布操作；角色、能力、知识库、外观与渠道配置保存在浏览器本地（`xiguan-agent-config-draft` / `xiguan-agent-config-published`），清空这两个键即可恢复默认。
+概览与五个配置页共用同一套顶部草稿状态和发布操作；角色、能力、知识库与外观配置保存在浏览器本地（`xiguan-agent-config-draft` / `xiguan-agent-config-published`），渠道与通知推送配置保存即生效，分别独立保存在 `xiguan-agent-channels` 和 `xiguan-agent-notify`，清空对应键即可恢复默认。
 
 
 ## 2026-11-18 高保真 onboarding

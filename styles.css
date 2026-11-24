@@ -274,9 +274,14 @@ button.channel-summary-card:hover .channel-card-arrow { color: var(--brand); tra
 .channel-trial-btn:not(.is-applied):hover { border-color: var(--brand); color: var(--brand); background: #f4fbf8; }
 .channel-trial-btn.is-applied { border-color: #cde3da; background: var(--brand-soft); color: var(--brand-strong); transform: none; box-shadow: none; }
 .channel-trial-btn .icon { width: 13px; height: 13px; }
-.channel-detail-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+.channel-title-row { display: flex; align-items: center; gap: 10px; }
+.channel-title-row .editor-title { margin-bottom: 0; }
+.channel-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.channel-detail-title { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .channel-detail-heading .editor-title { margin-top: 7px; }
 .channel-detail-heading .editor-sub { margin-bottom: 0; }
+.channel-leave-notice { margin-bottom: 14px; }
+.channel-publish-tip { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--canvas); color: var(--muted); font-size: 11px; line-height: 1.6; }
 .channel-back { width: 32px; height: 32px; flex: 0 0 auto; margin-top: 1px; padding: 0; border: 1px solid var(--line-strong); border-radius: 8px; background: white; display: grid; place-items: center; cursor: pointer; }
 .channel-back:hover { border-color: #aebbb4; background: var(--panel-soft); }
 .channel-back .icon { width: 16px; height: 16px; }

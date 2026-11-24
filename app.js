@@ -471,8 +471,64 @@ function renderEditorHeading(title, description, showDebugAction = true) {
   return `<div class="editor-section-head"><div><h2 class="editor-title">${title}</h2><p class="editor-sub">${description}</p></div>${showDebugAction ? `<button class="btn" data-action="${state.debugOpen ? 'close-debug' : 'open-debug'}">${state.debugOpen ? '收起调试' : '调试'}</button>` : ''}</div>`
 }
 
+const CHANNEL_STORAGE_KEY = 'xiguan-agent-channels'
 const CHANNEL_TRIAL_APPLIED_KEY = 'xiguan-channel-trial-applied'
 const CHANNEL_TRIAL_EVENTS_KEY = 'xiguan-channel-trial-events'
+
+function chDefaults() {
+  return {
+    allowedDomains: 'www.fanruan.com, events.fanruan.com',
+    siteKey: 'site_d78wTQ1sBF9nRNo0HkgGy1fK2KgwroHmky8WRfF'
+  }
+}
+
+function chLoad() {
+  const base = chDefaults()
+  let stored = null
+  try { stored = JSON.parse(localStorage.getItem(CHANNEL_STORAGE_KEY) || 'null') } catch (_) {}
+  if (!stored || typeof stored !== 'object') {
+    // 兼容旧版：首次切换到独立保存时从旧草稿迁移渠道配置
+    try {
+      const legacy = JSON.parse(localStorage.getItem('xiguan-agent-config-draft') || 'null')
+      if (legacy?.channels && typeof legacy.channels === 'object') stored = legacy.channels
+    } catch (_) {}
+  }
+  return { ...base, ...(stored || {}) }
+}
+
+const chInitial = chLoad()
+const chState = {
+  saved: JSON.stringify(chInitial),
+  form: JSON.parse(JSON.stringify(chInitial)),
+  leave: false
+}
+
+const chDirty = () => JSON.stringify(chState.form) !== chState.saved
+
+function chSave() {
+  chState.form.allowedDomains = String(chState.form.allowedDomains || '').trim()
+  chState.saved = JSON.stringify(chState.form)
+  try { localStorage.setItem(CHANNEL_STORAGE_KEY, chState.saved) } catch (_) {}
+  chState.leave = false
+  toast('官网渠道配置已保存，立即生效')
+}
+
+function chDiscard() {
+  chState.form = JSON.parse(chState.saved)
+  chState.leave = false
+}
+
+function renderChActions() {
+  const dirty = chDirty()
+  return `${dirty ? `<span class="cfg-badge warning">有未保存的改动</span>` : `<span class="cfg-badge success">已保存</span>`}
+    <button type="button" class="cfg-btn ghost" data-action="ch-discard" ${dirty ? '' : 'disabled'}>放弃改动</button>
+    <button type="button" class="cfg-btn primary" data-action="ch-save" ${dirty ? '' : 'disabled'}>${icon('save', 'sm')}<span>保存</span></button>`
+}
+
+function refreshChActions() {
+  const box = $('#ch-actions')
+  if (box) box.innerHTML = renderChActions()
+}
 
 function readChannelTrialApplied() {
   try {
@@ -502,7 +558,7 @@ function trackChannelTrialApply(channelKey, channelName) {
     channel: channelKey,
     channel_name: channelName,
     workspace: state.company,
-    site_key: typeof cfg !== 'undefined' ? cfg.draft?.channels?.siteKey || '' : '',
+    site_key: chState.form.siteKey || '',
     first_apply: firstApply,
     created_at: new Date().toISOString()
   }
@@ -532,7 +588,7 @@ function renderChannels() {
     ['personal-wechat', '个人微信', '接入个人微信', '微', 'personal-wechat']
   ]
 
-  return `${renderEditorHeading('渠道', '选择渠道，将 AI 接待连接到你的客户触点。', false)}
+  return `<div class="editor-section-head"><div><div class="channel-title-row"><h2 class="editor-title">渠道</h2><span class="cfg-badge info">保存即生效</span></div><p class="editor-sub">选择渠道，将 AI 接待连接到你的客户触点。渠道接入配置保存后立即生效，不进入草稿和发布。</p></div></div>
     <div class="channel-grid">${channelCards.map(([key, name, description, mark, theme]) => {
       if (key === 'website') {
         return `<button type="button" class="channel-summary-card is-enabled" data-channel-card="website" data-channel-name="${name}">
@@ -553,10 +609,21 @@ function renderChannels() {
 }
 
 function renderWebsiteChannel() {
-  const channels = cfg.draft.channels
+  const channels = chState.form
   const deployCode = `<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${channels.siteKey}" defer></script>`
-  return `<div class="channel-detail-heading"><button type="button" class="channel-back" data-action="channel-back" aria-label="返回渠道列表">${icon('arrow-left')}</button><div><div class="channel-breadcrumb"><span>渠道</span>${icon('chevron')}<strong>官网</strong></div><h2 class="editor-title">官网</h2><p class="editor-sub">将 AI 接待部署到官网、活动页或其他业务入口。</p></div></div>
-    <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="${esc(channels.allowedDomains)}" data-bind="channels.allowedDomains" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="${esc(channels.siteKey)}" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">${esc(deployCode)}</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
+  const leaveNotice = chState.leave
+    ? `<div class="cfg-notice channel-leave-notice" role="alert"><span class="cfg-notice-icon">${icon('alert', 'sm')}</span><div>还有没保存的改动，离开前要保存吗？</div>
+        <div class="cfg-notice-actions"><button type="button" class="cfg-btn sm primary" data-ch-leave="save">保存并返回</button> <button type="button" class="cfg-btn sm outline" data-ch-leave="discard">放弃改动</button> <button type="button" class="cfg-btn sm ghost" data-ch-leave="stay">留在本页</button></div></div>`
+    : ''
+  const firstPublishTip = typeof cfg !== 'undefined' && !cfg.everPublished
+    ? '<p class="channel-publish-tip">当前智能体尚未发布：完成首次「发布上线」后，官网嵌入代码才会开始正式接待访客；之后修改允许域名保存即生效。</p>'
+    : ''
+  return `<div class="channel-detail-heading">
+      <div class="channel-detail-title"><button type="button" class="channel-back" data-action="channel-back" aria-label="返回渠道列表">${icon('arrow-left')}</button><div><div class="channel-breadcrumb"><span>渠道</span>${icon('chevron')}<strong>官网</strong></div><h2 class="editor-title">官网</h2><p class="editor-sub">将 AI 接待部署到官网、活动页或其他业务入口。保存后立即生效，不进入草稿和发布。</p></div></div>
+      <div id="ch-actions" class="cfg-action-group">${renderChActions()}</div>
+    </div>
+    ${leaveNotice}
+    <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="${esc(channels.allowedDomains)}" data-ch-field="allowedDomains" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="${esc(channels.siteKey)}" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">${esc(deployCode)}</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div>${firstPublishTip}</div>
     <div class="card channel-card"><div class="channel-head"><strong>新线索和转人工提醒</strong></div><p class="channel-card-description">推送到企业微信群、写入简道云表单，在「通知推送」里配置。</p><button class="btn small" data-agent-section="notifications">去配置通知推送</button></div>`
 }
 
@@ -701,7 +768,8 @@ document.addEventListener('click', event => {
   const agentSection = event.target.closest('[data-agent-section]')
   if (agentSection) {
     state.agentSection = agentSection.dataset.agentSection
-    state.channelDetail = null
+    if (!chDirty()) state.channelDetail = null
+    chState.leave = false
     if (state.agentSection === 'overview') {
       state.debugOpen = false
       state.previewMode = 'website'
@@ -757,6 +825,16 @@ document.addEventListener('click', event => {
   if (color) {
     state.onboarding.color = color.dataset.color
     state.dirty = true
+    return renderApp()
+  }
+
+  const chLeave = event.target.closest('[data-ch-leave]')
+  if (chLeave) {
+    const choice = chLeave.dataset.chLeave
+    if (choice === 'save') chSave()
+    if (choice === 'discard') chDiscard()
+    chState.leave = false
+    if (choice !== 'stay') state.channelDetail = null
     return renderApp()
   }
 
@@ -826,8 +904,14 @@ document.addEventListener('click', event => {
     return
   }
   if (name === 'close-website-chat') { state.websiteChatOpen = false; return renderApp() }
-  if (name === 'channel-back') { state.channelDetail = null; return renderApp() }
-  if (name === 'copy-code') return copyText(`<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${cfg.draft.channels.siteKey}" defer></script>`, '部署代码已复制')
+  if (name === 'channel-back') {
+    if (chDirty()) chState.leave = true
+    else state.channelDetail = null
+    return renderApp()
+  }
+  if (name === 'ch-save') { if (!action.disabled) { chSave(); renderApp() } return }
+  if (name === 'ch-discard') { if (!action.disabled) { chDiscard(); toast('已放弃未保存的改动', 'info'); renderApp() } return }
+  if (name === 'copy-code') return copyText(`<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${chState.form.siteKey}" defer></script>`, '部署代码已复制')
   if (name === 'connect-im') return toast('已发起企业微信连接（原型演示）')
   if (name === 'save-workspace' || name === 'save-personal') return toast('设置已保存')
   if (name === 'invite-member') { state.modal = 'invite'; return renderApp() }
@@ -847,6 +931,11 @@ document.addEventListener('click', event => {
 
 document.addEventListener('input', event => {
   if (ntHandleInput(event)) return
+  if (event.target.matches('[data-ch-field]')) {
+    chState.form[event.target.dataset.chField] = event.target.value
+    refreshChActions()
+    return
+  }
   if (handleConfigInput(event)) return
   if (event.target.matches('[data-appearance-field]')) {
     const field = event.target.dataset.appearanceField
