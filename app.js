@@ -341,7 +341,7 @@ const agentNavItems = [
   ['knowledge','知识库','book'],
   ['appearance','外观','sliders'],
   ['channels','渠道','link'],
-  ['notifications','通知','bell']
+  ['notifications','通知推送','bell']
 ]
 
 const agentOperationItems = [
@@ -471,6 +471,55 @@ function renderEditorHeading(title, description, showDebugAction = true) {
   return `<div class="editor-section-head"><div><h2 class="editor-title">${title}</h2><p class="editor-sub">${description}</p></div>${showDebugAction ? `<button class="btn" data-action="${state.debugOpen ? 'close-debug' : 'open-debug'}">${state.debugOpen ? '收起调试' : '调试'}</button>` : ''}</div>`
 }
 
+const CHANNEL_TRIAL_APPLIED_KEY = 'xiguan-channel-trial-applied'
+const CHANNEL_TRIAL_EVENTS_KEY = 'xiguan-channel-trial-events'
+
+function readChannelTrialApplied() {
+  try {
+    const data = JSON.parse(localStorage.getItem(CHANNEL_TRIAL_APPLIED_KEY) || '{}')
+    return data && typeof data === 'object' ? data : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+function isChannelTrialApplied(channelKey) {
+  const all = readChannelTrialApplied()
+  const list = Array.isArray(all[state.company]) ? all[state.company] : []
+  return list.includes(channelKey)
+}
+
+function trackChannelTrialApply(channelKey, channelName) {
+  const allApplied = readChannelTrialApplied()
+  const companyList = Array.isArray(allApplied[state.company]) ? allApplied[state.company] : []
+  const firstApply = !companyList.includes(channelKey)
+  if (firstApply) {
+    allApplied[state.company] = [...companyList, channelKey]
+    try { localStorage.setItem(CHANNEL_TRIAL_APPLIED_KEY, JSON.stringify(allApplied)) } catch (_) {}
+  }
+  const payload = {
+    event: 'channel_trial_apply',
+    channel: channelKey,
+    channel_name: channelName,
+    workspace: state.company,
+    site_key: typeof cfg !== 'undefined' ? cfg.draft?.channels?.siteKey || '' : '',
+    first_apply: firstApply,
+    created_at: new Date().toISOString()
+  }
+  try {
+    const events = JSON.parse(localStorage.getItem(CHANNEL_TRIAL_EVENTS_KEY) || '[]')
+    const next = Array.isArray(events) ? [...events.slice(-199), payload] : [payload]
+    localStorage.setItem(CHANNEL_TRIAL_EVENTS_KEY, JSON.stringify(next))
+  } catch (_) {}
+  console.info('[Analytics] channel_trial_apply', payload)
+  fetch('./api/analytics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify(payload)
+  }).catch(() => {})
+  return firstApply
+}
+
 function renderChannels() {
   if (state.channelDetail === 'website') return renderWebsiteChannel()
 
@@ -479,30 +528,28 @@ function renderChannels() {
     ['douyin', '抖音', '收发客户消息', '抖', 'douyin'],
     ['xiaohongshu', '小红书', '收发客户消息', '小红书', 'xiaohongshu'],
     ['wechat-official', '微信公众号', '收发客户消息', '微', 'wechat'],
-    ['wechat-service', '微信客服', '收发客户消息', '微', 'wechat-service'],
-    ['wechat-mini', '微信小程序', '收发客户消息', '小', 'wechat-mini'],
-    ['wechat-store', '微信小店', '收发客户消息', '店', 'wechat-store'],
-    ['kuaishou', '快手', '收发客户消息', '快', 'kuaishou'],
-    ['bilibili', '哔哩哔哩', '收发客户消息', 'bili', 'bilibili'],
     ['wecom', '企业微信', '收发客户消息', '企', 'wecom'],
-    ['channels', '视频号', '收发客户消息', '视', 'channels'],
-    ['personal-wechat', '个人微信', '接入个人微信', '微', 'personal-wechat'],
-    ['douyin-ads', '抖音来客广告', '收发客户消息', '广', 'douyin-ads']
+    ['personal-wechat', '个人微信', '接入个人微信', '微', 'personal-wechat']
   ]
 
   return `${renderEditorHeading('渠道', '选择渠道，将 AI 接待连接到你的客户触点。', false)}
-    <div class="channel-grid">${channelCards.map(([key, name, description, mark, theme]) => `<button type="button" class="channel-summary-card ${key === 'website' ? 'is-enabled' : ''}" data-channel-card="${key}" data-channel-name="${name}">
-      <span class="channel-logo ${theme}">${key === 'website' ? icon(mark) : mark}</span>
-      <span class="channel-card-copy"><strong>${name}</strong><small>${description}</small></span>
-      ${key === 'website' ? '<span class="channel-enabled-dot" title="已启用" aria-label="已启用"></span>' : ''}
-      ${icon('chevron', 'channel-card-arrow')}
-    </button>`).join('')}</div>`
-}
-
-function renderNotifications() {
-  return `${renderEditorHeading('通知', '设置需要团队及时跟进的内部消息通知。', false)}
-    <div class="card channel-card"><div class="channel-head"><strong>转人工通知</strong><span class="badge gray">未配置</span></div><p class="channel-card-description">访客请求人工服务时，通知相应团队及时接管会话。</p></div>
-    <div class="card channel-card"><div class="channel-head"><strong>线索通知</strong><span class="badge gray">未配置</span></div><p class="channel-card-description">获取新线索或线索推送失败时，通知相应团队跟进处理。</p></div>`
+    <div class="channel-grid">${channelCards.map(([key, name, description, mark, theme]) => {
+      if (key === 'website') {
+        return `<button type="button" class="channel-summary-card is-enabled" data-channel-card="website" data-channel-name="${name}">
+          <span class="channel-logo ${theme}">${icon(mark)}</span>
+          <span class="channel-card-copy"><strong>${name}</strong><small>${description}</small></span>
+          <span class="channel-card-side"><span class="badge green">已启用</span>${icon('chevron', 'channel-card-arrow')}</span>
+        </button>`
+      }
+      const applied = isChannelTrialApplied(key)
+      return `<article class="channel-summary-card is-upcoming" aria-label="${name}">
+        <span class="channel-logo ${theme}">${mark}</span>
+        <span class="channel-card-copy"><strong>${name}</strong><small>${description}</small></span>
+        <button type="button" class="btn small channel-trial-btn ${applied ? 'is-applied' : ''}" data-channel-trial="${key}" data-channel-name="${name}" aria-pressed="${applied}">
+          ${applied ? `${icon('check')}<span>已申请</span>` : '<span>申请试用</span>'}
+        </button>
+      </article>`
+    }).join('')}</div>`
 }
 
 function renderWebsiteChannel() {
@@ -510,8 +557,7 @@ function renderWebsiteChannel() {
   const deployCode = `<script src="https://test.xiguan.cn/presales/widget.js" data-site-key="${channels.siteKey}" defer></script>`
   return `<div class="channel-detail-heading"><button type="button" class="channel-back" data-action="channel-back" aria-label="返回渠道列表">${icon('arrow-left')}</button><div><div class="channel-breadcrumb"><span>渠道</span>${icon('chevron')}<strong>官网</strong></div><h2 class="editor-title">官网</h2><p class="editor-sub">将 AI 接待部署到官网、活动页或其他业务入口。</p></div></div>
     <div class="card channel-card"><div class="channel-head"><strong>网站入口</strong><span class="badge green">已启用</span></div><div class="field"><label>允许域名（逗号分隔）</label><input class="input" value="${esc(channels.allowedDomains)}" data-bind="channels.allowedDomains" /></div><div class="field"><label>站点 ID / 公开 Key</label><input class="input" value="${esc(channels.siteKey)}" readonly /></div><div class="field"><label>部署代码</label><div class="code-block">${esc(deployCode)}</div><button class="btn small" style="margin-top:8px" data-action="copy-code">${icon('code')} 复制代码</button></div></div>
-    <div class="card channel-card"><div class="channel-head"><strong>IM 工具</strong><span class="badge gray">未连接</span></div><p class="channel-card-description">连接企业微信、飞书或钉钉，将高意向访客实时推送给销售团队。</p><button class="btn small" data-action="connect-im">连接 IM</button></div>
-    <div class="card channel-card"><div class="channel-head"><strong>事件触发</strong><span class="badge blue">2 条规则</span></div><p class="channel-card-description">监听价格页停留超过 30 秒、连续访问产品页 3 次。</p><button class="btn small">管理规则</button></div>`
+    <div class="card channel-card"><div class="channel-head"><strong>新线索和转人工提醒</strong></div><p class="channel-card-description">推送到企业微信群、写入简道云表单，在「通知推送」里配置。</p><button class="btn small" data-agent-section="notifications">去配置通知推送</button></div>`
 }
 
 function renderConversationPreview() {
@@ -634,6 +680,7 @@ document.addEventListener('click', event => {
   const route = event.target.closest('[data-route]')
   if (route) return routeTo(route.dataset.route)
 
+  if (ntHandleClick(event)) return
   if (handleConfigClick(event)) return
 
   const conversation = event.target.closest('[data-conversation]')
@@ -713,13 +760,22 @@ document.addEventListener('click', event => {
     return renderApp()
   }
 
+  const channelTrial = event.target.closest('[data-channel-trial]')
+  if (channelTrial) {
+    const key = channelTrial.dataset.channelTrial
+    const name = channelTrial.dataset.channelName
+    const firstApply = trackChannelTrialApply(key, name)
+    toast(firstApply ? `已提交「${name}」试用申请，上线后将优先通知你` : `已记录「${name}」试用申请，无需重复提交`, firstApply ? 'success' : 'info')
+    return renderApp()
+  }
+
   const channelCard = event.target.closest('[data-channel-card]')
   if (channelCard) {
     if (channelCard.dataset.channelCard === 'website') {
       state.channelDetail = 'website'
       return renderApp()
     }
-    return toast(`「${channelCard.dataset.channelName}」渠道配置入口暂未在当前原型中展开`, 'info')
+    return
   }
 
   const goal = event.target.closest('[data-onboarding-goal]')
@@ -784,12 +840,13 @@ document.addEventListener('click', event => {
   if (name === 'restart-onboarding') { enterAgentOverview(); state.onboardingStep = 0; return renderApp() }
   if (name === 'open-personal') { state.profileOpen = false; state.route = 'enterprise'; state.settingsSection = 'personal'; return renderApp() }
   if (name === 'logout') return toast('这是交互原型，未执行真实退出', 'info')
-  if (name === 'lead-repush') { const row = leads[Number(action.dataset.repush)]; if (row) row[6] = '已推送'; toast('已重新推送到企业微信'); return renderApp() }
+  if (name === 'lead-repush') { const row = leads[Number(action.dataset.repush)]; if (row) { row[6] = '已推送'; ntMarkLeadPushed(row[0]) } toast('已重新推送到企业微信'); return renderApp() }
   if (name === 'add-lead') return toast('新建线索表单已打开（原型演示）')
   if (name === 'add-knowledge') return toast('添加入口已响应（原型演示）')
 })
 
 document.addEventListener('input', event => {
+  if (ntHandleInput(event)) return
   if (handleConfigInput(event)) return
   if (event.target.matches('[data-appearance-field]')) {
     const field = event.target.dataset.appearanceField
@@ -801,6 +858,7 @@ document.addEventListener('input', event => {
 })
 
 document.addEventListener('change', event => {
+  if (ntHandleChange(event)) return
   const conversationFilter = event.target.closest('[data-conversation-filter]')
   if (conversationFilter) {
     state.conversationFilters[conversationFilter.dataset.conversationFilter] = conversationFilter.value

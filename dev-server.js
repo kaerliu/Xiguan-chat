@@ -172,6 +172,22 @@ const server = http.createServer(async (request, response) => {
       await saveProductLogic(request, response)
       return
     }
+    if (url.pathname === '/api/analytics') {
+      if (request.method !== 'POST') {
+        response.writeHead(405, { Allow: 'POST' })
+        response.end()
+        return
+      }
+      let raw = ''
+      for await (const chunk of request) {
+        raw += chunk
+        if (Buffer.byteLength(raw) > 16 * 1024) break
+      }
+      try { console.log('[埋点上报]', JSON.parse(raw)) } catch (_) {}
+      response.writeHead(204, { 'Cache-Control': 'no-store' })
+      response.end()
+      return
+    }
     if (url.pathname === '/api/page-snapshot') {
       if (request.method !== 'GET') {
         response.writeHead(405, { Allow: 'GET' })

@@ -709,7 +709,10 @@ function renderCapabilityDetail(cap) {
     : '<p class="capability-readonly">无需访客提供字段。</p>')
 
   let more = ''
-  if (id === 'human_handoff') more = capSection(sec('more'), '更多设置', true, false, `<div class="cfg-form-grid">${field('帮助中心地址（可选）', capInput('actions.human_handoff.help_url', 'type="url" placeholder="https://help.example.com"'))}</div>`)
+  if (id === 'human_handoff') more = capSection(sec('more'), '更多设置', true, false, `<div class="cfg-form-grid">
+      ${field('帮助中心地址（可选）', capInput('actions.human_handoff.help_url', 'type="url" placeholder="https://help.example.com"'), { full: true })}
+      ${field('外部通知', `<p class="capability-readonly">在「通知推送」里配企业微信群机器人；不配也会进人工列表。</p><button type="button" class="cfg-btn sm outline nt-goto" data-agent-section="notifications" data-nt-goto="wecom">${icon('bell', 'xs')}<span>去配置企业微信</span></button>`, { full: true })}
+    </div>`)
   if (id === 'asset_delivery') more = capSection(sec('more'), '更多设置', true, false, `<div class="cfg-form-grid">${field('交付条件', capSelect('actions.asset_delivery.mode', [['immediate', '立即交付'], ['contact_required', '收集联系方式后交付'], ['human_only', '仅由人工交付']], 'data-rerender="1"'), { help: '“立即交付”会明确告诉模型：相关链接应在当前回复直接给出，不能拿资料交换联系方式。' })}</div>`)
 
   return renderCapabilityWorkbench(`cap-${id}`, cap, enabled,

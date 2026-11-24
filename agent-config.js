@@ -6,7 +6,9 @@
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]))
 
-const configSections = ['prompt', 'capabilities', 'acquisition', 'knowledge', 'appearance']
+const configSections = ['prompt', 'capabilities', 'acquisition', 'knowledge', 'appearance', 'notifications']
+/** 自己带保存按钮的页面：顶栏不显示「保存草稿 / 放弃改动」和「有未保存的改动」。 */
+const pageSaveSections = ['appearance', 'notifications']
 function isConfigSection() { return configSections.includes(state.agentSection) }
 
 // 指令模板（与参考文件内置模板一致）
@@ -203,16 +205,16 @@ function cfgAgentStatus() {
 
 function renderCfgStatus() {
   const [tone, label] = cfgAgentStatus()
-  // 外观页自己显示「已保存 / 有未保存的改动」，顶栏不重复
-  const unsaved = state.agentSection !== 'appearance' && cfgUnsaved()
+  // 外观页、通知推送自己显示「已保存 / 有未保存的改动」，顶栏不重复
+  const unsaved = !pageSaveSections.includes(state.agentSection) && cfgUnsaved()
   return `<span id="cfg-status" class="cfg-status"><span class="cfg-badge ${tone}"><i class="cfg-dot"></i>${label}</span>${unsaved ? '<span class="cfg-badge warning">有未保存的改动</span>' : ''}</span>`
 }
 
 function renderCfgDraftActions() {
   const unsaved = cfgUnsaved()
   const canPublish = !cfg.everPublished || unsaved || cfgDiffItems().length > 0
-  // 外观页整页一个保存按钮，在页面标题右侧；其他页面沿用顶栏的保存
-  const pageSave = state.agentSection === 'appearance' ? '' : `<button class="cfg-btn ghost" data-action="cfg-discard" ${unsaved ? '' : 'disabled'}>放弃改动</button>
+  // 外观页、通知推送整页一个保存按钮，在页面标题右侧；其他页面沿用顶栏的保存
+  const pageSave = pageSaveSections.includes(state.agentSection) ? '' : `<button class="cfg-btn ghost" data-action="cfg-discard" ${unsaved ? '' : 'disabled'}>放弃改动</button>
     <button class="cfg-btn outline" data-action="cfg-save" ${unsaved ? '' : 'disabled'}>${icon('save', 'sm')}<span>保存草稿</span></button>`
   return `${pageSave}<button class="cfg-btn primary" data-action="cfg-publish" ${canPublish ? '' : 'disabled'}>${icon('upload', 'sm')}<span>发布上线</span></button>`
 }
